@@ -1,23 +1,26 @@
 version = "1.0"
 
+[task]
+name = "sci-swe/python-002"
+
 [metadata]
 author_name = "sci-swe"
 author_email = "sci-swe@example.com"
-difficulty = "hard"                     # 所有项目均为 hard（多文件挖空/bug）
-category = "algorithm"                  # 算法/科学计算
-tags = ["multi-file", "optimization", "<algorithm-name>"]
+difficulty = "hard"
+category = "algorithm"
+tags = ["multi-file", "optimization", "stellar-evolution-simulation"]
 expert_time_estimate_min = 180.0
 junior_time_estimate_min = 360.0
 
 [verifier]
-timeout_sec = 3000.0                    # 30 分钟验证超时
+timeout_sec = 3000.0
 
 [agent]
-timeout_sec = 3000.0                    # 30 分钟 Agent 运行超时
+timeout_sec = 3000.0
 
 [environment]
 build_timeout_sec = 300.0
-docker_image = "python:3.10-slim"       # 统一使用 Python 3.10
+docker_image = "agent-rl-acr-registry-vpc.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-002:latest"
 cpus = 2
-memory = "4G"
-storage = "2G"
+memory_mb = 8192
+storage_mb = 4096

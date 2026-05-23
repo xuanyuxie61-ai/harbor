@@ -29,7 +29,7 @@ RUN mkdir -p /app/workspace /logs/agent/ /logs/verifier
 # ---------------------------------------------------------------
 # 4. 代码复制
 # ---------------------------------------------------------------
-COPY workspace/. /app/workspace
+COPY environment/workspace/. /app/workspace
 COPY tests/. /tests
 
 # 确保日志和测试目录权限

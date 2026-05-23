@@ -17,6 +17,15 @@ mkdir -p /logs/verifier
 #   PYTHONPATH=/app/workspace → 让 Python 能找到 workspace 中的模块
 #   test_main.py 内部也有 sys.path.insert(0, '/app/workspace') 作为双保险
 PYTHONPATH=/app/workspace python /tests/test_main.py
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+  echo '{"score":1.0,"passed":28,"total":28,"status":"pass","failures":[]}' > /logs/verifier/reward.json
+  echo "score=1.0" > /logs/verifier/reward.txt
+else
+  echo '{"score":0.0,"passed":0,"total":28,"status":"fail","failures":["test_failed"]}' > /logs/verifier/reward.json
+  echo "score=0.0" > /logs/verifier/reward.txt
+fi
 
 echo ""
 echo "=========================================="

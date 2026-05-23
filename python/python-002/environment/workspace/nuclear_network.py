@@ -153,46 +153,12 @@ class NuclearNetwork:
         rates_cno = self.rates.cno_cycle_rates(T, rho, X_h1, Y_val, Z_metal)
         rate_3a = self.rates.triple_alpha_rate(T, rho, Y_val)
 
-        # 合并所有反应率
-        all_rates = np.zeros(16, dtype=np.float64)
-        all_rates[:9] = rates_pp[:9]
-        all_rates[9:15] = rates_cno[9:15]
-        all_rates[15] = rate_3a
-
-        # 反应项：rate_j * ρ^{n_j-1} / NA^{n_j-1} * ∏ Y_k^{|ν_kj|}
-        # 简化：使用质量分数和密度计算实际反应速率 [s^-1]
-        # 实际反应速率 R_j = ρ^{α} * NA^{β} * ∏ X_i^{γ}
-        # 这里采用简化处理：R_j ∝ rate_j * ρ * X_reactants
-        dYdt = np.zeros(self.n_species, dtype=np.float64)
-        NA_eff = 6.022e23
-
-        for j in range(16):
-            if all_rates[j] <= 0:
-                continue
-            # 计算反应物质量分数乘积
-            reactant_product = 1.0
-            order = 0
-            for i in range(self.n_species):
-                if self.nu[i, j] < 0:
-                    order += 1
-                    reactant_product *= X[i] ** abs(self.nu[i, j])
-            if reactant_product <= 0:
-                continue
-            # 反应速率 [s^-1] (每对反应物)
-            # 转换为 [反应 / (g s)] 需乘以 ρ / NA^{order-1}
-            if order == 1:
-                R = all_rates[j] * reactant_product
-            elif order == 2:
-                R = all_rates[j] * rho / NA_eff * reactant_product
-            elif order == 3:
-                R = all_rates[j] * (rho / NA_eff) ** 2 * reactant_product
-            else:
-                R = all_rates[j] * reactant_product
-
-            for i in range(self.n_species):
-                dYdt[i] += self.nu[i, j] * R / self.MASS_NUMBERS[i]
-
-        return dYdt
+        # TODO: Hole 2 - 实现反应率合并与 dY/dt 计算
+        # 需将 rates_pp, rates_cno, rate_3a 正确合并到 all_rates 数组
+        # 注意反应顺序与 _build_stoichiometry 中定义的 16 个反应对应
+        # 需根据反应阶数 order 正确处理密度 ρ 和阿伏伽德罗常数 NA_eff 的缩放
+        # 最终返回 dYdt = Σ_j ν_ij * R_j / A_i
+        raise NotImplementedError("Hole 2: 待实现反应率合并与核素丰度演化导数计算")
 
     def solve_network_rk4(self, Y0: np.ndarray, T: float, rho: float,
                           dt: float, n_steps: int = 1) -> np.ndarray:

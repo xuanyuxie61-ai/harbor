@@ -266,29 +266,7 @@ class NuclearReactionRates:
         ε_CNO ≈ 8.24e25 * X*Z_CNO * ρ * T9^{-2/3} * exp(-15.228/T9^{1/3})
         ε_3α  ≈ 5.09e11 * Y^3 * ρ^2 * T9^{-3} * exp(-4.4027/T9)    [erg g^-1 s^-1]
         """
-        if T <= 1e5 or rho <= 0:
-            return 0.0
-        T9 = T / 1e9
-        T9_sqrt = np.sqrt(T9)
-        T9_cbrt = T9 ** (1.0 / 3.0)
-
-        eps = 0.0
-        # pp 链
-        if X > 0:
-            f_pp = self.screening_factor(rho, T, X, Y, Z_metal, 1, 1)
-            eps_pp = 2.4e4 * (X ** 2) * rho * T9 ** (-2.0 / 3.0) * np.exp(-3.380 / T9_cbrt) * f_pp
-            eps += max(eps_pp, 0.0)
-
-        # CNO 循环
-        if X > 0 and Z_cno > 0:
-            f_cno = self.screening_factor(rho, T, X, Y, Z_metal, 1, 7)
-            eps_cno = 8.24e25 * X * Z_cno * rho * T9 ** (-2.0 / 3.0) * np.exp(-15.228 / T9_cbrt) * f_cno
-            eps += max(eps_cno, 0.0)
-
-        # 三重α (氦燃烧)
-        if Y > 0 and T > 1e7:
-            f_3a = self.screening_factor(rho, T, 0.0, Y, 0.0, 2, 2)
-            eps_3a = 5.09e11 * (Y ** 3) * (rho ** 2) * T9 ** (-3.0) * np.exp(-4.4027 / T9) * f_3a
-            eps += max(eps_3a, 0.0)
-
-        return eps
+        # TODO: Hole 1 - 实现总核能源产生率计算
+        # 需考虑 pp 链、CNO 循环、三重α过程的贡献
+        # 注意与 nuclear_network.py 中反应率索引的一致性
+        raise NotImplementedError("Hole 1: 待实现 energy_generation 核能源产生率公式")

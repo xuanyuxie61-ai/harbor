@@ -104,29 +104,15 @@ def polyhedron_gravity_potential(
             continue
         n_hat = n_vec / (2.0 * area)
 
-        # 面立体角贡献
-        omega = face_solid_angle(r1, r2, r3)
-        # 面张量积近似贡献:  −0.5 Gρ (r·F·r) ω
-        # 简化: F ≈ n n^T / |n|^2, 但 n 已单位化，故 F ≈ n n^T
-        r_face = (r1 + r2 + r3) / 3.0
-        face_term = -0.5 * g_const * density * np.dot(r_face, n_hat) ** 2 * omega
-        potential += face_term
-
-        # 边贡献
-        for e in range(3):
-            ve1 = faces[fi, e]
-            ve2 = faces[fi, (e + 1) % 3]
-            re1 = vertices[ve1] - pos
-            re2 = vertices[ve2] - pos
-            le = edge_factor(re1, re2)
-            # 边张量积 E_e 的简化
-            e_vec = vertices[ve2] - vertices[ve1]
-            e_len_sq = np.dot(e_vec, e_vec)
-            if e_len_sq < 1e-14:
-                continue
-            E_mat = np.outer(re1, re2) + np.outer(re2, re1)
-            edge_term = 0.5 * g_const * density * np.dot(re1, E_mat @ re1) * le / e_len_sq
-            potential += edge_term
+        # TODO: Hole 1 — 实现多面体引力势的面贡献与边贡献
+        # 科学背景：Werner-Scheeres 多面体引力模型
+        #   U(r) = (1/2) Gρ Σ_e r_e · E_e · r_e · L_e
+        #          − (1/2) Gρ Σ_f r_f · F_f · r_f · ω_f
+        # 其中 ω_f 为面立体角，L_e 为边对数项，E_e 和 F_f 为边/面张量积。
+        # 需要同时处理面贡献和边贡献，并累加到 potential。
+        # 提示：omega 已由 face_solid_angle(r1, r2, r3) 计算；
+        #       le 已由 edge_factor(re1, re2) 计算。
+        raise NotImplementedError("Hole 1: 请实现多面体引力势的核心面/边贡献公式")
 
     return potential
 
@@ -182,16 +168,8 @@ def combined_gravity_model(
     sh_model = SphericalHarmonicGravity(gm, r_ref, c_coeff, s_coeff, n_max)
     a_harm = sh_model.acceleration(pos)
 
-    a_poly = polyhedron_gravity_acceleration(pos, vertices, faces, density, g_const, fd_step=1.0)
-
-    # 确保单位一致：polyhedron 使用 m, kg, s；harmonics 可能使用 km
-    # 这里统一转换为 km/s²
-    a_poly_km = a_poly * 1e-3
-
-    # 过渡权重
-    delta_r = 0.5 * r_ref
-    w = 0.5 * (1.0 + np.tanh((r - transition_radius * r_ref) / delta_r))
-    w = np.clip(w, 0.0, 1.0)
-
-    a_combined = (1.0 - w) * a_poly_km + w * a_harm
-    return a_combined
+    # TODO: Hole 2 — 调用多面体引力加速度并处理单位转换与过渡权重
+    # 注意：polyhedron_gravity_acceleration 使用 m, kg, s 单位制，
+    #       而球谐模型使用 km 单位制。必须统一单位后才能线性组合。
+    #       同时需要设计平滑过渡权重，使近场使用多面体、远场使用球谐。
+    raise NotImplementedError("Hole 2: 请实现组合模型中的单位转换与过渡权重")

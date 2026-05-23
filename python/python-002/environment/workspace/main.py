@@ -150,23 +150,13 @@ def evolve_stellar_model(grid: StellarGrid, composition: np.ndarray,
     Y_molar = Y_molar / np.sum(Y_molar) * 1e-3  # 归一化到合理量级
 
     for step in range(n_steps):
-        # 1. 核网络演化（每个壳层）
-        epsilon_nuc = np.zeros(n, dtype=np.float64)
-        for i in range(n):
-            T_i = grid.temperature[i]
-            rho_i = grid.density[i]
-            if T_i < 1e6 or rho_i < 1e-10:
-                continue
-            # 子步进（对核心加密）
-            n_sub = 10 if i < n // 5 else 1
-            dt_sub = dt / n_sub
-            Y_local = Y_molar.copy()
-            for _ in range(n_sub):
-                Y_local = network.solve_network_rk4(Y_local, T_i, rho_i, dt_sub, n_steps=1)
-            epsilon_nuc[i] = network.energy_generation_rate(Y_local, T_i, rho_i)
-
-        # 2. 计算光度剖面
-        L = struct.solve_luminosity_profile(grid.mass, epsilon_nuc, L_SUN)
+        # TODO: Hole 3 - 实现核网络演化与能量产生率计算
+        # 1. 对每个壳层调用 network.solve_network_rk4 演化核素丰度
+        # 2. 调用 network.energy_generation_rate 计算局部核能源产生率 epsilon_nuc
+        # 3. 注意 Y_molar 的单位转换与子步进策略（核心区域需加密）
+        # 4. 将 epsilon_nuc 传递给 struct.solve_luminosity_profile 计算光度剖面
+        # 需确保与 nuclear_network.py 和 reaction_rates.py 的接口一致
+        raise NotImplementedError("Hole 3: 待实现恒星演化主循环中的核网络调用与能量产生率积分")
 
         # 3. 温度梯度与对流判定
         convection_mask = np.zeros(n, dtype=bool)

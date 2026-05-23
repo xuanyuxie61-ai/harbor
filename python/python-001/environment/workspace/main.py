@@ -397,14 +397,11 @@ def run_combined_simulation(vertices, faces, sh_model, gm_km, r_ref_km, c_coeff,
 
     for pos in test_positions:
         r = np.linalg.norm(pos)
-        a_combined = combined_gravity_model(
-            pos, vertices, faces, gm_km, r_ref_km, c_coeff, s_coeff,
-            n_max=6, density=density, transition_radius=2.5
-        )
-        a_harm = sh_model.acceleration(pos)
-        print(f"  r={pos} km (|r|={r:.2f}):")
-        print(f"    组合加速度 |a| = {np.linalg.norm(a_combined):.6e} km/s²")
-        print(f"    纯球谐 |a|   = {np.linalg.norm(a_harm):.6e} km/s²")
+        # TODO: Hole 3 — 调用组合引力模型并输出结果
+        # 需要正确传递位置、顶点、面片、球谐系数等参数，
+        # 并确保传入的 pos 和 vertices 单位与 combined_gravity_model 的预期一致。
+        # 注意：vertices 当前单位为 km，而 polyhedron 方法内部可能使用 m。
+        raise NotImplementedError("Hole 3: 请实现组合模型的调用与结果输出")
 
 
 def main():

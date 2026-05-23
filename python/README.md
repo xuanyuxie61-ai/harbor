@@ -37,40 +37,15 @@ python-XXX/
 
 ### 1. test_main.py 的运行方式
 
-| | python-001 | python-002 |
-|------|-----------|-----------|
-| **运行位置** | 直接在 `/tests/` 下运行 | 先**复制到** `/app/workspace/`，再运行 |
-| **运行命令** | `python /tests/test_main.py` | `cd /app/workspace && python test_main.py` |
-| **运行后** | 文件保留在 `/tests/` | **删除** `/app/workspace/test_main.py` |
-| **导入方式** | `sys.path.insert(0, '/app/workspace')` + 绝对路径导入 | `from stellar_grid import ...` 相对导入 |
+**两个项目现在统一使用相同的运行方式**：
 
-### 2. 为什么不同？
+- test.sh 通过 `PYTHONPATH=/app/workspace python /tests/test_main.py` 设置模块搜索路径
+- test_main.py 始终留在 `/tests/` 目录，不复制到 workspace，不污染源码
+- 导入方式：项目内模块通过 `from module_xxx import ...` 相对导入，PYTHONPATH 让 Python 能找到它们
 
-**python-001（直接运行模式）**：
-- `test_main.py` 始终留在 `/tests/` 目录，不污染 workspace
-- 通过 `sys.path.insert(0, '/app/workspace')` 让 Python 能找到 workspace 中的模块
-- 适合需要**严格隔离**测试代码和被测代码的场景
-- test.sh 流程：**运行测试 → 生成奖励文件**（一步到位）
+唯一区别：python-001 的 test_main.py 额外加了 `sys.path.insert(0, '/app/workspace')` 作为双保险。
 
-**python-002（复制运行模式）**：
-- `test_main.py` 内部使用**相对导入**（`from stellar_grid import ...`），必须和模块在同一目录才能跑
-- 复制到 workspace 后运行，测试完立刻删除，测试期间短暂共存
-- 适合 test_main.py 本身就是 main.py 副本（含完整业务流程），需要在模块环境中运行
-- test.sh 流程：**复制 → 运行 → 删除 → 生成奖励文件**（三步）
-
-### 3. test.sh 流程对比
-
-```
-python-001:                          python-002:
-┌──────────────────────┐             ┌──────────────────────┐
-│ mkdir /logs/verifier │             │ mkdir /logs/verifier │
-│ python /tests/test   │             │ cp tests → workspace │
-│       _main.py       │             │ cd workspace         │
-│ write reward.json    │             │ python test_main.py  │
-└──────────────────────┘             │ rm test_main.py      │
-                                     │ write reward.json    │
-                                     └──────────────────────┘
-```
+### 2. test.sh 流程（两项目相同）
 
 ---
 
@@ -137,9 +112,8 @@ COPY tests/. /tests
 
 ## 选择指南
 
-| 场景 | 推荐模式 | 项目 |
-|------|---------|------|
-| test_main.py 仅含测试用例 | 直接运行 | python-001 |
-| test_main.py = main.py + 测试用例（需在同一目录运行模块化代码） | 复制运行 | python-002 |
-| 严格隔离测试和源码 | 直接运行 | python-001 |
-| 测试需要访问 main.py 创建的运行时对象 | 复制运行 | python-002 |
+| 场景 | 说明 |
+|------|------|
+| 通用 | 两个项目现统一使用 PYTHONPATH 模式，无需选择 |
+| python-001 | test_main.py 有 `sys.path.insert` 双保险 |
+| python-002 | 纯依赖 PYTHONPATH，test.sh 最简 |

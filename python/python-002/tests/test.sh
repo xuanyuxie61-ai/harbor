@@ -3,8 +3,6 @@
 # 通过 PYTHONPATH 让 /tests/test_main.py 可以导入 /app/workspace 中的模块
 # 不再复制 test_main.py，直接从 /tests 目录运行
 
-set -e
-
 echo "=========================================="
 echo "  Harbor Test Runner"
 echo "  Test dir:  /tests"
@@ -16,7 +14,7 @@ mkdir -p /logs/verifier
 
 # 运行测试：
 #   PYTHONPATH=/app/workspace → 让 Python 能找到 workspace 中的模块
-PYTHONPATH=/app/workspace python /tests/test_main.py || true
+PYTHONPATH=/app/workspace python /tests/test_main.py
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 0 ]; then

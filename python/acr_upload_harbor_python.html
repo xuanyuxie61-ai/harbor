@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harbor Python 批量上传 ACR 操作说明</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #5f6b7a;
+      --border: #d9dee7;
+      --code-bg: #101827;
+      --code: #d8e3f0;
+      --accent: #0969da;
+      --ok: #1a7f37;
+      --warn: #9a6700;
+      --bad: #cf222e;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    h2 { margin: 0 0 12px; font-size: 20px; }
+    p { margin: 8px 0; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin: 16px 0 24px;
+    }
+    .card, section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .value {
+      overflow-wrap: anywhere;
+      font-weight: 600;
+    }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #eef6ff;
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin: 12px 0;
+    }
+    .warn {
+      border-left-color: var(--warn);
+      background: #fff8db;
+    }
+    .ok {
+      border-left-color: var(--ok);
+      background: #eaf7ee;
+    }
+    .bad {
+      border-left-color: var(--bad);
+      background: #ffebe9;
+    }
+    pre {
+      background: var(--code-bg);
+      color: var(--code);
+      overflow-x: auto;
+      padding: 14px;
+      border-radius: 8px;
+      margin: 10px 0 0;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    ol {
+      padding-left: 22px;
+      margin: 8px 0;
+    }
+    li { margin: 4px 0; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Harbor Python 批量上传 ACR 操作说明</h1>
+  <p class="sub">适用于把 <code>source code/harbor/python/</code> 下的 <code>python-XXX</code> 任务批量构建成 Docker 镜像并推送到阿里云 ACR。上传动作只在 ECS 上执行，本地 DSW 不执行 build/push。</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">本地数据目录</div>
+      <div class="value">/mnt/data/zpy/sci-swe/source code/harbor/python/</div>
+    </div>
+    <div class="card">
+      <div class="label">ECS 目标目录</div>
+      <div class="value">/data/harbor-python/</div>
+    </div>
+    <div class="card">
+      <div class="label">ACR 公网推送地址</div>
+      <div class="value">agent-rl-acr-registry.cn-beijing.cr.aliyuncs.com</div>
+    </div>
+    <div class="card">
+      <div class="label">ACR VPC 拉取地址</div>
+      <div class="value">agent-rl-acr-registry-vpc.cn-beijing.cr.aliyuncs.com</div>
+    </div>
+    <div class="card">
+      <div class="label">Namespace</div>
+      <div class="value">sci-swe-python</div>
+    </div>
+    <div class="card">
+      <div class="label">批量脚本</div>
+      <div class="value">build_push_all_harbor.sh</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>0. 当前状态</h2>
+    <p>你已经成功上传了 <code>python-001</code> 和 <code>python-002</code>。当前本地 <code>harbor/python</code> 下有 197 个 <code>python-XXX</code> 目录，缺少 <code>python-003</code>、<code>python-076</code>、<code>python-090</code>。批量脚本只扫描并上传实际存在的目录。</p>
+    <div class="note ok">建议正式上传时使用 <code>--skip 001,002</code>，避免重复上传已经完成的两个镜像。</div>
+  </section>
+
+  <section>
+    <h2>1. 在 DSW 上同步数据到 ECS</h2>
+    <p>这一步只复制文件，不构建镜像。密码或认证方式按你的 ECS 配置执行。</p>
+    <pre><code>rsync -avz --progress \
+  --exclude 'build-logs/' \
+  "/mnt/data/zpy/sci-swe/source code/harbor/python/" \
+  root@47.236.251.245:/data/harbor-python/</code></pre>
+  </section>
+
+  <section>
+    <h2>2. 登录 ECS 并准备 ACR</h2>
+    <p>下面所有 Docker 命令都在 ECS 上执行。</p>
+    <pre><code>ssh root@47.236.251.245
+cd /data/harbor-python
+chmod +x build_push_all_harbor.sh</code></pre>
+
+    <p>确认 namespace 存在并开启自动创建仓库：</p>
+    <pre><code>aliyun cr CreateNamespace \
+  --InstanceId cri-h0hcfm1j42x9wiw6 \
+  --NamespaceName sci-swe-python \
+  --region cn-beijing || true
+
+aliyun cr UpdateNamespace \
+  --InstanceId cri-h0hcfm1j42x9wiw6 \
+  --NamespaceName sci-swe-python \
+  --AutoCreateRepo true \
+  --DefaultRepoType PUBLIC \
+  --region cn-beijing</code></pre>
+
+    <p>登录 ACR。可以使用你已有的 docker login 方式，或按原 ACR 指南获取 token 后登录：</p>
+    <pre><code>docker login agent-rl-acr-registry.cn-beijing.cr.aliyuncs.com</code></pre>
+    <div class="note warn">如果没有登录或 namespace 未开启 AutoCreateRepo，<code>docker push</code> 通常会报 denied。</div>
+  </section>
+
+  <section>
+    <h2>3. 先做 dry-run</h2>
+    <p>dry-run 只打印计划执行的 Docker 命令，不会构建、不会推送。</p>
+    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
+  --tasks-dir /data/harbor-python \
+  --skip 001,002 \
+  --dry-run</code></pre>
+    <p>如果只想测试少数任务：</p>
+    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
+  --tasks-dir /data/harbor-python \
+  --only 004,045,200 \
+  --dry-run</code></pre>
+  </section>
+
+  <section>
+    <h2>4. 正式批量构建并推送</h2>
+    <p>推荐用 tmux，避免 SSH 断开导致任务中断。</p>
+    <pre><code>tmux new -s harbor-python-upload
+
+bash /data/harbor-python/build_push_all_harbor.sh \
+  --tasks-dir /data/harbor-python \
+  --skip 001,002</code></pre>
+    <p>断开 tmux：按 <code>Ctrl+B</code>，再按 <code>D</code>。重新连接：</p>
+    <pre><code>tmux attach -t harbor-python-upload</code></pre>
+    <div class="note">脚本会把每个镜像推送到：<br><code>agent-rl-acr-registry.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-XXX:latest</code></div>
+  </section>
+
+  <section>
+    <h2>5. 查看日志和失败任务</h2>
+    <p>总日志和结果清单都在 <code>/data/harbor-python/build-logs/</code>。</p>
+    <pre><code>tail -f /data/harbor-python/build-logs/summary.log
+
+cat /data/harbor-python/build-logs/success.txt
+cat /data/harbor-python/build-logs/failed.txt
+cat /data/harbor-python/build-logs/skipped.txt</code></pre>
+    <p>每个任务还有单独日志，例如：</p>
+    <pre><code>tail -80 /data/harbor-python/build-logs/python-045.log</code></pre>
+  </section>
+
+  <section>
+    <h2>6. 重试失败任务</h2>
+    <p>如果只有少数任务失败，用 <code>--only</code> 重试，不需要重跑全部。</p>
+    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
+  --tasks-dir /data/harbor-python \
+  --only 045,068,200</code></pre>
+    <p>如果怀疑 Docker 缓存导致问题：</p>
+    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
+  --tasks-dir /data/harbor-python \
+  --only 045 \
+  --no-cache</code></pre>
+  </section>
+
+  <section>
+    <h2>7. 验证 ACR 镜像</h2>
+    <p>列出 namespace 下的仓库：</p>
+    <pre><code>aliyun cr ListRepository \
+  --InstanceId cri-h0hcfm1j42x9wiw6 \
+  --RepoNamespaceName sci-swe-python \
+  --PageSize 100 \
+  --region cn-beijing</code></pre>
+    <p>拉取并验证一个镜像：</p>
+    <pre><code>docker pull agent-rl-acr-registry.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-004:latest
+
+docker run --rm \
+  agent-rl-acr-registry.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-004:latest \
+  /bin/bash -lc 'PYTHONPATH=/app/workspace bash /tests/test.sh'</code></pre>
+    <div class="note ok">ACS 沙箱里应使用 VPC 地址：<br><code>agent-rl-acr-registry-vpc.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-XXX:latest</code></div>
+  </section>
+
+  <section>
+    <h2>8. 清理 ECS 磁盘</h2>
+    <p>脚本默认每个任务推送后会清理本地镜像。必要时可以额外清理 Docker 缓存：</p>
+    <pre><code>docker image prune -a -f
+docker builder prune -f
+df -h /</code></pre>
+    <div class="note bad">不要在上传任务运行中执行全量 prune，避免影响正在构建的镜像。</div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Adaptive Optics System Parameters Log
+# ====================================
+telescope_diameter_m           = 1.000000000000e+00
+wavelength_m                   = 5.000000000000e-07
+seeing_arcsec                  = 8.000000000000e-01
+grid_size                      = 128
+n_subapertures                 = 8
+n_zernike_modes                = 21
+n_dm_actuators                 = 64
+fsm_bandwidth_hz               = 1.000000000000e+02
+control_dt_ms                  = 5.000000000000e-01
+n_closed_loop_steps            = 200
+seed                           = 42

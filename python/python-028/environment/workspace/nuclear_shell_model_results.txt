@@ -1,0 +1,33 @@
+============================================================
+  核壳模型与集体运动耦合计算结果
+============================================================
+
+mass_number                              =   100.000000
+charge_number                            =    42.000000
+deformation_beta2                        =     0.250000
+deformation_gamma                        =     0.300000
+woods_saxon_radius_fm                    =     5.569907
+bound_states_l0                          =     4.000000
+bound_states_l1                          =     4.000000
+bound_states_l2                          =     4.000000
+collective_final_beta                    =     0.253326
+collective_final_gamma                   =     0.000000
+density_rms_radius_fm                    =    11.618453
+density_surface_thickness_fm             =     0.000000
+optimal_beta                             =     0.220326
+optimal_gamma                            =     0.000000
+minimum_potential_MeV                    =    -0.008520
+level_density_peak_MeV                   =    20.000000
+level_density_peak_value                 = 30176831191.313511
+mc_rms_radius_fm                         =     4.800262
+mc_surface_thickness_fm                  =     3.651594
+execution_time_sec                       =    37.187351
+
+关键物理量说明:
+  - deformation_beta2: 四极形变参数 β₂
+  - deformation_gamma: 形变角 γ (rad)
+  - bound_states_l*: 各角动量下的束缚态数目
+  - collective_final_beta/gamma: 集体运动演化终点形变
+  - density_rms_radius_fm: 密度分布均方根半径
+  - optimal_beta/gamma: 势能面全局最小对应的形变
+  - level_density_peak_*: 能级密度峰值信息

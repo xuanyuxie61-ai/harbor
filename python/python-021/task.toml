@@ -1,0 +1,26 @@
+version = "1.0"
+
+[task]
+name = "sci-swe/python-021"
+
+[metadata]
+author_name = "sci-swe"
+author_email = "sci-swe@example.com"
+difficulty = "hard"
+category = "algorithm"
+tags = ["multi-file", "optimization"]
+expert_time_estimate_min = 180.0
+junior_time_estimate_min = 360.0
+
+[verifier]
+timeout_sec = 3000.0
+
+[agent]
+timeout_sec = 3000.0
+
+[environment]
+build_timeout_sec = 300.0
+docker_image = "agent-rl-acr-registry-vpc.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-021:latest"
+cpus = 2
+memory_mb = 8192
+storage_mb = 4096

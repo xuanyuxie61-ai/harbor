@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""
+convergence_analysis.py
+收敛性与残差分析模块
+
+对 PEMFC 多物理场耦合求解结果进行系统性的误差估计、残差验证与
+收敛阶分析，确保数值解满足科学精度要求。
+"""
+
+import numpy as np
+from porous_gdl_transport import capillary_diffusivity
+
+
+def compute_residuals(phi_m, lambda_profile, s_gdl, params):
+    """
+    计算各物理场控制方程的离散残差。
+    采用无量纲归一化形式，避免不同方程量级差异导致的数值失真。
+    """
+    res = {}
+
+    # 1. 质子电势泊松方程残差
+    if phi_m.ndim == 2:
+        Nx, Ny = phi_m.shape
+        dx = 1.0 / (Nx - 1)
+        dy = 1.0 / (Ny - 1)
+        laplacian_phi = np.zeros_like(phi_m)
+        for i in range(1, Nx - 1):
+            for j in range(1, Ny - 1):
+                laplacian_phi[i, j] = ((phi_m[i + 1, j] - 2 * phi_m[i, j] + phi_m[i - 1, j]) / dx ** 2 +
+                                        (phi_m[i, j + 1] - 2 * phi_m[i, j] + phi_m[i, j - 1]) / dy ** 2)
+        # 源项为边界 Dirichlet 条件，内部无源
+        S_p = np.zeros_like(phi_m)
+        residual_p = laplacian_phi - S_p
+        norm_phi = max(np.linalg.norm(phi_m), 1.0)
+        res['proton'] = float(np.linalg.norm(residual_p) / norm_phi)
+    else:
+        res['proton'] = 0.0
+
+    # 2. 膜水传输方程残差（无量纲化）
+    if lambda_profile.ndim == 1:
+        Nz = len(lambda_profile)
+        dz = params['t_membrane'] / (Nz - 1)
+        # TODO: Hole_2 待修复 —— 计算膜水传输方程的离散残差
+        # 需要与 membrane_water_transport.py 中的 solve_membrane_water_transport 使用
+        # 一致的扩散系数模型（Springer 公式）和离散格式（中心差分）。
+        # 当前硬编码 D_lam = 1e-10 与求解器中的变系数模型不一致，需修正。
+        pass
+    else:
+        res['water'] = 0.0
+
+    # 3. GDL 多孔介质方程残差（无量纲化）
+    if s_gdl.ndim == 1:
+        Nz = len(s_gdl)
+        dz = params['t_gdl'] / (Nz - 1)
+        z = np.linspace(0.0, params['t_gdl'], Nz)
+        # 使用实际毛细扩散系数计算通量
+        D = capillary_diffusivity(s_gdl, params)
+        flux = np.zeros(Nz)
+        for i in range(Nz - 1):
+            D_face = 0.5 * (D[i] + D[i + 1])
+            flux[i] = D_face * (s_gdl[i + 1] - s_gdl[i]) / dz
+        div_flux = np.zeros(Nz)
+        for i in range(1, Nz - 1):
+            div_flux[i] = (flux[i] - flux[i - 1]) / dz
+        S_porous = np.zeros(Nz)
+        for i in range(1, Nz - 1):
+            S_porous[i] = 0.5 * (z[i] / params['t_gdl']) ** 2 * 1e-4
+        # 归一化残差：考虑扩散系数与源项的量级差异
+        denom = np.abs(div_flux) + np.abs(S_porous) + 1e-15
+        rel_residual = np.abs(div_flux + S_porous) / denom
+        res['porous'] = float(np.mean(rel_residual))
+    else:
+        res['porous'] = 0.0
+
+    return res
+
+
+def convergence_study(solver_func, params, n_grids=[21, 41, 81]):
+    """
+    对给定求解器进行网格收敛性分析，估算数值收敛阶。
+
+    使用 Richardson 外推：
+        p ≈ log( |e_h1 / e_h2| ) / log( h1 / h2 )
+    """
+    errors = []
+    for N in n_grids:
+        p_local = params.copy()
+        p_local['Nx'] = N
+        try:
+            result = solver_func(p_local)
+            # 简化：用结果的变化量作为误差代理
+            errors.append(np.mean(np.abs(result)))
+        except Exception:
+            errors.append(np.nan)
+
+    p_order = []
+    for i in range(len(errors) - 1):
+        if errors[i] > 1e-14 and errors[i + 1] > 1e-14:
+            ratio = errors[i] / errors[i + 1]
+            if ratio > 0:
+                p_order.append(np.log(ratio) / np.log(2.0))
+
+    return {'n_grids': n_grids, 'errors': errors, 'p_order': p_order}
+
+
+def compute_mass_balance_error(lambda_profile, j_profile, params):
+    """
+    计算膜内水的整体质量平衡误差。
+    """
+    Nz = len(lambda_profile)
+    dz = params['t_membrane'] / (Nz - 1)
+    lambda_total = np.trapezoid(lambda_profile, dx=dz)
+
+    # 电渗拖拽通量
+    F = params['F']
+    n_drag = 2.5
+    j_avg = np.mean(j_profile)
+    flux_eod = n_drag * j_avg / F
+
+    # 扩散通量（Fick 近似）
+    flux_diff = -(lambda_profile[-1] - lambda_profile[0]) / params['t_membrane'] * 1e-10
+
+    # 稳态质量平衡：flux_in - flux_out ≈ 0
+    mass_balance = abs(flux_eod + flux_diff)
+    return mass_balance, lambda_total
+
+
+if __name__ == '__main__':
+    p = {'t_membrane': 50e-6, 't_gdl': 200e-6, 'Nx': 41}
+    phi = np.random.rand(41, 21)
+    lam = np.linspace(3.0, 14.0, 21)
+    s = np.linspace(0.05, 0.6, 21)
+    res = compute_residuals(phi, lam, s, p)
+    print("Residuals:", res)

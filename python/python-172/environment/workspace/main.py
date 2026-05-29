@@ -1,0 +1,351 @@
+# -*- coding: utf-8 -*-
+"""
+================================================================================
+PROJECT 172: 基于Chebyshev谱方法的随机非线性反应-扩散方程高精度求解
+             High-Precision Spectral Solution of Stochastic Nonlinear
+             Reaction-Diffusion Equations via Chebyshev Methods
+================================================================================
+
+科学领域：计算数学 — 谱方法偏微分方程高精度求解
+
+核心问题：
+    考虑一维随机非线性反应-扩散方程：
+
+        ∂u/∂t = ν(x,ξ) * ∂²u/∂x² - c(x)*∂u/∂x + R(u) + f(t,x),  x ∈ [-1,1]
+
+    其中：
+    - ν(x,ξ) 为随机扩散系数，通过Karhunen-Loève展开建模，其协方差结构
+      由Wishart分布采样获得；
+    - R(u) = αu - βu³ 为Allen-Cahn型非线性反应项；
+    - 空间离散采用Chebyshev-Gauss-Lobatto谱配置法；
+    - 时间推进采用θ-方法（含Crank-Nicolson与Backward Euler）；
+    - 不确定性量化(UQ)采用广义多项式混沌(gPC)展开；
+    - 能量守恒分析借助Hamiltonian结构与velocity Verlet格式；
+    - 自适应节点由CVT-Lloyd算法生成；
+    - 谱截断通过背包优化与贪婪策略实现；
+    - 随机数质量由Fermat素性检验验证。
+
+本程序为零参数入口，运行后将输出：
+    - 各时间层的数值解统计量（均值、方差）
+    - 能量漂移分析
+    - FEM投影验证误差
+    - 自适应节点与超收敛点信息
+    - 谱截断误差分析
+================================================================================
+"""
+
+import numpy as np
+import warnings
+warnings.filterwarnings('ignore')
+
+# ------------------------------------------------------------------------------
+# Import all synthesis modules
+# ------------------------------------------------------------------------------
+from chebyshev_spectral import (
+    chebyshev_nodes, spectral_differentiation_matrix,
+    chebyshev_analyze, chebyshev_interpolate
+)
+from spectral_differentiation import (
+    chebyshev_derivative_series, chebyshev_l2_norm
+)
+from tridiagonal_solvers import (
+    r83t_dif2, thomas_solve, jacobi_solve, gauss_seidel_solve,
+    conjugate_gradient_solve, r83t_mv
+)
+from theta_time_stepping import (
+    theta_method_integrate, discrete_energy_norm
+)
+from polynomial_chaos import (
+    gpc_basis_evaluation, gpc_coefficients_collocation,
+    gpc_mean_variance, gpc_sobol_indices, enumerate_grlex_indices
+)
+from random_field import (
+    generate_random_diffusion_field, sample_random_field_at_xi,
+    monte_carlo_statistic, wishart_variate_chol
+)
+from adaptive_nodes import (
+    cvt_1d_lloyd, extract_superconvergent_points
+)
+from hamiltonian_analysis import (
+    chirikov_orbit, pde_hamiltonian, velocity_verlet_step
+)
+from fem_spectral_bridge import (
+    spectral_to_fem_projection, build_1d_element_neighbors
+)
+from spectral_truncation import (
+    greedy_spectral_truncation, adaptive_truncation_error_analysis,
+    generate_robust_seed, fermat_is_prime
+)
+from utils import (
+    enforce_dirichlet, check_solution_stability,
+    smooth_initial_condition, relative_l2_error, print_banner
+)
+
+
+def main():
+    # ========================================================================
+    # 0. 参数设置与随机数质量验证
+    # ========================================================================
+    print_banner("PROJECT 172: 随机非线性反应-扩散方程的Chebyshev谱方法求解")
+
+    # 使用Fermat素性检验生成高质量随机种子
+    rng_seed = generate_robust_seed()
+    np.random.seed(rng_seed)
+    print(f"[INFO] 通过Fermat素性检验的随机种子: {rng_seed} (素数验证: {fermat_is_prime(rng_seed, k=5)})")
+
+    # 物理参数
+    Nx = 64               # 谱配置点数 (CGL节点数)
+    T_final = 0.5         # 终止时间
+    n_steps = 200         # 时间步数
+    dt = T_final / n_steps
+    theta = 0.5           # Crank-Nicolson
+    alpha_react = 1.0     # 线性反应系数
+    beta_react = 0.5      # 非线性反应系数
+    d_stochastic = 3      # 随机维度 (KL展开维数)
+    p_gpc = 3             # gPC多项式阶数
+    n_mc_samples = 50     # Monte Carlo样本数
+
+    print(f"[INFO] 空间离散: {Nx} CGL节点")
+    print(f"[INFO] 时间积分: θ={theta}, dt={dt:.4e}, 步数={n_steps}")
+    print(f"[INFO] 随机维度: d={d_stochastic}, gPC阶数 p={p_gpc}")
+    print(f"[INFO] Monte Carlo样本数: {n_mc_samples}")
+
+    # ========================================================================
+    # 1. Chebyshev谱空间离散
+    # ========================================================================
+    print_banner("1. Chebyshev谱空间离散")
+    x_cgl = chebyshev_nodes(Nx)
+    D1 = spectral_differentiation_matrix(Nx)
+    D2 = D1 @ D1  # 二阶谱微分矩阵
+
+    # 验证谱微分精度: 对 u=sin(pi*x), u'' = -pi^2 sin(pi*x)
+    u_test = np.sin(np.pi * x_cgl)
+    uxx_test = D2 @ u_test
+    uxx_exact = -(np.pi ** 2) * u_test
+    spectal_err = np.max(np.abs(uxx_test - uxx_exact))
+    print(f"[CHECK] 谱二阶微分最大误差 (对sin(pi*x)): {spectal_err:.4e}")
+
+    # ========================================================================
+    # 2. 随机扩散场生成 (KL展开 + Wishart协方差采样)
+    # ========================================================================
+    print_banner("2. 随机扩散场生成")
+    nu_base, kl_modes, kl_eigenvalues = generate_random_diffusion_field(
+        x_cgl, d_stochastic=d_stochastic, mean_val=0.05,
+        fluctuation=0.02, correlation_length=0.3
+    )
+    print(f"[INFO] KL特征值 (归一化): {kl_eigenvalues}")
+
+    # 演示Wishart协方差采样
+    D_chol_demo = np.eye(d_stochastic)
+    W_demo = wishart_variate_chol(D_chol_demo, n=d_stochastic, np_dim=d_stochastic)
+    print(f"[INFO] Wishart采样矩阵迹: {np.trace(W_demo):.4f}")
+
+    # ========================================================================
+    # 3. gPC基函数构造
+    # ========================================================================
+    print_banner("3. 广义多项式混沌(gPC)展开")
+    # 生成随机样本点 (均匀分布 [-1,1]^d)
+    xi_mc = 2.0 * np.random.rand(n_mc_samples, d_stochastic) - 1.0
+    Psi, multi_indices = gpc_basis_evaluation(d_stochastic, p_gpc, xi_mc)
+    n_basis = Psi.shape[1]
+    print(f"[INFO] gPC基函数数量: {n_basis} (多指标集维度)")
+
+    # ========================================================================
+    # 4. 空间半离散算子组装 (含Dirichlet边界条件)
+    # ========================================================================
+    print_banner("4. 空间半离散算子组装")
+
+    def assemble_spatial_operator(nu_field):
+        """
+        组装空间离散算子: L(u) = nu * D2 @ u - c * D1 @ u + alpha*u - beta*u^3
+        返回右端项函数 F(t, u) 以及Jacobian近似.
+        """
+        # TODO: Implement the spatial operator assembly.
+        # This requires:
+        #   1. Building nu_mat, c_mat from nu_field and x_cgl
+        #   2. Assembling L_lin = nu*D2 - c*D1 + alpha*I
+        #   3. Defining F(t,u) with nonlinear reaction, forcing, and Dirichlet BC
+        #   4. Defining J_approx(t,u) with linear Jacobian + nonlinear diagonal + BC rows
+        # Return F, J_approx, L_lin.
+        raise NotImplementedError("Hole 2: assemble_spatial_operator is missing.")
+
+    # ========================================================================
+    # 5. Monte Carlo + gPC 求解主循环
+    # ========================================================================
+    print_banner("5. Monte Carlo随机实现 + gPC不确定性量化")
+
+    # 存储每个MC样本的时间演化
+    u_solutions = np.zeros((n_mc_samples, n_steps + 1, Nx + 1))
+    energies = np.zeros((n_mc_samples, n_steps + 1))
+
+    # 初始条件
+    u0_base = smooth_initial_condition(x_cgl, case="gaussian")
+    u0_base = enforce_dirichlet(u0_base, 0.0, 0.0)
+
+    for s in range(n_mc_samples):
+        # 采样随机扩散场
+        nu_s = sample_random_field_at_xi(
+            x_cgl, xi_mc[s], nu_base, kl_modes, kl_eigenvalues, fluctuation=0.02
+        )
+        F_s, J_s, L_lin_s = assemble_spatial_operator(nu_s)
+
+        # 能量函数
+        def energy_func(t, u):
+            u_bc = enforce_dirichlet(u, 0.0, 0.0)
+            return discrete_energy_norm(u_bc, D2, dx_weight=2.0 / Nx)
+
+        # Theta方法时间积分
+        t_vec, y_hist, e_hist = theta_method_integrate(
+            F_s, (0.0, T_final), u0_base, n_steps, theta=theta,
+            newton_tol=1e-10, jacobian_approx=J_s, energy_func=energy_func
+        )
+        # 显式施加Dirichlet边界条件
+        for step in range(n_steps + 1):
+            y_hist[step] = enforce_dirichlet(y_hist[step], 0.0, 0.0)
+        u_solutions[s] = y_hist
+        energies[s] = e_hist
+
+        if s % 10 == 0:
+            print(f"  [MC] 样本 {s+1}/{n_mc_samples} 完成, 最终能量={e_hist[-1]:.6f}")
+
+    # ========================================================================
+    # 6. gPC系数提取与统计量分析
+    # ========================================================================
+    print_banner("6. gPC不确定性量化结果")
+
+    # 对每个空间点，提取gPC系数
+    u_mean_gpc = np.zeros(Nx + 1)
+    u_var_gpc = np.zeros(Nx + 1)
+    sobol_avg = np.zeros(d_stochastic)
+
+    for j in range(Nx + 1):
+        u_samples_j = u_solutions[:, -1, j]
+        coeffs_j = gpc_coefficients_collocation(u_samples_j, Psi)
+        mean_j, var_j = gpc_mean_variance(coeffs_j, multi_indices)
+        u_mean_gpc[j] = mean_j
+        u_var_gpc[j] = var_j
+        sobol_j = gpc_sobol_indices(coeffs_j, multi_indices)
+        sobol_avg += sobol_j
+
+    sobol_avg /= (Nx + 1)
+    print(f"[UQ] 解均值范围: [{u_mean_gpc.min():.4e}, {u_mean_gpc.max():.4e}]")
+    print(f"[UQ] 解标准差范围: [{np.sqrt(u_var_gpc).min():.4e}, {np.sqrt(u_var_gpc).max():.4e}]")
+    print(f"[UQ] 平均一阶Sobol敏感度指标: {sobol_avg}")
+
+    # ========================================================================
+    # 7. Hamiltonian结构分析 (Chirikov映射 + 能量守恒)
+    # ========================================================================
+    print_banner("7. Hamiltonian结构分析")
+
+    # Chirikov标准映射轨道分析
+    orbit, H_chirikov = chirikov_orbit(n_steps=100, K=0.55)
+    H_drift_chirikov = np.max(np.abs(H_chirikov - H_chirikov[0])) / abs(H_chirikov[0] + 1e-15)
+    print(f"[HAM] Chirikov映射Hamiltonian相对漂移: {H_drift_chirikov:.4e}")
+
+    # PDE能量漂移统计
+    energy_drifts = np.zeros(n_mc_samples)
+    for s in range(n_mc_samples):
+        e0 = energies[s, 0]
+        e1 = energies[s, -1]
+        if abs(e0) > 1e-15:
+            energy_drifts[s] = abs(e1 - e0) / abs(e0)
+        else:
+            energy_drifts[s] = abs(e1 - e0)
+
+    mc_energy = monte_carlo_statistic(energy_drifts)
+    print(f"[HAM] PDE能量相对漂移 (MC统计): 均值={mc_energy['mean']:.4e}, 标准差={mc_energy['std']:.4e}")
+
+    # ========================================================================
+    # 8. FEM投影验证
+    # ========================================================================
+    print_banner("8. 谱解到FEM的L2投影验证")
+
+    fem_nodes = np.linspace(-1.0, 1.0, 41)
+    elements = build_1d_element_neighbors(len(fem_nodes))
+
+    u_fem, l2_err_fem = spectral_to_fem_projection(
+        x_cgl, u_mean_gpc, fem_nodes, elements
+    )
+    print(f"[FEM] 谱-FEM投影L2误差: {l2_err_fem:.4e}")
+
+    # ========================================================================
+    # 9. CVT自适应节点与超收敛点提取
+    # ========================================================================
+    print_banner("9. CVT自适应节点与超收敛点")
+
+    cvt_nodes = cvt_1d_lloyd(
+        n_generators=16, n_samples=5000, it_num=30,
+        domain=(-1.0, 1.0), rho_func=None, seed=rng_seed % (2**31)
+    )
+    sc_x, sc_u = extract_superconvergent_points(x_cgl, u_mean_gpc)
+    print(f"[CVT] CVT节点数量: {len(cvt_nodes)}")
+    print(f"[CVT] 提取超收敛点数量: {len(sc_x)}")
+    if len(sc_x) > 0:
+        print(f"[CVT] 超收敛点x范围: [{sc_x.min():.4f}, {sc_x.max():.4f}]")
+
+    # ========================================================================
+    # 10. 谱截断优化分析
+    # ========================================================================
+    print_banner("10. 自适应谱截断与误差分析")
+
+    # 对最终平均解进行Chebyshev分析
+    coef_mean = chebyshev_analyze(u_mean_gpc)
+    l2_norm_spec = chebyshev_l2_norm(coef_mean)
+    print(f"[SPEC] Chebyshev系数L2范数: {l2_norm_spec:.4f}")
+
+    mask, coef_trunc = greedy_spectral_truncation(coef_mean, budget_ratio=0.6)
+    n_retained = int(np.sum(mask))
+    print(f"[SPEC] 贪婪截断保留模式数: {n_retained}/{len(coef_mean)}")
+
+    n_req, errors_trunc = adaptive_truncation_error_analysis(coef_mean, threshold=1e-8)
+    print(f"[SPEC] 达到1e-8截断误差所需模式数: {n_req}")
+
+    # ========================================================================
+    # 11. 三对角求解器验证 (R83T格式)
+    # ========================================================================
+    print_banner("11. 三对角迭代求解器验证")
+
+    # 用DIF2测试矩阵验证各求解器
+    r83t_test = r83t_dif2(Nx + 1)
+    d_test = np.ones(Nx + 1, dtype=np.float64)
+    x_exact_test = thomas_solve(r83t_test, d_test)
+
+    x_jac, info_jac = jacobi_solve(r83t_test, d_test, x0=x_exact_test*0.9, tol=1e-10, max_iter=20000)
+    err_jac = np.linalg.norm(x_jac - x_exact_test, ord=np.inf)
+    print(f"[SOLV] Jacobi迭代误差: {err_jac:.4e}, 迭代次数: {info_jac['iterations']}")
+
+    x_gs, info_gs = gauss_seidel_solve(r83t_test, d_test, x0=x_exact_test*0.9, tol=1e-10, max_iter=20000)
+    err_gs = np.linalg.norm(x_gs - x_exact_test, ord=np.inf)
+    print(f"[SOLV] Gauss-Seidel误差: {err_gs:.4e}, 迭代次数: {info_gs['iterations']}")
+
+    x_cg, info_cg = conjugate_gradient_solve(r83t_test, d_test, x0=None, tol=1e-10)
+    err_cg = np.linalg.norm(x_cg - x_exact_test, ord=np.inf)
+    print(f"[SOLV] CG误差: {err_cg:.4e}, 迭代次数: {info_cg['iterations']}")
+
+    # ========================================================================
+    # 12. 综合结果汇总
+    # ========================================================================
+    print_banner("12. 综合结果汇总")
+    print(f"随机种子 (Fermat素数): {rng_seed}")
+    print(f"谱微分精度验证: {spectal_err:.4e}")
+    print(f"最终解均值 (x=0处): {u_mean_gpc[Nx//2]:.6f}")
+    print(f"最终解标准差 (x=0处): {np.sqrt(u_var_gpc[Nx//2]):.6f}")
+    print(f"PDE能量相对漂移 (均值): {mc_energy['mean']:.4e}")
+    print(f"FEM投影L2误差: {l2_err_fem:.4e}")
+    print(f"谱截断保留模式: {n_retained}/{len(coef_mean)}")
+    print("[DONE] PROJECT 172 执行完毕，所有模块验证通过。")
+    print("=" * 70)
+
+    return {
+        "x_cgl": x_cgl,
+        "u_mean": u_mean_gpc,
+        "u_var": u_var_gpc,
+        "energy_drifts": energy_drifts,
+        "fem_error": l2_err_fem,
+        "spectral_error": spectal_err,
+        "sobol_indices": sobol_avg
+    }
+
+
+if __name__ == "__main__":
+    main()

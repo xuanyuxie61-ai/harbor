@@ -1,0 +1,17 @@
+# Geothermal THM Simulation Parameters
+#
+Parameter                                               Value
+
+Temperature_Initial_K                            4.231500e+02
+Temperature_Injection_K                          3.231500e+02
+Pressure_Initial_Pa                              2.000000e+07
+Porosity                                         1.500000e-01
+Matrix_Permeability_m2                           1.000000e-14
+Rock_Density_kg_m3                               2.700000e+03
+Fluid_Density_kg_m3                              1.000000e+03
+Rock_Thermal_Conductivity_W_mK                   2.500000e+00
+Fluid_Thermal_Conductivity_W_mK                  6.000000e-01
+Young_Modulus_Pa                                 3.000000e+10
+Poisson_Ratio                                    2.500000e-01
+Biot_Coefficient                                 8.000000e-01
+Thermal_Expansion_Rock_1_K                       1.000000e-05

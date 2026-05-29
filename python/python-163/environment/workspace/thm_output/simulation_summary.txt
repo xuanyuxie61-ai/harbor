@@ -1,0 +1,13 @@
+reservoir_volume_m3           :   1.000000000000e+07
+initial_temperature_K         :   4.231500000000e+02
+final_mean_temperature_K      :   3.231500000000e+02
+final_max_temperature_K       :   3.231500000000e+02
+final_min_temperature_K       :   3.231500000000e+02
+max_ux_m                      :   5.490178283996e-03
+max_uz_m                      :   4.079491786150e-03
+max_von_mises_Pa              :   9.172719202815e+06
+effective_permeability_m2     :   4.510358029676e-13
+wellbore_dp_MPa               :   1.000696578919e+01
+injection_pressure_MPa        :   3.205423047935e+02
+monte_carlo_heat_extraction   :   1.164246506239e+02
+monte_carlo_thermal_energy_J  :   8.329999125000e+15

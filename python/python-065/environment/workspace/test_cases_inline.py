@@ -1,0 +1,189 @@
+# ---- TC01: 合成气候场标准化特性 ----
+field_test, X_test, Y_test = generate_synthetic_climate_field(m=16, n=16, seed=42)
+assert field_test.shape == (16, 16), '[TC01] 合成气候场标准化特性 FAILED'
+assert abs(np.mean(field_test)) < 1e-9, '[TC01] 合成气候场标准化特性 FAILED'
+assert abs(np.std(field_test) - 1.0) < 1e-9, '[TC01] 合成气候场标准化特性 FAILED'
+
+# ---- TC02: 渗流分析输出结构完整 ----
+np.random.seed(42)
+field_perc = np.random.randn(20, 20)
+perc = run_percolation_attribution(field_perc, threshold=1.5)
+assert 'posites' in perc, '[TC02] 渗流分析输出结构完整 FAILED'
+assert 0.0 <= perc['posites'] <= 1.0, '[TC02] 渗流分析输出结构完整 FAILED'
+assert perc['nosites'] >= 0, '[TC02] 渗流分析输出结构完整 FAILED'
+
+# ---- TC03: Delaunay事件网格构建返回字典 ----
+np.random.seed(42)
+test_field, test_X, test_Y = generate_synthetic_climate_field(m=20, n=20, seed=42)
+test_perc = run_percolation_attribution(test_field, threshold=1.0)
+meshes = build_event_mesh(test_perc['components'], test_X, test_Y)
+assert isinstance(meshes, dict), '[TC03] Delaunay事件网格构建返回字典 FAILED'
+
+# ---- TC04: 三角网格节点积分常数函数 ----
+node_xy = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+tri_node = np.array([[0], [1], [2]], dtype=np.int64)
+val, area = integrate_nodal_over_triangulation(node_xy, tri_node, np.array([1.0, 1.0, 1.0]))
+assert abs(area - 0.5) < 1e-10, '[TC04] 三角网格节点积分常数函数 FAILED'
+assert abs(val - 0.5) < 1e-10, '[TC04] 三角网格节点积分常数函数 FAILED'
+
+# ---- TC05: 球面蒙特卡洛积分常数函数 ----
+mc_val = sphere01_quad_mc(lambda xyz: 1.0, 5000, seed=42)
+assert abs(mc_val - 4.0*np.pi) < 0.3, '[TC05] 球面蒙特卡洛积分常数函数 FAILED'
+
+# ---- TC06: 全球辐射强迫返回值结构正确 ----
+mean_f, nn = global_radiation_forcing_integral(lambda lat, lon: 2.5, factor=2)
+assert isinstance(mean_f, (float, np.floating)), '[TC06] 全球辐射强迫返回值结构正确 FAILED'
+assert nn > 0, '[TC06] 全球辐射强迫返回值结构正确 FAILED'
+
+# ---- TC07: 大气柱水汽含量为正 ----
+z = np.linspace(0, 10000, 20)
+q = 0.01 * np.exp(-z / 3000.0)
+rho = 1.225 * np.exp(-z / 8500.0)
+tcwv = compute_total_column_water_vapor(z, q, rho)
+assert tcwv > 0.0, '[TC07] 大气柱水汽含量为正 FAILED'
+
+# ---- TC08: 3D大气柱积分常数函数 ----
+tri_v = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+col_en = integrate_over_atmospheric_column(lambda xyz: 1.0, tri_v, z_bottom=0.0, z_top=10.0, line_order=3, triangle_order=7)
+assert abs(col_en - 5.0) < 0.1, '[TC08] 3D大气柱积分常数函数 FAILED'
+
+# ---- TC09: 集合扰动可复现性 ----
+base = np.ones((5, 5))
+ens1 = generate_ensemble_perturbations(base, n_members=3, perturbation_scale=0.1, seed=42)
+ens2 = generate_ensemble_perturbations(base, n_members=3, perturbation_scale=0.1, seed=42)
+assert np.allclose(ens1, ens2), '[TC09] 集合扰动可复现性 FAILED'
+
+# ---- TC10: 集合归因距离非负 ----
+np.random.seed(42)
+ens_bin = np.random.randint(0, 2, size=(5, 4, 4))
+md, cons = ensemble_attribution_distance(ens_bin, threshold_ratio=0.5)
+assert md >= 0.0, '[TC10] 集合归因距离非负 FAILED'
+assert cons.shape == (4, 4), '[TC10] 集合归因距离非负 FAILED'
+
+# ---- TC11: 蒙特卡洛线积分解析验证 ----
+np.random.seed(42)
+mc_int = monte_carlo_line_integral(lambda x: x**2, 100000, seed=42)
+assert abs(mc_int - 1.0/3.0) < 0.02, '[TC11] 蒙特卡洛线积分解析验证 FAILED'
+
+# ---- TC12: Pfaffian块对角矩阵返回标量 ----
+A_block = np.array([[0,1,0,0],[-1,0,0,0],[0,0,0,1],[0,0,-1,0]], dtype=np.float64)
+pf_block = pfaffian_LTL(A_block)
+assert isinstance(pf_block, (float, np.floating)), '[TC12] Pfaffian块对角矩阵返回标量 FAILED'
+
+# ---- TC13: Pfaffian奇数维矩阵为0 ----
+A_odd = np.array([[0,1,2],[-1,0,3],[-2,-3,0]], dtype=np.float64)
+assert abs(pfaffian_LTL(A_odd)) < 1e-10, '[TC13] Pfaffian奇数维矩阵为0 FAILED'
+
+# ---- TC14: Pfaffian相关模型返回矩阵和值 ----
+nodes = np.array([[0.0, 1.0, 0.5], [0.0, 0.0, 1.0]])
+K, pf_val = extreme_event_pfaffian_correlation(nodes, correlation_length=1.0)
+assert K.shape == (3, 3), '[TC14] Pfaffian相关模型返回矩阵和值 FAILED'
+assert abs(pf_val) < 10.0, '[TC14] Pfaffian相关模型返回矩阵和值 FAILED'
+
+# ---- TC15: 能量级串精确解单调递增 ----
+t_arr = np.linspace(0, 3, 50)
+y_exact = energy_cascade_exact(t_arr, y0=0.01)
+assert np.all(np.diff(y_exact) >= -1e-10), '[TC15] 能量级串精确解单调递增 FAILED'
+assert y_exact[-1] > y_exact[0], '[TC15] 能量级串精确解单调递增 FAILED'
+
+# ---- TC16: RK4数值解接近精确解 ----
+t_num, y_num = solve_energy_cascade_rk4((0.0, 2.0), 0.01, n_steps=500)
+t_ref = np.linspace(0, 2, 100)
+y_ref = energy_cascade_exact(t_ref, 0.01)
+y_interp = np.interp(t_ref, t_num, y_num)
+max_err = np.max(np.abs(y_ref - y_interp))
+assert max_err < 0.05, '[TC16] RK4数值解接近精确解 FAILED'
+
+# ---- TC17: 能量饱和时间合理 ----
+tau = energy_saturation_time(0.01, epsilon=0.99)
+assert tau > 0.0, '[TC17] 能量饱和时间合理 FAILED'
+
+# ---- TC18: 区域气候摘要统计正确 ----
+grid_regions = np.array([1, 1, 2, 2, 2, 3])
+grid_anomalies = np.array([10.0, 12.0, 5.0, 6.0, 7.0, 20.0])
+summary = climate_region_summary(grid_regions, grid_anomalies)
+assert 1 in summary['stats'], '[TC18] 区域气候摘要统计正确 FAILED'
+assert abs(summary['stats'][1]['mean'] - 11.0) < 1e-10, '[TC18] 区域气候摘要统计正确 FAILED'
+
+# ---- TC19: 主导周期检测正弦信号 ----
+t_sig = np.linspace(0, 10, 256)
+signal = np.sin(2 * np.pi * t_sig * 0.5)
+periods, freqs, power = dominant_periods(signal, sample_rate=10.0, n_peaks=3)
+assert len(periods) > 0, '[TC19] 主导周期检测正弦信号 FAILED'
+assert np.max(power) > 0, '[TC19] 主导周期检测正弦信号 FAILED'
+
+# ---- TC20: 质因数分解正确 ----
+assert prime_factors(75) == [3, 5, 5], '[TC20] 质因数分解正确 FAILED'
+assert prime_factors(13) == [13], '[TC20] 质因数分解正确 FAILED'
+
+# ---- TC21: 稀疏Laplacian矩阵向量乘法 ----
+lap = build_climate_laplacian_sparse(3, 3)
+x_vec = np.ones(9)
+b_vec = lap.mv(x_vec)
+assert b_vec.shape == (9,), '[TC21] 稀疏Laplacian矩阵向量乘法 FAILED'
+expected_b = np.array([2, 1, 2, 1, 0, 1, 2, 1, 2], dtype=float)
+assert np.allclose(b_vec, expected_b), '[TC21] 稀疏Laplacian矩阵向量乘法 FAILED'
+
+# ---- TC22: 最近邻重网格化维度正确 ----
+lon_src = np.linspace(0, 10, 5)
+lat_src = np.linspace(0, 10, 5)
+field_src = np.arange(25).reshape(5, 5).astype(float)
+lon_tgt = np.linspace(0, 10, 3)
+lat_tgt = np.linspace(0, 10, 3)
+field_tgt = regrid_field_nearest(lon_src, lat_src, field_src, lon_tgt, lat_tgt)
+assert field_tgt.shape == (3, 3), '[TC22] 最近邻重网格化维度正确 FAILED'
+
+# ---- TC23: 主导尺度分析返回实根数组 ----
+np.random.seed(42)
+test_1d = np.random.randn(64)
+real_roots, coeffs, freqs, power = dominant_scale_analysis(test_1d, max_degree=4)
+assert isinstance(real_roots, np.ndarray), '[TC23] 主导尺度分析返回实根数组 FAILED'
+
+# ---- TC24: 三角网格order3积分多项式精确 ----
+node_xy_sq = np.array([[0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0]])
+tri_node_sq = np.array([[0, 0], [1, 3], [3, 2]], dtype=np.int64)
+val_sq, area_sq = integrate_over_triangulation(node_xy_sq, tri_node_sq, lambda pts: pts[0,:]**2 + pts[1,:]**2, "order3")
+assert abs(area_sq - 1.0) < 1e-10, '[TC24] 三角网格order3积分多项式精确 FAILED'
+assert abs(val_sq - 2.0/3.0) < 1e-10, '[TC24] 三角网格order3积分多项式精确 FAILED'
+
+# ---- TC25: 谱相干性范围在0到1之间 ----
+np.random.seed(42)
+s1 = np.sin(2 * np.pi * np.linspace(0, 10, 128))
+s2 = np.sin(2 * np.pi * np.linspace(0, 10, 128))
+freqs_coh, coh = spectral_coherence(s1, s2, sample_rate=10.0)
+assert np.all(coh >= -1e-10), '[TC25] 谱相干性范围在0到1之间 FAILED'
+assert np.all(coh <= 1.0 + 1e-10), '[TC25] 谱相干性范围在0到1之间 FAILED'
+
+# ---- TC26: 渗流占据概率零场为0 ----
+zero_field = np.zeros((10, 10))
+perc_zero = run_percolation_attribution(zero_field, threshold=0.5)
+assert perc_zero['posites'] == 0.0, '[TC26] 渗流占据概率零场为0 FAILED'
+assert perc_zero['p_infinity'] == 0.0, '[TC26] 渗流占据概率零场为0 FAILED'
+
+# ---- TC27: 垂直柱积分梯形法则线性函数精确 ----
+from fast_spectral_quadrature import integrate_vertical_column
+z_col = np.array([0.0, 1.0, 2.0])
+v_col = np.array([1.0, 2.0, 3.0])
+val_trap = integrate_vertical_column(z_col, v_col, method="trapezoid")
+assert abs(val_trap - 4.0) < 1e-10, '[TC27] 垂直柱积分梯形法则线性函数精确 FAILED'
+
+# ---- TC28: 快速Fejer积分多项式精确 ----
+from fast_spectral_quadrature import fejer1_integrate_fast
+val_fj = fejer1_integrate_fast(lambda x: x**4, 64)
+assert abs(val_fj - 2.0/5.0) < 1e-10, '[TC28] 快速Fejer积分多项式精确 FAILED'
+
+# ---- TC29: 连通分量标记和跨越分析 ----
+from climate_percolation import components_2d, spanning_analysis
+occ_test = np.zeros((5, 5), dtype=np.int64)
+occ_test[2, :] = 1
+cls_test = components_2d(occ_test)
+sx, sy, sizes = spanning_analysis(cls_test, 5, 5)
+assert sx == 1, '[TC29] 连通分量标记和跨越分析 FAILED'
+assert sy == 0, '[TC29] 连通分量标记和跨越分析 FAILED'
+assert sizes == [5], '[TC29] 连通分量标记和跨越分析 FAILED'
+
+# ---- TC30: WDK多项式求根x平方减1 ----
+from climate_interpolation import wdk_roots
+roots = wdk_roots(np.array([-1.0, 0.0, 1.0]))
+assert len(roots) == 2, '[TC30] WDK多项式求根x平方减1 FAILED'
+assert np.allclose(np.sort(np.real(roots)), [-1.0, 1.0], atol=1e-8), '[TC30] WDK多项式求根x平方减1 FAILED'

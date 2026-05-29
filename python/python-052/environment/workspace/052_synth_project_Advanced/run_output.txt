@@ -1,0 +1,4 @@
+/mnt/data/zpy/sci-swe/source code/Synthesis-project-python/052_synth_project/geometry_analysis.py:272: RuntimeWarning: invalid value encountered in sqrt
+  a = 2.0 * np.sqrt(lambda1 / mu_00)
+/mnt/data/zpy/sci-swe/source code/Synthesis-project-python/052_synth_project/geometry_analysis.py:273: RuntimeWarning: invalid value encountered in sqrt
+  b = 2.0 * np.sqrt(lambda2 / mu_00)

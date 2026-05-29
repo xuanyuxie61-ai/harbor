@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""
+monte_carlo_clustering.py
+催化层蒙特卡洛估计模块（源自 tetrahedron_monte_carlo 项目）
+
+在三维四面体网格上，使用蒙特卡洛方法估计催化层（CL）中有效传输性质：
+    - 有效扩散系数 D_eff
+    - 孔隙连通率
+    - 水团簇尺寸分布
+
+核心算法：
+    1. 在单位参考四面体内均匀采样
+    2. 通过仿射变换映射到物理四面体
+    3. 对样本函数求平均并乘以体积
+"""
+
+import numpy as np
+
+
+# ---------------------------------------------------------------------------
+# tetrahedron_monte_carlo 迁移
+# ---------------------------------------------------------------------------
+
+def tetrahedron01_sample(n, seed=42):
+    """
+    在单位参考四面体（顶点 (0,0,0), (1,0,0), (0,1,0), (0,0,1)）内
+    均匀随机采样 n 个点。对应原项目 tetrahedron01_sample.m。
+
+    方法：在标准单形内生成指数分布随机点，再归一化。
+    """
+    rng = np.random.default_rng(seed)
+    # 指数分布采样
+    e = rng.exponential(scale=1.0, size=(n, 4))
+    s = np.sum(e, axis=1, keepdims=True)
+    p = e / s
+    # 从重心坐标映射到笛卡尔坐标
+    # 参考四面体顶点
+    v0 = np.array([0.0, 0.0, 0.0])
+    v1 = np.array([1.0, 0.0, 0.0])
+    v2 = np.array([0.0, 1.0, 0.0])
+    v3 = np.array([0.0, 0.0, 1.0])
+
+    xyz = (p[:, 0:1] * v0 + p[:, 1:2] * v1 +
+           p[:, 2:3] * v2 + p[:, 3:4] * v3)
+    return xyz
+
+
+def reference_to_physical_tet4(nodes_ref, tet_nodes, n_samples, seed=42):
+    """
+    将参考四面体采样点映射到物理四面体。
+    对应原项目 reference_to_physical_tet4.m。
+
+    仿射变换：x_phys = V0 + J · x_ref
+    其中 J = [V1-V0, V2-V0, V3-V0] 为 3×3 雅可比矩阵。
+    """
+    p0 = tet_nodes[0]
+    p1 = tet_nodes[1]
+    p2 = tet_nodes[2]
+    p3 = tet_nodes[3]
+
+    J = np.array([
+        [p1[0] - p0[0], p2[0] - p0[0], p3[0] - p0[0]],
+        [p1[1] - p0[1], p2[1] - p0[1], p3[1] - p0[1]],
+        [p1[2] - p0[2], p2[2] - p0[2], p3[2] - p0[2]],
+    ], dtype=float)
+
+    xyz_ref = tetrahedron01_sample(n_samples, seed)
+    xyz_phys = p0 + xyz_ref @ J.T
+    return xyz_phys
+
+
+def estimate_effective_diffusivity_monte_carlo(nodes, elements, params, n_samples_per_tet=50):
+    """
+    使用蒙特卡洛方法估计催化层的有效扩散系数 D_eff。
+
+    物理模型（Bruggeman 修正）：
+        D_eff = D_0 · ε^τ · ⟨I_connected⟩
+    其中 τ = 1.5 为曲折因子，⟨I_connected⟩ 为孔隙连通指示函数的平均值。
+
+    算法：
+        对每个四面体，采样 n_samples_per_tet 个点；
+        计算局部孔隙率与连通率；
+        体积加权平均得到整体 D_eff。
+    """
+    n_tets = elements.shape[0]
+    rng = np.random.default_rng(42)
+
+    D_0 = params.get('D_gdl_ref', 1.0e-6)
+    epsilon = params.get('epsilon_gdl', 0.4)
+    tau = 1.5  # Bruggeman 曲折因子
+
+    total_volume = 0.0
+    weighted_D = 0.0
+
+    for e in range(min(n_tets, 200)):  # 限制计算量
+        tet = elements[e]
+        tet_nodes = nodes[tet]
+
+        # 计算体积
+        M = np.array([
+            [tet_nodes[1, 0] - tet_nodes[0, 0],
+             tet_nodes[1, 1] - tet_nodes[0, 1],
+             tet_nodes[1, 2] - tet_nodes[0, 2]],
+            [tet_nodes[2, 0] - tet_nodes[0, 0],
+             tet_nodes[2, 1] - tet_nodes[0, 1],
+             tet_nodes[2, 2] - tet_nodes[0, 2]],
+            [tet_nodes[3, 0] - tet_nodes[0, 0],
+             tet_nodes[3, 1] - tet_nodes[0, 1],
+             tet_nodes[3, 2] - tet_nodes[0, 2]],
+        ], dtype=float)
+        vol = abs(np.linalg.det(M)) / 6.0
+        if vol < 1e-15:
+            continue
+
+        # 蒙特卡洛采样
+        samples = reference_to_physical_tet4(nodes, tet_nodes, n_samples_per_tet, seed=rng.integers(0, 1e9))
+
+        # 评估局部孔隙连通指示函数
+        # 简化为：若点在催化层区域（z 居中），连通率高；边缘区域连通率低
+        z_centers = samples[:, 2]
+        z_mid = 0.15
+        sigma_z = 0.05
+        I_conn = np.exp(-((z_centers - z_mid) ** 2) / (2.0 * sigma_z ** 2))
+        I_conn = np.clip(I_conn, 0.2, 1.0)
+
+        # 局部有效扩散系数
+        D_local = D_0 * (epsilon ** tau) * np.mean(I_conn)
+
+        weighted_D += D_local * vol
+        total_volume += vol
+
+    if total_volume < 1e-15:
+        return D_0 * (epsilon ** tau)
+
+    D_eff = weighted_D / total_volume
+    return D_eff
+
+
+def estimate_water_cluster_distribution(nodes, elements, params, n_samples=5000):
+    """
+    估计催化层内水团簇的尺寸分布。
+    使用蒙特卡洛采样统计局部水含量超过阈值的连通区域尺寸。
+    """
+    rng = np.random.default_rng(123)
+    n_tets = min(elements.shape[0], 100)
+
+    samples_all = []
+    for e in range(n_tets):
+        tet = elements[e]
+        tet_nodes = nodes[tet]
+        n_samp = max(5, n_samples // n_tets)
+        samples = reference_to_physical_tet4(nodes, tet_nodes, n_samp, seed=rng.integers(0, 1e9))
+        samples_all.append(samples)
+
+    if not samples_all:
+        return np.array([0.0]), np.array([1.0])
+
+    samples_all = np.vstack(samples_all)
+
+    # 模拟局部水含量场（高斯分布）
+    lambda_local = 10.0 + 5.0 * np.sin(2.0 * np.pi * samples_all[:, 0])
+    lambda_local += rng.normal(0.0, 1.0, size=lambda_local.shape)
+    lambda_local = np.clip(lambda_local, 0.0, 22.0)
+
+    # 团簇尺寸分布（阈值法）
+    thresholds = np.linspace(8.0, 18.0, 20)
+    cluster_fractions = []
+    for th in thresholds:
+        cluster_fractions.append(np.mean(lambda_local > th))
+
+    return thresholds, np.array(cluster_fractions)
+
+
+if __name__ == '__main__':
+    from mesh_generator import generate_pemfc_mesh, refine_mesh
+    nodes, elements = generate_pemfc_mesh()
+    nodes_r, elements_r = refine_mesh(nodes, elements)
+    p = {'D_gdl_ref': 1e-6, 'epsilon_gdl': 0.4}
+    D_eff = estimate_effective_diffusivity_monte_carlo(nodes_r, elements_r, p)
+    print("D_eff =", D_eff)

@@ -33,9 +33,14 @@ COPY environment/workspace/. /app/workspace
 COPY tests/. /tests
 
 # 确保日志和测试目录权限
-RUN mkdir -p /logs/verifier /logs/agent && chmod +x /tests/test.sh
+RUN mkdir -p /logs/verifier && chmod +x /tests/test.sh
 
 # ---------------------------------------------------------------
-# 5. 默认命令
+# 5. 预装 mini-swe-agent
+# ---------------------------------------------------------------
+RUN pip install --no-cache-dir mini-swe-agent==2.2.8
+
+# ---------------------------------------------------------------
+# 6. 默认命令
 # ---------------------------------------------------------------
 CMD ["/bin/bash"]

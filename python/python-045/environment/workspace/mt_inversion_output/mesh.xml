@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dolfin xmlns:dolfin="http://www.fenics.org/dolfin/">
+  <mesh celltype="triangle" dim="2">
+    <vertices size="4">
+      <vertex index ="0" x ="0" y ="0"/>
+      <vertex index ="1" x ="10000" y ="0"/>
+      <vertex index ="2" x ="0" y ="5000"/>
+      <vertex index ="3" x ="10000" y ="5000"/>
+    </vertices>
+    <cells size="2">
+      <triangle index ="0" v0 ="0" v1 ="1" v2 ="2"/>
+      <triangle index ="1" v0 ="1" v1 ="3" v2 ="2"/>
+    </cells>
+  </mesh>
+</dolfin>

@@ -1,0 +1,21 @@
+{
+  "project": "Exoplanet Atmospheric Spectral Retrieval",
+  "planet_radius_m": 79558718.0,
+  "equilibrium_temperature_K": 1118.9531412966453,
+  "n_wavelengths": 150,
+  "n_layers": 60,
+  "optimized_parameters": {
+    "T_int_K": 99.92744470519987,
+    "metallicity": 1.0869958694415631,
+    "C_O_ratio": 0.54,
+    "cloud_optical_depth": 0.29492846042283555,
+    "cloud_top_pressure_Pa": 250.35160304857246
+  },
+  "diagnostics": {
+    "mesh_quality": "{'min_angle_deg': np.float64(6.057582682965374e-05), 'max_angle_deg': np.float64(90.00000000387509), 'mean_quality': np.float64(4.072588781207616e-06), 'min_quality': np.float64(2.1148472982783205e-06), 'max_aspect_ratio': np.float64(945694.2559350869)}",
+    "sphere_integral_error": 1.4135798584282297e-16,
+    "hg_normalization_error": 0.00015085214899124288,
+    "gmres_relative_error": 0.0010413138461617764,
+    "chi2_reduced": 0.9472972693079404
+  }
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<SimulationState>
+  <Scalar name="debye_length_nm" value="7.983580015334e-01"/>
+  <Scalar name="kappa_per_nm" value="1.252570899370e+00"/>
+  <Scalar name="pb_converged" value="1.000000000000e+00"/>
+  <Scalar name="pb_iterations" value="3.000000000000e+00"/>
+  <Scalar name="phi_min" value="4.159010041929e-08"/>
+  <Scalar name="phi_max" value="5.894665835659e-01"/>
+  <Scalar name="sliding_final_P_peak" value="1.562508102449e-02"/>
+  <Scalar name="sliding_target_prob" value="1.562508102449e-02"/>
+  <Scalar name="sliding_mean_time_theory_s" value="2.401000000000e-01"/>
+  <Scalar name="focus_V_max" value="1.370980330143e-37"/>
+  <Scalar name="focus_V_mean" value="1.370980091977e-37"/>
+  <Scalar name="focus_formation_time_steps" value="0.000000000000e+00"/>
+  <Scalar name="activation_barrier_kT" value="2.595123301421e+00"/>
+  <Vector name="saddle_point" size="2" data="1.96349541e-01 1.87500000e+00"/>
+  <Scalar name="msm_mfpt_steps" value="4.152884908678e+00"/>
+  <Scalar name="steady_concentration_peak" value="1.624615384615e+01"/>
+</SimulationState>

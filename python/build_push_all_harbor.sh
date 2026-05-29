@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build and push Harbor Python task images to Aliyun ACR.
 #
-# Run this on the ECS machine after syncing harbor/python to /data/harbor-python.
+# Run this on the ECS machine after syncing harbor/python to /root/sci-swe/harbor/python.
 # It scans existing python-XXX directories, builds each Docker image from the
 # task root, tags it for ACR, pushes it, and records per-task logs.
 
@@ -18,6 +18,7 @@ DRY_RUN=0
 NO_CACHE=0
 KEEP_IMAGES=0
 PUSH_RETRIES=3
+JOBS=1
 PLATFORM=""
 ONLY_LIST=""
 SKIP_LIST=""
@@ -37,6 +38,7 @@ Options:
   --skip LIST           Comma-separated task numbers/names to skip, e.g. 001,002.
   --platform VALUE      Optional docker build platform, e.g. linux/amd64.
   --push-retries N      Docker push retry count. Default: 3.
+  --jobs N              Number of tasks to build/push in parallel. Default: 1.
   --no-cache            Pass --no-cache to docker build.
   --keep-images         Do not remove local images after each push.
   --dry-run             Print planned docker commands without build/push.
@@ -48,6 +50,9 @@ Examples:
 
   # python-001 and python-002 are already uploaded.
   bash build_push_all_harbor.sh --skip 001,002
+
+  # Use 4-way parallel build/push.
+  bash build_push_all_harbor.sh --jobs 4
 
   # Upload only selected tasks.
   bash build_push_all_harbor.sh --only 004,045,200
@@ -94,13 +99,28 @@ task_number() {
 }
 
 log() {
-  echo "$@" | tee -a "$SUMMARY_LOG"
+  local line="$*"
+  if command -v flock >/dev/null 2>&1; then
+    {
+      flock -x 200
+      echo "$line" | tee -a "$SUMMARY_LOG"
+    } 200>"$SUMMARY_LOG.lock"
+  else
+    echo "$line" | tee -a "$SUMMARY_LOG"
+  fi
 }
 
-print_cmd() {
+dry_run_line() {
   printf '[DRY-RUN]'
   printf ' %q' "$@"
   printf '\n'
+}
+
+write_status() {
+  local task_name="$1"
+  local state="$2"
+  local message="$3"
+  printf '%s|%s|%s\n' "$state" "$task_name" "$message" > "$STATUS_DIR/$task_name.status"
 }
 
 validate_task() {
@@ -205,6 +225,10 @@ while [[ $# -gt 0 ]]; do
       PUSH_RETRIES="$2"
       shift 2
       ;;
+    --jobs)
+      JOBS="$2"
+      shift 2
+      ;;
     --no-cache)
       NO_CACHE=1
       shift
@@ -231,16 +255,21 @@ done
 [[ "$START" =~ ^[0-9]+$ ]] || die "--start must be numeric"
 [[ "$END" =~ ^[0-9]+$ ]] || die "--end must be numeric"
 [[ "$PUSH_RETRIES" =~ ^[0-9]+$ ]] || die "--push-retries must be numeric"
+[[ "$JOBS" =~ ^[0-9]+$ ]] || die "--jobs must be numeric"
+(( JOBS >= 1 )) || die "--jobs must be at least 1"
 
 mkdir -p "$LOG_DIR"
 SUMMARY_LOG="$LOG_DIR/summary.log"
 SUCCESS_LIST="$LOG_DIR/success.txt"
 FAILED_LIST="$LOG_DIR/failed.txt"
 SKIPPED_LIST="$LOG_DIR/skipped.txt"
+STATUS_DIR="$LOG_DIR/status"
 : > "$SUMMARY_LOG"
 : > "$SUCCESS_LIST"
 : > "$FAILED_LIST"
 : > "$SKIPPED_LIST"
+mkdir -p "$STATUS_DIR"
+rm -f "$STATUS_DIR"/*.status
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
   command -v docker >/dev/null 2>&1 || die "docker is not installed or not in PATH"
@@ -279,16 +308,17 @@ log "namespace=$NAMESPACE"
 log "vpc_pull_prefix=$ACR_VPC/$NAMESPACE"
 log "selected_tasks=$TOTAL"
 log "dry_run=$DRY_RUN"
+log "jobs=$JOBS"
 log "started_at=$(date -Is)"
 log "========================================"
 
-OK=0
-FAIL=0
-SKIP=0
-INDEX=0
+process_task() {
+  local index="$1"
+  local task_dir="$2"
+  local task_name dockerfile local_tag acr_tag task_log validation_output
+  local -a build_cmd
+  local line
 
-for task_dir in "${SELECTED[@]}"; do
-  INDEX=$((INDEX + 1))
   task_name="$(basename "$task_dir")"
   dockerfile="$task_dir/environment/Dockerfile"
   local_tag="harbor-${task_name}:latest"
@@ -297,15 +327,18 @@ for task_dir in "${SELECTED[@]}"; do
   : > "$task_log"
 
   log ""
-  log "[$INDEX/$TOTAL] $task_name"
+  log "[$index/$TOTAL] $task_name"
   log "  push: $acr_tag"
   log "  pull in ACS: $ACR_VPC/$NAMESPACE/$task_name:latest"
+  echo "started_at=$(date -Is)" >> "$task_log"
+  echo "task=$task_name" >> "$task_log"
+  echo "push=$acr_tag" >> "$task_log"
 
   if ! validation_output="$(validate_task "$task_dir" "$task_name" 2>&1)"; then
     log "  [SKIP] invalid task layout"
-    printf '%s\n%s\n\n' "$task_name" "$validation_output" >> "$SKIPPED_LIST"
-    SKIP=$((SKIP + 1))
-    continue
+    printf '%s\n%s\n\n' "$task_name" "$validation_output" >> "$task_log"
+    write_status "$task_name" "skipped" "invalid task layout, log=$task_log"
+    return 0
   fi
 
   build_cmd=(docker build -t "$local_tag" -f "$dockerfile")
@@ -314,47 +347,91 @@ for task_dir in "${SELECTED[@]}"; do
   build_cmd+=("$task_dir")
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    print_cmd "${build_cmd[@]}"
-    print_cmd docker tag "$local_tag" "$acr_tag"
-    print_cmd docker push "$acr_tag"
-    OK=$((OK + 1))
-    printf '%s %s\n' "$task_name" "$acr_tag" >> "$SUCCESS_LIST"
-    continue
+    line="$(dry_run_line "${build_cmd[@]}")"
+    echo "$line" >> "$task_log"
+    log "$line"
+    line="$(dry_run_line docker tag "$local_tag" "$acr_tag")"
+    echo "$line" >> "$task_log"
+    log "$line"
+    line="$(dry_run_line docker push "$acr_tag")"
+    echo "$line" >> "$task_log"
+    log "$line"
+    write_status "$task_name" "success" "$acr_tag"
+    return 0
   fi
 
   if "${build_cmd[@]}" >> "$task_log" 2>&1; then
     log "  [BUILD OK]"
   else
     log "  [BUILD FAIL] see $task_log"
-    printf '%s build failed, log=%s\n' "$task_name" "$task_log" >> "$FAILED_LIST"
-    FAIL=$((FAIL + 1))
-    continue
+    write_status "$task_name" "failed" "build failed, log=$task_log"
+    return 0
   fi
 
   if docker tag "$local_tag" "$acr_tag" >> "$task_log" 2>&1; then
     log "  [TAG OK]"
   else
     log "  [TAG FAIL] see $task_log"
-    printf '%s tag failed, log=%s\n' "$task_name" "$task_log" >> "$FAILED_LIST"
-    FAIL=$((FAIL + 1))
-    continue
+    write_status "$task_name" "failed" "tag failed, log=$task_log"
+    return 0
   fi
 
   if docker_push_with_retry "$acr_tag" "$task_log"; then
     log "  [PUSH OK]"
-    printf '%s %s\n' "$task_name" "$acr_tag" >> "$SUCCESS_LIST"
-    OK=$((OK + 1))
+    write_status "$task_name" "success" "$acr_tag"
   else
     log "  [PUSH FAIL] see $task_log"
-    printf '%s push failed, log=%s\n' "$task_name" "$task_log" >> "$FAILED_LIST"
-    FAIL=$((FAIL + 1))
+    write_status "$task_name" "failed" "push failed, log=$task_log"
   fi
 
   if [[ "$KEEP_IMAGES" -eq 0 ]]; then
     docker rmi "$local_tag" "$acr_tag" >> "$task_log" 2>&1 || true
-    docker image prune -f >> "$task_log" 2>&1 || true
+    if [[ "$JOBS" -eq 1 ]]; then
+      docker image prune -f >> "$task_log" 2>&1 || true
+    fi
+  fi
+  echo "finished_at=$(date -Is)" >> "$task_log"
+  return 0
+}
+
+INDEX=0
+RUNNING=0
+
+for task_dir in "${SELECTED[@]}"; do
+  INDEX=$((INDEX + 1))
+  process_task "$INDEX" "$task_dir" &
+  RUNNING=$((RUNNING + 1))
+
+  if (( RUNNING >= JOBS )); then
+    wait -n
+    RUNNING=$((RUNNING - 1))
   fi
 done
+
+wait
+
+OK=0
+FAIL=0
+SKIP=0
+shopt -s nullglob
+for status_file in "$STATUS_DIR"/*.status; do
+  IFS='|' read -r state task_name message < "$status_file"
+  case "$state" in
+    success)
+      OK=$((OK + 1))
+      printf '%s %s\n' "$task_name" "$message" >> "$SUCCESS_LIST"
+      ;;
+    failed)
+      FAIL=$((FAIL + 1))
+      printf '%s %s\n' "$task_name" "$message" >> "$FAILED_LIST"
+      ;;
+    skipped)
+      SKIP=$((SKIP + 1))
+      printf '%s %s\n' "$task_name" "$message" >> "$SKIPPED_LIST"
+      ;;
+  esac
+done
+shopt -u nullglob
 
 log ""
 log "========================================"

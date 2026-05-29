@@ -108,7 +108,7 @@
     </div>
     <div class="card">
       <div class="label">ECS 目标目录</div>
-      <div class="value">/data/harbor-python/</div>
+      <div class="value">/root/sci-swe/harbor/python/</div>
     </div>
     <div class="card">
       <div class="label">ACR 公网推送地址</div>
@@ -140,14 +140,14 @@
     <pre><code>rsync -avz --progress \
   --exclude 'build-logs/' \
   "/mnt/data/zpy/sci-swe/source code/harbor/python/" \
-  root@47.236.251.245:/data/harbor-python/</code></pre>
+  root@47.236.251.245:/root/sci-swe/harbor/python/</code></pre>
   </section>
 
   <section>
     <h2>2. 登录 ECS 并准备 ACR</h2>
     <p>下面所有 Docker 命令都在 ECS 上执行。</p>
     <pre><code>ssh root@47.236.251.245
-cd /data/harbor-python
+cd /root/sci-swe/harbor/python
 chmod +x build_push_all_harbor.sh</code></pre>
 
     <p>确认 namespace 存在并开启自动创建仓库：</p>
@@ -171,51 +171,53 @@ aliyun cr UpdateNamespace \
   <section>
     <h2>3. 先做 dry-run</h2>
     <p>dry-run 只打印计划执行的 Docker 命令，不会构建、不会推送。</p>
-    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
-  --tasks-dir /data/harbor-python \
+    <pre><code>bash /root/sci-swe/harbor/python/build_push_all_harbor.sh \
+  --tasks-dir /root/sci-swe/harbor/python \
   --skip 001,002 \
+  --jobs 4 \
   --dry-run</code></pre>
     <p>如果只想测试少数任务：</p>
-    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
-  --tasks-dir /data/harbor-python \
+    <pre><code>bash /root/sci-swe/harbor/python/build_push_all_harbor.sh \
+  --tasks-dir /root/sci-swe/harbor/python \
   --only 004,045,200 \
   --dry-run</code></pre>
   </section>
 
   <section>
     <h2>4. 正式批量构建并推送</h2>
-    <p>推荐用 tmux，避免 SSH 断开导致任务中断。</p>
+    <p>推荐用 tmux，避免 SSH 断开导致任务中断。你这台 ECS 是 16 vCPU、61Gi 内存，建议先用 <code>--jobs 4</code>；如果稳定再试 <code>--jobs 6</code>，不建议直接开到 8 路以上。</p>
     <pre><code>tmux new -s harbor-python-upload
 
-bash /data/harbor-python/build_push_all_harbor.sh \
-  --tasks-dir /data/harbor-python \
-  --skip 001,002</code></pre>
+bash /root/sci-swe/harbor/python/build_push_all_harbor.sh \
+  --tasks-dir /root/sci-swe/harbor/python \
+  --skip 001,002 \
+  --jobs 4</code></pre>
     <p>断开 tmux：按 <code>Ctrl+B</code>，再按 <code>D</code>。重新连接：</p>
     <pre><code>tmux attach -t harbor-python-upload</code></pre>
-    <div class="note">脚本会把每个镜像推送到：<br><code>agent-rl-acr-registry.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-XXX:latest</code></div>
+    <div class="note">脚本会把每个镜像推送到：<br><code>agent-rl-acr-registry.cn-beijing.cr.aliyuncs.com/sci-swe-python/python-XXX:latest</code><br>并行模式下每个任务仍然有独立日志，最终汇总在 <code>build-logs/success.txt</code>、<code>failed.txt</code> 和 <code>skipped.txt</code>。</div>
   </section>
 
   <section>
     <h2>5. 查看日志和失败任务</h2>
-    <p>总日志和结果清单都在 <code>/data/harbor-python/build-logs/</code>。</p>
-    <pre><code>tail -f /data/harbor-python/build-logs/summary.log
+    <p>总日志和结果清单都在 <code>/root/sci-swe/harbor/python/build-logs/</code>。</p>
+    <pre><code>tail -f /root/sci-swe/harbor/python/build-logs/summary.log
 
-cat /data/harbor-python/build-logs/success.txt
-cat /data/harbor-python/build-logs/failed.txt
-cat /data/harbor-python/build-logs/skipped.txt</code></pre>
+cat /root/sci-swe/harbor/python/build-logs/success.txt
+cat /root/sci-swe/harbor/python/build-logs/failed.txt
+cat /root/sci-swe/harbor/python/build-logs/skipped.txt</code></pre>
     <p>每个任务还有单独日志，例如：</p>
-    <pre><code>tail -80 /data/harbor-python/build-logs/python-045.log</code></pre>
+    <pre><code>tail -80 /root/sci-swe/harbor/python/build-logs/python-045.log</code></pre>
   </section>
 
   <section>
     <h2>6. 重试失败任务</h2>
     <p>如果只有少数任务失败，用 <code>--only</code> 重试，不需要重跑全部。</p>
-    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
-  --tasks-dir /data/harbor-python \
+    <pre><code>bash /root/sci-swe/harbor/python/build_push_all_harbor.sh \
+  --tasks-dir /root/sci-swe/harbor/python \
   --only 045,068,200</code></pre>
     <p>如果怀疑 Docker 缓存导致问题：</p>
-    <pre><code>bash /data/harbor-python/build_push_all_harbor.sh \
-  --tasks-dir /data/harbor-python \
+    <pre><code>bash /root/sci-swe/harbor/python/build_push_all_harbor.sh \
+  --tasks-dir /root/sci-swe/harbor/python \
   --only 045 \
   --no-cache</code></pre>
   </section>

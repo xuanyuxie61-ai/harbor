@@ -18,7 +18,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir \
         numpy==2.2.6 \
-        matplotlib==3.10.9
+        scipy==1.15.3 \
+        matplotlib==3.10.9 \
+        pandas==2.2.3 \
+        scikit-learn==1.6.1 \
+        scikit-image==0.25.2 \
+        sympy==1.13.3 \
+        networkx==3.4.2 \
+        h5py==3.13.0 \
+        pillow==11.1.0 \
+        tqdm==4.67.1 \
+        PyWavelets==1.8.0 \
+        statsmodels==0.14.4
 
 # ---------------------------------------------------------------
 # 3. 工作目录设置

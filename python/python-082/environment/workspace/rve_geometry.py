@@ -1,29 +1,11 @@
-"""
-rve_geometry.py
-代表性体积单元（RVE）几何建模与多边形纤维截面拓扑管理。
-原项目映射：
-  - 891_polygonal_surface_display 的节点/面片读取与拓扑数据结构
-  - 1385_vandermonde_interp_2d 的二维多项式插值用于纤维界面应力场重构
-科学背景：
-  在纤维增强复合材料中，纤维通常呈多边形或椭圆形截面分布。
-  RVE是介观尺度均匀化的基本单元，其几何精度直接影响损伤预测。
-"""
 
 import numpy as np
 from utils import validate_positive, r8mat_print_some
 
 
 class PolygonalFiber:
-    """多边形纤维截面，用于RVE中的增强相几何描述。"""
 
     def __init__(self, center, radius, n_sides=6, orientation=0.0):
-        """
-        初始化正n边形纤维截面。
-        center: (2,) 纤维中心坐标
-        radius: 外接圆半径
-        n_sides: 边数（默认六边形模拟碳纤维截面）
-        orientation: 旋转角度（弧度）
-        """
         validate_positive(radius, "fiber radius")
         if n_sides < 3:
             raise ValueError("Polygon must have at least 3 sides.")
@@ -35,7 +17,6 @@ class PolygonalFiber:
         self.faces = self._generate_faces()
 
     def _generate_nodes(self):
-        """生成多边形顶点。"""
         angles = np.linspace(0, 2 * np.pi, self.n_sides, endpoint=False) + self.orientation
         nodes = np.zeros((self.n_sides, 2))
         nodes[:, 0] = self.center[0] + self.radius * np.cos(angles)
@@ -43,7 +24,6 @@ class PolygonalFiber:
         return nodes
 
     def _generate_faces(self):
-        """生成面片连接关系（每行一个面片，存储顶点索引）。"""
         faces = np.zeros((self.n_sides, 2), dtype=int)
         for i in range(self.n_sides):
             faces[i, 0] = i
@@ -51,11 +31,9 @@ class PolygonalFiber:
         return faces
 
     def area(self):
-        """正n边形面积公式：A = (n/2) * R^2 * sin(2π/n)。"""
         return 0.5 * self.n_sides * self.radius ** 2 * np.sin(2.0 * np.pi / self.n_sides)
 
     def moment_of_inertia(self):
-        """截面惯性矩（用于纤维屈曲分析）。"""
         return self.n_sides * self.radius ** 4 / 24.0 * (
             np.sin(2.0 * np.pi / self.n_sides) +
             2.0 * np.sin(4.0 * np.pi / self.n_sides)
@@ -63,14 +41,8 @@ class PolygonalFiber:
 
 
 class RVEGeometry:
-    """代表性体积单元（Representative Volume Element）几何管理。"""
 
     def __init__(self, width, height, fiber_list=None, nx=40, ny=40):
-        """
-        width, height: RVE平面尺寸（微米）
-        fiber_list: PolygonalFiber列表
-        nx, ny: 背景网格划分数
-        """
         validate_positive(width, "RVE width")
         validate_positive(height, "RVE height")
         self.width = float(width)
@@ -81,7 +53,6 @@ class RVEGeometry:
         self._build_mesh()
 
     def _build_mesh(self):
-        """构建背景笛卡尔网格。"""
         self.x_grid = np.linspace(0.0, self.width, self.nx)
         self.y_grid = np.linspace(0.0, self.height, self.ny)
         self.dx = self.x_grid[1] - self.x_grid[0]
@@ -89,13 +60,11 @@ class RVEGeometry:
         self.X, self.Y = np.meshgrid(self.x_grid, self.y_grid)
 
     def fiber_volume_fraction(self):
-        """计算纤维体积分数 V_f = Σ A_fiber / A_RVE。"""
         total_fiber_area = sum(f.area() for f in self.fibers)
         rve_area = self.width * self.height
         return total_fiber_area / rve_area
 
     def point_in_fiber(self, x, y):
-        """判断点(x,y)是否位于任一纤维内部（射线法）。"""
         for f in self.fibers:
             if self._point_in_polygon(x, y, f.nodes):
                 return True
@@ -103,7 +72,6 @@ class RVEGeometry:
 
     @staticmethod
     def _point_in_polygon(x, y, poly_nodes):
-        """射线法判断点是否在多边形内。"""
         n = len(poly_nodes)
         inside = False
         j = n - 1
@@ -116,17 +84,13 @@ class RVEGeometry:
         return inside
 
     def compute_interface_nodes(self):
-        """
-        提取纤维-基体界面节点坐标，用于界面脱粘损伤计算。
-        返回界面节点数组 (N_interface, 2)。
-        """
         interface_nodes = []
         for f in self.fibers:
-            # 在纤维边界上均匀采样
+
             n_sample = max(20, f.n_sides * 3)
             t = np.linspace(0, 1, n_sample, endpoint=False)
             for ti in t:
-                # 线性插值边界
+
                 idx = int(ti * f.n_sides) % f.n_sides
                 next_idx = (idx + 1) % f.n_sides
                 frac = ti * f.n_sides - idx
@@ -137,19 +101,12 @@ class RVEGeometry:
         return np.array(interface_nodes)
 
     def vandermonde_interp_2d_field(self, field_values, eval_points, degree=3):
-        """
-        基于二维Vandermonde矩阵对场量进行多项式插值。
-        原项目映射：1385_vandermonde_interp_2d_matrix, r8poly_value_2d。
-        科学公式：
-          p(x,y) = Σ_{s=0}^{m} Σ_{ex+ey=s} c_{ex,ey} * x^{ex} * y^{ey}
-          其中 T(M+1) = (M+1)(M+2)/2 为系数总数。
-        """
         m = degree
-        # 构建Vandermonde矩阵
+
         n_data = len(field_values)
         tmp1 = (m + 1) * (m + 2) // 2
         if n_data < tmp1:
-            # 数据不足时降阶
+
             while m > 0 and n_data < (m + 1) * (m + 2) // 2:
                 m -= 1
             tmp1 = (m + 1) * (m + 2) // 2
@@ -164,10 +121,10 @@ class RVEGeometry:
                 A[:, j] = (x_data ** ex) * (y_data ** ey)
                 j += 1
 
-        # 最小二乘求解系数
+
         c, _, _, _ = np.linalg.lstsq(A, field_values, rcond=None)
 
-        # 在eval_points处求值
+
         eval_points = np.asarray(eval_points)
         n_eval = eval_points.shape[0]
         p = np.zeros(n_eval)
@@ -180,7 +137,6 @@ class RVEGeometry:
         return p
 
     def print_geometry_summary(self):
-        """打印RVE几何摘要。"""
         print("=" * 60)
         print("RVE Geometry Summary")
         print("=" * 60)
@@ -197,7 +153,6 @@ class RVEGeometry:
 
 def generate_hexagonal_fiber_rve(width=100.0, height=100.0, fiber_radius=8.0,
                                   n_fibers_x=3, n_fibers_y=3):
-    """生成六边形纤维呈六方排布的RVE。"""
     fibers = []
     dx_f = width / (n_fibers_x + 1)
     dy_f = height / (n_fibers_y + 1)

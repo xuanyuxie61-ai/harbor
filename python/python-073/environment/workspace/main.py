@@ -1,32 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-main.py
-高超声速边界层转捩预测统一入口
-
-科学问题：
-计算流体力学 —— 高超声速边界层转捩的谱稳定性分析与热-结构耦合预测
-
-本程序执行完整计算流程：
-    1. 生成高超声速平板/前缘边界层计算网格
-    2. 求解可压缩边界层自相似温度场与速度剖面
-    3. 基于 Chebyshev 谱方法进行线性稳定性分析 (LST)
-    4. 计算 e^N 扰动放大因子并预测转捩位置
-    5. 多展向站位的转捩前沿优化
-    6. 蒙特卡洛不确定性量化
-    7. 输出计算报告与数据文件
-
-所有参数已内嵌，无需命令行输入，直接运行即可。
-"""
 
 import os
 import sys
 import numpy as np
 from math import sqrt, pi
 
-# ---------------------------------------------------------------------------
-# 导入各模块
-# ---------------------------------------------------------------------------
+
+
+
 from mesh_generator import BoundaryLayerMesh, sphere_wavevector_grid, save_xy_data
 from fem_basis import tet4_basis, tetrahedron_volume, build_fem_mass_matrix
 from thermal_solver import HypersonicThermalSolver
@@ -59,33 +41,30 @@ from utils import (
 
 
 def main():
-    """
-    主程序入口，零参数运行。
-    """
     print("=" * 72)
     print("  高超声速边界层转捩预测 — 博士级科研代码合成项目")
     print("  领域: 计算流体力学 (CFD) — 高超声速边界层转捩")
     print("=" * 72)
 
-    # ========================================================================
-    # 步骤 1: 全局参数设定
-    # ========================================================================
-    Ma = 6.0               # 马赫数
-    Re_L = 1.0e6           # 基于长度 L 的雷诺数
-    Pr = 0.72              # 普朗特数
-    gamma = 1.4            # 比热比
-    Tw_Te = 0.6            # 冷壁条件 (T_w / T_e)
-    L = 1.0                # 特征长度 [m]
-    N_eta = 200            # 法向节点数
-    eta_max = 12.0         # 相似变量外边界
+
+
+
+    Ma = 6.0
+    Re_L = 1.0e6
+    Pr = 0.72
+    gamma = 1.4
+    Tw_Te = 0.6
+    L = 1.0
+    N_eta = 200
+    eta_max = 12.0
 
     print("\n【全局参数】")
     print(f"  Ma = {Ma}, Re_L = {Re_L:.2e}, Pr = {Pr}, γ = {gamma}")
     print(f"  Tw/Te = {Tw_Te}, L = {L} m")
 
-    # ========================================================================
-    # 步骤 2: 边界层网格生成 (mesh_generator)
-    # ========================================================================
+
+
+
     print("\n【步骤 2】边界层网格生成 ...")
     mesh = BoundaryLayerMesh(L=L, H=0.1, Nx=60, Ny=50, Re=Re_L, Ma=Ma)
     nodes, nx, ny = mesh.generate_flat_plate_mesh()
@@ -97,13 +76,13 @@ def main():
     print(f"  生成三角形数: {len(triangles)}")
     print(f"  壁面节点数: {len(boundaries['wall'])}")
 
-    # 球面波矢方向网格 (sphere_llt_grid)
+
     wavevectors = sphere_wavevector_grid(lat_num=8, long_num=16)
     print(f"  波矢方向离散点数: {len(wavevectors)}")
 
-    # ========================================================================
-    # 步骤 3: 基流求解 — 可压缩边界层温度场与速度剖面 (thermal_solver)
-    # ========================================================================
+
+
+
     print("\n【步骤 3】可压缩边界层基流求解 ...")
     thermal = HypersonicThermalSolver(
         Ma=Ma, Re=Re_L, Pr=Pr, gamma=gamma,
@@ -114,24 +93,24 @@ def main():
     print(f"  迭代收敛: {solution['iterations']} 步")
     print(f"  最终残差: {solution['diff']:.4e}")
 
-    # 壁面热流与摩阻
+
     St = thermal.compute_wall_heat_flux(solution)
     cf = thermal.compute_skin_friction(solution)
     print(f"  壁面斯坦顿数近似: {St:.4e}")
     print(f"  壁面摩擦系数: {cf:.4e}")
 
-    # 提取剖面
+
     eta = solution['eta']
     T_prof = solution['T']
     u_prof = solution['u']
     mu_prof = solution['mu']
     rho_prof = solution['rho']
 
-    # ========================================================================
-    # 步骤 4: 有限元基函数验证 (fem_basis)
-    # ========================================================================
+
+
+
     print("\n【步骤 4】有限元基函数验证 ...")
-    # 构造一个参考四面体并映射到物理空间
+
     t_ref = np.array([
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
@@ -144,7 +123,7 @@ def main():
     print(f"  重心处基函数值: {phi.flatten()}")
     print(f"  基函数和: {np.sum(phi):.6f} (应为 1.0)")
 
-    # 构造 FEM 质量矩阵与刚度矩阵（小规模测试）
+
     nodes_3d = np.array([
         [0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1],
         [1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 1, 1]
@@ -156,32 +135,32 @@ def main():
     M_fem = build_fem_mass_matrix(nodes_3d, tets)
     print(f"  FEM 质量矩阵条件数: {np.linalg.cond(M_fem):.4e}")
 
-    # ========================================================================
-    # 步骤 5: 线性稳定性分析 (stability_analysis)
-    # ========================================================================
+
+
+
     print("\n【步骤 5】线性稳定性分析 (LST) ...")
 
-    # 选取最优 Chebyshev 阶数
+
     N_cheb = optimal_chebyshev_order(80, max_prime=5)
     print(f"  最优 Chebyshev 阶数: {N_cheb}")
 
     lst = CompressibleLST(Ma=Ma, Re=Re_L, Pr=Pr, gamma=gamma, N=N_cheb)
     lst.set_baseflow(eta, u_prof, T_prof, mu_prof)
 
-    # 时间模式特征值（固定波数 α）
+
     alpha_test = 0.3
     eigvals = lst.temporal_eigenvalues(alpha=alpha_test, beta=0.0)
     print(f"  波数 α={alpha_test} 时，最不稳定特征值:")
     print(f"    ω = {eigvals[0]:.6f}")
     print(f"    时间增长率 Im(ω) = {eigvals[0].imag:.6e}")
 
-    # Jordan 分析（非模态增长）
+
     jordan_info = lst.jordan_analysis(alpha=alpha_test, beta=0.0)
     print(f"  模态矩阵条件数: {jordan_info['condition_number']:.4e}")
     print(f"  最大 Jordan 块大小: {jordan_info['max_jordan_block']}")
     print(f"  瞬态增长上界估计: {jordan_info['transient_growth_bound']:.4e}")
 
-    # 模态追踪（随波数扫描）
+
     alpha_list = np.linspace(0.05, 0.8, 30)
     tracked = track_eigenvalue_mode(alpha_list, lst, beta=0.0)
     growth_rates = [np.imag(om) if not np.isnan(om) else -1e9 for om in tracked]
@@ -189,42 +168,42 @@ def main():
     print(f"  最大不稳定波数: α={alpha_list[max_growth_idx]:.4f}")
     print(f"  对应最大增长率: {growth_rates[max_growth_idx]:.6e}")
 
-    # ========================================================================
-    # 步骤 6: 谱积分与精确度验证 (spectral_integrator)
-    # ========================================================================
+
+
+
     print("\n【步骤 6】谱方法与积分验证 ...")
 
-    # Chebyshev 求积精确度测试
+
     exactness = chebyshev1_exactness_test(n=16, degree_max=20)
     max_err = max(err for _, err in exactness)
     print(f"  Gauss-Chebyshev (n=16) 最大误差: {max_err:.4e}")
 
-    # 球面三角形积分测试（验证立体角）
+
     a = np.array([1.0, 0.0, 0.0])
     b = np.array([0.0, 1.0, 0.0])
     c = np.array([0.0, 0.0, 1.0])
     area_est, npts = sphere_triangle_quad_icos1c(a, b, c, factor=4,
                                                   func=lambda p: 1.0)
-    exact_area = pi / 2.0  # 八分之一个球面 = π/2
+    exact_area = pi / 2.0
     print(f"  球面三角形积分测试 (factor=4):")
     print(f"    估计面积: {area_est:.6f}, 精确值: {exact_area:.6f}, 误差: {abs(area_est-exact_area):.4e}")
 
-    # e^N 放大因子积分
+
     Re_x_range = np.linspace(2e5, 8e6, 300)
     ai_profile = compute_growth_rate_profile(Re_x_range, Ma, Re_L, Tw_Te)
     Re_N, N_prof = amplification_factor_integral(Re_x_range, ai_profile, method='trapz')
     print(f"  e^N 积分完成，N(Re=8e6) = {N_prof[-1]:.3f}")
 
-    # ========================================================================
-    # 步骤 7: 转捩位置预测 (transition_predictor)
-    # ========================================================================
+
+
+
     print("\n【步骤 7】转捩位置预测 ...")
 
-    # 单站位 e^N 方法
+
     Re_xt_single, N_single = e_n_method(Re_x_range, ai_profile, N_cr=9.0)
     print(f"  单站位转捩雷诺数 Re_xt = {Re_xt_single:.4e}")
 
-    # 多展向站位预测
+
     z_stations = np.linspace(-0.5, 0.5, 11)
     np.random.seed(42)
     roughness = 0.001 + 0.003 * np.random.rand(len(z_stations))
@@ -237,7 +216,7 @@ def main():
     print(f"  多站位平均转捩雷诺数: {multi_result['mean_Re_xt']:.4e}")
     print(f"  展向标准差: {multi_result['std_Re_xt']:.4e}")
 
-    # 转捩前沿优化（TSP 思想）
+
     penalties = roughness * 1e5
     optimized_xt, cost_hist = optimize_transition_front(
         z_stations, multi_result['Re_xt'], penalties,
@@ -246,13 +225,13 @@ def main():
     print(f"  优化后转捩前沿光滑性: {np.sum(np.diff(optimized_xt)**2):.4e}")
     print(f"  优化成本下降: {cost_hist[0]:.4e} → {cost_hist[-1]:.4e}")
 
-    # 感受性系数
+
     C_rec = receptivity_coefficient(Ma, Tw_Te, Tu=0.005)
     print(f"  感受性系数估计: {C_rec:.4e}")
 
-    # ========================================================================
-    # 步骤 8: 蒙特卡洛不确定性量化 (monte_carlo_sampler)
-    # ========================================================================
+
+
+
     print("\n【步骤 8】蒙特卡洛不确定性量化 ...")
     sampler = HypersonicParameterSampler(
         Ma_range=(5.0, 8.0),
@@ -261,18 +240,18 @@ def main():
         Tu_range=(0.001, 0.02)
     )
 
-    # LHS 采样均匀性统计
+
     lhs_samples = sampler.lhs_sampling(n_samples=200)
     mu_dist, var_dist = sampler.parameter_distance_stats(lhs_samples)
     print(f"  LHS 样本对平均距离: {mu_dist:.4f}")
     print(f"  距离方差: {var_dist:.4e}")
 
-    # 序贯最优采样
+
     opt_sample = sampler.sequential_optimal_sampling(n_total=100)
     print(f"  序贯采样策略: {opt_sample['strategy']}")
     print(f"  最优样本价值: {opt_sample['best_value']:.4f}")
 
-    # 不确定性传播
+
     mc_result = sampler.uncertainty_propagation(
         random_transition_model, n_samples=300
     )
@@ -281,20 +260,20 @@ def main():
     ci_low, ci_high = mc_result['ci95']
     print(f"  95% 置信区间: [{ci_low:.4e}, {ci_high:.4e}]")
 
-    # ========================================================================
-    # 步骤 9: 结果输出与报告生成 (data_io)
-    # ========================================================================
+
+
+
     print("\n【步骤 9】结果输出 ...")
     out_dir = "."
     os.makedirs(out_dir, exist_ok=True)
 
-    # 输出基流剖面
+
     io_write_xy(os.path.join(out_dir, "baseflow_profile.xy"),
                 eta, u_prof, header="Eta U_velocity")
     io_write_xy(os.path.join(out_dir, "temperature_profile.xy"),
                 eta, T_prof, header="Eta Temperature_ratio")
 
-    # 输出特征值谱
+
     write_eigenvalue_spectrum(
         os.path.join(out_dir, "eigenvalue_spectrum.dat"),
         alpha_list,
@@ -302,7 +281,7 @@ def main():
         labels=[f"mode_{i}" for i in range(len(alpha_list))]
     )
 
-    # 输出转捩报告
+
     results = {
         'Ma': Ma,
         'Re': Re_L,
@@ -331,7 +310,7 @@ def main():
     }
     write_transition_report(os.path.join(out_dir, "transition_report.txt"), results)
 
-    # 保存球面波矢方向
+
     np.savetxt(os.path.join(out_dir, "wavevectors.dat"), wavevectors,
                fmt='%.6f', header='kx ky kz')
 
@@ -342,32 +321,32 @@ def main():
     print(f"    {out_dir}/transition_report.txt")
     print(f"    {out_dir}/wavevectors.dat")
 
-    # ========================================================================
-    # 步骤 10: 边界条件与数值鲁棒性验证
-    # ========================================================================
+
+
+
     print("\n【步骤 10】数值鲁棒性验证 ...")
 
-    # 验证基函数 partition of unity
+
     phi_sum = np.sum(phi)
     assert abs(phi_sum - 1.0) < 1e-10, "基函数不满足 partition of unity"
     print("  [通过] FEM 基函数 partition of unity")
 
-    # 验证温度边界条件
+
     assert abs(T_prof[0] - Tw_Te) < 1e-3, "壁面温度边界条件不满足"
     assert abs(T_prof[-1] - 1.0) < 1e-3, "远场温度边界条件不满足"
     print("  [通过] 温度边界条件")
 
-    # 验证速度边界条件
+
     assert abs(u_prof[0]) < 1e-3, "壁面无滑移条件不满足"
     assert abs(u_prof[-1] - 1.0) < 1e-3, "远场速度边界条件不满足"
     print("  [通过] 速度边界条件")
 
-    # 验证质量守恒（积分连续性）
+
     mass_flux = np.trapezoid(rho_prof * u_prof, eta)
     assert mass_flux > 0, "质量通量非正"
     print(f"  [通过] 质量通量积分: {mass_flux:.6f}")
 
-    # 验证 Chebyshev 求积对低次多项式精确
+
     assert max_err < 1e-12, "Chebyshev 求积精度不足"
     print("  [通过] Chebyshev 求积精确度")
 

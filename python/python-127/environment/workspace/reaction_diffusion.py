@@ -1,59 +1,9 @@
-"""
-reaction_diffusion.py
-=====================
-神经激活模式反应-扩散模块
-
-基于种子项目:
-  - 487_gray_scott_pde: Gray-Scott 反应-扩散方程
-
-科学背景:
-  人工耳蜗刺激后，神经激活在耳蜗内呈时空分布。
-  可用耦合反应-扩散方程描述:
-
-  神经元群体激活密度 u(x,t) 和神经递质/抑制因子 v(x,t):
-      ∂u/∂t = D_u ∇²u - u v² + γ (1 - u)  + I_e(x,t)
-      ∂v/∂t = D_v ∇²v + u v² - (γ + κ) v
-
-  其中:
-    - D_u, D_v: 扩散系数 (代表电信号传播和神经递质扩散)
-    - γ: 神经元恢复率
-    - κ: 抑制因子衰减率
-    - I_e(x,t): 外部电刺激输入
-
-  该模型是 Gray-Scott 模型的生物物理变体，
-  用于模拟电刺激后在螺旋神经节中的激活斑图形成。
-"""
 
 import numpy as np
 
 
 def neural_activation_rd(U, V, dx, dy, dt, D_u, D_v, gamma, kappa,
                           stimulus, laplacian_func=None):
-    """
-    单步 Euler 更新神经激活反应-扩散方程。
-
-    Parameters
-    ----------
-    U, V : ndarray, shape (nx, ny)
-        当前激活密度和抑制因子
-    dx, dy : float
-        空间步长
-    dt : float
-        时间步长
-    D_u, D_v : float
-        扩散系数
-    gamma, kappa : float
-        反应速率参数
-    stimulus : ndarray, shape (nx, ny)
-        外部刺激输入
-    laplacian_func : callable or None
-        自定义 Laplacian 函数。若为 None 使用 5点 stencil。
-
-    Returns
-    -------
-    U_new, V_new : ndarray
-        更新后的场
-    """
     U = np.asarray(U, dtype=float)
     V = np.asarray(V, dtype=float)
     stimulus = np.asarray(stimulus, dtype=float)
@@ -68,14 +18,14 @@ def neural_activation_rd(U, V, dx, dy, dt, D_u, D_v, gamma, kappa,
     Lu = laplacian_func(U, dx, dy)
     Lv = laplacian_func(V, dx, dy)
 
-    # 反应项
+
     reaction_u = -U * V**2 + gamma * (1.0 - U) + stimulus
     reaction_v = U * V**2 - (gamma + kappa) * V
 
     U_new = U + dt * (D_u * Lu + reaction_u)
     V_new = V + dt * (D_v * Lv + reaction_v)
 
-    # 边界处理与截断
+
     U_new = np.clip(U_new, 0.0, 1.0)
     V_new = np.clip(V_new, 0.0, 1.0)
 
@@ -83,24 +33,9 @@ def neural_activation_rd(U, V, dx, dy, dt, D_u, D_v, gamma, kappa,
 
 
 class NeuralActivationPattern:
-    """
-    神经激活时空模式求解器。
-    """
 
     def __init__(self, nx, ny, dx, dy, D_u=0.01, D_v=0.005,
                  gamma=0.024, kappa=0.06):
-        """
-        Parameters
-        ----------
-        nx, ny : int
-            网格数
-        dx, dy : float
-            空间步长 (mm)
-        D_u, D_v : float
-            扩散系数 (mm²/ms)
-        gamma, kappa : float
-            反应参数
-        """
         self.nx = int(nx)
         self.ny = int(ny)
         self.dx = float(dx)
@@ -110,7 +45,7 @@ class NeuralActivationPattern:
         self.gamma = float(gamma)
         self.kappa = float(kappa)
 
-        # CFL 条件检查
+
         dt_max = 0.25 * min(dx**2, dy**2) / max(D_u, D_v)
         self.dt_max = dt_max
 
@@ -119,14 +54,6 @@ class NeuralActivationPattern:
         self._initialized = False
 
     def initialize(self, seed_pattern='gaussian'):
-        """
-        初始化激活场。
-
-        Parameters
-        ----------
-        seed_pattern : str
-            'gaussian', 'random', 'uniform'
-        """
         if seed_pattern == 'gaussian':
             cx, cy = self.nx // 2, self.ny // 2
             X, Y = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing='ij')
@@ -156,25 +83,6 @@ class NeuralActivationPattern:
         self._initialized = True
 
     def evolve(self, n_steps, stimulus_history=None, dt=None):
-        """
-        时间演化。
-
-        Parameters
-        ----------
-        n_steps : int
-            时间步数
-        stimulus_history : list of ndarray or None
-            每步的刺激场
-        dt : float or None
-            时间步长，若为 None 则使用 dt_max
-
-        Returns
-        -------
-        U_history : list
-            激活密度历史
-        V_history : list
-            抑制因子历史
-        """
         if not self._initialized:
             raise RuntimeError("必须先调用 initialize()")
 
@@ -202,18 +110,6 @@ class NeuralActivationPattern:
         return U_history, V_history
 
     def compute_spread_metrics(self):
-        """
-        计算激活区域的空间展宽指标。
-
-        Returns
-        -------
-        active_area : float
-            激活区域面积 (像素数)
-        centroid : tuple
-            质心坐标
-        spread_std : float
-            标准差展宽
-        """
         if self.U is None:
             raise RuntimeError("未初始化")
 

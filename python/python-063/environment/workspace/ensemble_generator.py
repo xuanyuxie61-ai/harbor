@@ -1,17 +1,10 @@
-"""
-ensemble_generator.py
-集合成员生成模块
-
-使用 Sobol 低差异序列（融合种子项目 1097_sobol）生成初始集合的 Latin-hypercube 结构，
-并叠加随机微分方程 SDE（融合种子项目 1063_sde 的 Euler-Maruyama 框架）描述气候系统内部变率。
-"""
 
 import numpy as np
 
 
-# ============== Sobol 序列生成器（Antonov-Saleev Gray-code 修正）==============
 
-# 基于 GF(2) 本原多项式的方向数（维度 1–10）
+
+
 SOBOL_DIRECTIONS = {
     1: [1], 2: [1, 3], 3: [1, 3, 1], 4: [1, 1, 1],
     5: [1, 3, 3], 6: [1, 3, 5, 15], 7: [1, 1, 5, 17],
@@ -28,7 +21,6 @@ SOBOL_POLY = {
 
 
 def i4_bit_lo0(n):
-    """返回 n 的最低零位位置（1-indexed）。"""
     if n <= 0:
         return 1
     bit = 0
@@ -40,11 +32,6 @@ def i4_bit_lo0(n):
 
 
 def sobol_generate(dim_num, n, skip=0):
-    """
-    生成 n 个 dim_num 维 Sobol 点，跳过前 skip 个。
-    使用 Antonov-Saleev Gray-code 修正：每步仅翻转一个位。
-    返回数组形状 (n, dim_num)，值域 [0, 1]。
-    """
     if dim_num < 1 or dim_num > 10:
         raise ValueError("dim_num must be between 1 and 10")
     max_bits = 30
@@ -81,23 +68,9 @@ def sobol_generate(dim_num, n, skip=0):
     return points
 
 
-# ============== SDE 扰动生成器（Euler-Maruyama）==============
+
 
 def euler_maruyama_sde(X0, t_span, dt, drift_func, diffusion_func, n_ensemble=1):
-    """
-    Euler-Maruyama 方法求解向量 SDE:
-        dX = mu(X,t) dt + sigma(X,t) dW
-
-    参数:
-        X0: (n_ensemble, n_state) 初始状态
-        t_span: (t_start, t_end)
-        dt: 时间步长
-        drift_func:    mu(X, t) -> (n_ensemble, n_state)
-        diffusion_func: sigma(X, t) -> (n_ensemble, n_state)
-
-    返回:
-        t_array, X_history (n_steps, n_ensemble, n_state)
-    """
     t_start, t_end = t_span
     n_steps = int((t_end - t_start) / dt) + 1
     t_array = np.linspace(t_start, t_end, n_steps)
@@ -122,11 +95,6 @@ def euler_maruyama_sde(X0, t_span, dt, drift_func, diffusion_func, n_ensemble=1)
 
 
 def generate_ensemble_perturbations(n_ensemble, n_nodes, t_span, dt, perturbation_scale=0.5):
-    """
-    使用 Ornstein-Uhlenbeck 过程生成温度扰动:
-        dT' = -lambda * T' dt + sigma_perturb * dW
-    代表 ENSO、NAO 等气候内部变率。
-    """
     lambda_ou = 1.0 / 2.0
     sigma_ou = perturbation_scale
     X0 = np.zeros((n_ensemble, n_nodes), dtype=np.float64)
@@ -144,10 +112,6 @@ def generate_ensemble_perturbations(n_ensemble, n_nodes, t_span, dt, perturbatio
 
 
 def generate_initial_ensemble(n_ensemble, n_nodes, T_climatology=288.0, T_amplitude=5.0):
-    """
-    使用 Sobol 序列构造初始温度集合。
-    基础气候态 + Sobol 调制的空间模态。
-    """
     nd = min(10, n_ensemble)
     sobol_pts = sobol_generate(nd, n_ensemble, skip=100)
     ensemble = np.zeros((n_ensemble, n_nodes), dtype=np.float64)

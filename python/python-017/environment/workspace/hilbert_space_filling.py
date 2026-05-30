@@ -1,37 +1,19 @@
-"""
-Hilbert 空间填充曲线模块
-融合来源: 535_hilbert_curve (d2xy, rot, xy2d)
-
-功能:
-- 将一维 Hilbert 坐标映射到二维笛卡尔坐标
-- 对网格节点进行 Hilbert 曲线重排序，提升稀疏矩阵内存局部性
-- 应用于多铁性材料有限元网格的节点编号优化
-"""
 
 import numpy as np
 from typing import List, Tuple
 
 
 def rot(n: int, x: int, y: int, rx: int, ry: int) -> Tuple[int, int]:
-    """
-    对给定象限进行坐标旋转/反射。
-    直接源自 hilbert_curve 中 rot.m 的算法逻辑。
-    """
     if ry == 0:
         if rx == 1:
             x = n - 1 - x
             y = n - 1 - y
-        # 交换 x, y
+
         x, y = y, x
     return x, y
 
 
 def d2xy(m: int, d: int) -> Tuple[int, int]:
-    """
-    将一维 Hilbert 坐标 D 转换为二维笛卡尔坐标 (X, Y)。
-    网格大小 N = 2^m，坐标范围 [0, N-1]。
-    直接源自 hilbert_curve 中 d2xy.m。
-    """
     if m <= 0:
         raise ValueError("Hilbert 曲线阶数 m 必须为正整数")
     n = 1 << m
@@ -56,10 +38,6 @@ def d2xy(m: int, d: int) -> Tuple[int, int]:
 
 
 def xy2d(m: int, x: int, y: int) -> int:
-    """
-    将二维笛卡尔坐标 (X, Y) 转换为一维 Hilbert 坐标 D。
-    源自 hilbert_curve 中 xy2d.m。
-    """
     if m <= 0:
         raise ValueError("Hilbert 曲线阶数 m 必须为正整数")
     n = 1 << m
@@ -78,20 +56,10 @@ def xy2d(m: int, x: int, y: int) -> int:
 
 
 def hilbert_sort_points(points: np.ndarray, m: int = 6) -> np.ndarray:
-    """
-    对二维点集按照 Hilbert 曲线顺序进行重排序。
-
-    参数:
-        points: (N, 2) 数组，坐标需在 [0, 1] 范围内
-        m: Hilbert 曲线阶数，决定分辨率 N=2^m
-
-    返回:
-        order: 重排序的索引数组
-    """
     if points.ndim != 2 or points.shape[1] != 2:
         raise ValueError("points 必须是 (N, 2) 数组")
     n = 1 << m
-    # 将 [0,1] 映射到 [0, n-1]
+
     scaled = np.clip(points, 0.0, 1.0) * (n - 1)
     ix = scaled[:, 0].astype(int)
     iy = scaled[:, 1].astype(int)
@@ -102,11 +70,7 @@ def hilbert_sort_points(points: np.ndarray, m: int = 6) -> np.ndarray:
 
 def apply_hilbert_reordering(node_xy: np.ndarray, element_node: np.ndarray,
                              m: int = 6) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    对有限元网格节点应用 Hilbert 曲线重排序。
-    返回重排序后的节点坐标、元素连接表、以及旧->新的索引映射。
-    """
-    # 归一化坐标到 [0,1]
+
     xmin, xmax = node_xy[:, 0].min(), node_xy[:, 0].max()
     ymin, ymax = node_xy[:, 1].min(), node_xy[:, 1].max()
     eps = 1e-12
@@ -115,7 +79,7 @@ def apply_hilbert_reordering(node_xy: np.ndarray, element_node: np.ndarray,
     norm_xy[:, 1] = (node_xy[:, 1] - ymin) / max(ymax - ymin, eps)
 
     order = hilbert_sort_points(norm_xy, m=m)
-    # 旧索引 -> 新索引的映射
+
     old_to_new = np.empty(len(order), dtype=int)
     old_to_new[order] = np.arange(len(order), dtype=int)
 

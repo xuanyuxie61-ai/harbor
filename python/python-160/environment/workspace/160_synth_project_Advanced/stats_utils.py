@@ -1,49 +1,16 @@
-"""
-stats_utils.py
-==============
-Statistical distribution utilities for gasification reactor analysis.
-
-Incorporates algorithms from:
-  - 035_asa091 (ppchi2, gammad, alnorm, ppnd)
-  - 055_asa310 (ncbeta)
-  - 539_histogram_discrete (discrete PDF/CDF)
-
-Scientific role:
-  Provides statistical inference for product gas composition confidence
-  intervals, equilibrium testing, and particle size distribution analysis.
-"""
 
 import math
 import numpy as np
 
 
 def alnorm(x, upper=False):
-    """
-    Compute the tail area of the standard normal distribution.
-
-    Algorithm AS 66, Applied Statistics.
-    For large |x|, uses asymptotic expansion:
-        Φ(-|x|) ≈ φ(x)/|x| * (1 - 1/x² + 3/x⁴ - 15/x⁶ + ...)
-
-    Parameters
-    ----------
-    x : float
-        Deviate from standard normal.
-    upper : bool
-        If True, compute upper tail Q(x); else lower tail Φ(x).
-
-    Returns
-    -------
-    float
-        Tail probability.
-    """
     if math.isnan(x):
         return math.nan
     ax = abs(x)
     if ax <= 1.0e-15:
         return 0.5 if upper else 0.5
 
-    # Coefficients for rational approximation
+
     a1 = 5.75885480458
     a2 = 2.62433121679
     a3 = 5.92885724438
@@ -78,30 +45,6 @@ def alnorm(x, upper=False):
 
 
 def gammad(x, p):
-    """
-    Incomplete Gamma Integral P(x, p) = γ(x, p) / Γ(p).
-
-    Algorithm AS 239, Applied Statistics.
-    For reactor analysis, this computes the regularized lower incomplete gamma
-    function used in particle residence time distributions and activation
-    energy statistics.
-
-    The integral definition:
-        P(x, p) = (1/Γ(p)) ∫₀ˣ t^{p-1} e^{-t} dt
-
-    Parameters
-    ----------
-    x : float
-        Upper limit of integration, x >= 0.
-    p : float
-        Shape parameter, p > 0.
-
-    Returns
-    -------
-    tuple (value, ifault)
-        value : float, the incomplete gamma ratio.
-        ifault : int, 0 if no error, 1 if x < 0 or p <= 0.
-    """
     elimit = -88.0
     oflo = 1.0e37
     plimit = 1000.0
@@ -117,17 +60,17 @@ def gammad(x, p):
     if x == 0.0:
         return 0.0, 0
 
-    # Large p: normal approximation via Wilson-Hilferty
+
     if p > plimit:
         pn1 = 3.0 * math.sqrt(p) * ((x / p) ** (1.0 / 3.0) + 1.0 / (9.0 * p) - 1.0)
         return alnorm(pn1, upper=False), 0
 
-    # Large x: return 1
+
     if x > xbig:
         return 1.0, 0
 
     if x <= 1.0 or x < p:
-        # Pearson's series expansion
+
         arg = p * math.log(x) - x - math.lgamma(p + 1.0)
         c = 1.0
         value = 1.0
@@ -144,7 +87,7 @@ def gammad(x, p):
         else:
             value = 0.0
     else:
-        # Continued fraction expansion (Legendre)
+
         arg = p * math.log(x) - x - math.lgamma(p)
         a = 1.0 - p
         b = a + x + 1.0
@@ -184,21 +127,6 @@ def gammad(x, p):
 
 
 def ppnd(p):
-    """
-    Percentage points of the standard normal distribution.
-    Uses scipy.special.ndtri for accuracy.
-
-    Parameters
-    ----------
-    p : float
-        Probability, 0 < p < 1.
-
-    Returns
-    -------
-    tuple (x, ifault)
-        x : float, the normal deviate.
-        ifault : int, 0 if OK.
-    """
     if p <= 0.0 or p >= 1.0:
         return 0.0, 1
     try:
@@ -210,27 +138,6 @@ def ppnd(p):
 
 
 def ppchi2(p, v, g):
-    """
-    Percentage points of the Chi-squared distribution.
-    Algorithm AS 91, Applied Statistics.
-
-    Computes x such that P(χ²_v ≤ x) = p.
-
-    Parameters
-    ----------
-    p : float
-        Cumulative probability, 0.000002 <= p <= 0.999998.
-    v : float
-        Degrees of freedom, v > 0.
-    g : float
-        log(Γ(v/2)).
-
-    Returns
-    -------
-    tuple (value, ifault)
-        value : float, the chi-squared deviate.
-        ifault : int, error flag.
-    """
     aa = 0.6931471806
     c1 = 0.01
     c2 = 0.222222
@@ -335,10 +242,6 @@ def ppchi2(p, v, g):
 
 
 def betain(x, a, b, beta_log):
-    """
-    Incomplete beta function ratio I_x(a,b).
-    Used by ncbeta.
-    """
     if x <= 0.0:
         return 0.0, 0
     if x >= 1.0:
@@ -346,7 +249,7 @@ def betain(x, a, b, beta_log):
     if a <= 0.0 or b <= 0.0:
         return 0.0, 1
 
-    # Use continued fraction or series expansion
+
     maxit = 200
     eps = 3.0e-7
     am = 1.0
@@ -378,10 +281,6 @@ def betain(x, a, b, beta_log):
 
 
 def betanc(x, a, b, lam):
-    """
-    Noncentral incomplete beta function for small noncentrality.
-    Used by ncbeta.
-    """
     if x <= 0.0:
         return 0.0, 0
     if x >= 1.0:
@@ -453,28 +352,6 @@ def betanc(x, a, b, lam):
 
 
 def ncbeta(a, b, lam, x, errmax=1.0e-14):
-    """
-    Noncentral Beta cumulative distribution function.
-    Algorithm AS 310, Applied Statistics.
-
-    Computes I_x^{nc}(a, b, λ) for use in confidence interval estimation
-    of gasification product yields.
-
-    Parameters
-    ----------
-    a, b : float
-        Shape parameters, a > 0, b > 0.
-    lam : float
-        Noncentrality parameter, λ >= 0.
-    x : float
-        Argument, 0 <= x <= 1.
-    errmax : float
-        Error tolerance.
-
-    Returns
-    -------
-    tuple (value, ifault)
-    """
     ifault = 0
     value = x
     if lam <= 0.0:
@@ -551,26 +428,6 @@ def ncbeta(a, b, lam, x, errmax=1.0e-14):
 
 
 def setup_discrete_histogram(s, s_min, s_max):
-    """
-    Construct a discrete histogram representation with normalized density.
-
-    Used for biomass particle size distribution analysis. The piecewise
-    linear density y(x) satisfies ∫_{s_min}^{s_max} y(x) dx = 1.
-
-    Parameters
-    ----------
-    s : array-like
-        Sample values.
-    s_min, s_max : float
-        Histogram bounds.
-
-    Returns
-    -------
-    x : ndarray
-        Unique ordered bin edges.
-    y : ndarray
-        Normalized histogram density values.
-    """
     s = np.asarray(s, dtype=float)
     if s_max < s_min:
         s_min, s_max = s_max, s_min
@@ -607,7 +464,7 @@ def setup_discrete_histogram(s, s_min, s_max):
         if abs(dxn) > 1.0e-15:
             y[x_num - 1] = c[x_num - 1] / dxn
 
-    # Normalize by trapezoidal integral
+
     y_int = 0.0
     for i in range(x_num - 1):
         y_int += (x[i + 1] - x[i]) * (y[i + 1] + y[i]) * 0.5

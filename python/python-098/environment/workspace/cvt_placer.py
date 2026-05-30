@@ -1,34 +1,14 @@
 # -*- coding: utf-8 -*-
-"""
-cvt_placer.py
-基于 florida_cvt_pop 与 sphere_cvt 的 CVT（Centroidal Voronoi Tessellation）算法，
-用于超表面单元在二维孔径与远场球面上的最优排布。
-
-核心科学问题：
-  通过 CVT 在电磁强度加权密度下生成非周期超表面布局，
-  抑制高阶衍射光栅瓣（grating lobes），提升全息重建质量。
-
-关键公式：
-  1. 电磁加权密度（Intensity-weighted density）:
-       ρ(x, y) = |E_target(x, y)|² / ∫∫ |E_target|² dx dy
-  2. Voronoi 区域 V_i 的加权质心:
-       C_i = (∫_{V_i} x·ρ(x) dA) / (∫_{V_i} ρ(x) dA)
-  3. Lloyd 迭代:
-       g_i^{(k+1)} = C_i^{(k)}
-  4. 球面 Voronoi 面积元（球坐标）:
-       dA = sinθ dθ dφ
-"""
 
 import numpy as np
 from numpy.linalg import norm
 
 
 def _sample_density_square(density_func, n_samples, xlim=(-1.0, 1.0), ylim=(-1.0, 1.0)):
-    """按密度函数 ρ(x,y) 进行拒绝采样，返回样本点集."""
     samples = []
     max_attempts = n_samples * 20
     attempts = 0
-    # 估计密度上界：在网格上采样取最大值的 1.5 倍作为包络
+
     xs = np.linspace(xlim[0], xlim[1], 50)
     ys = np.linspace(ylim[0], ylim[1], 50)
     max_rho = 0.0
@@ -50,7 +30,7 @@ def _sample_density_square(density_func, n_samples, xlim=(-1.0, 1.0), ylim=(-1.0
         attempts += 1
 
     if len(samples) < n_samples:
-        # 回退：均匀采样补充
+
         n_extra = n_samples - len(samples)
         x_extra = np.random.uniform(xlim[0], xlim[1], n_extra)
         y_extra = np.random.uniform(ylim[0], ylim[1], n_extra)
@@ -61,7 +41,6 @@ def _sample_density_square(density_func, n_samples, xlim=(-1.0, 1.0), ylim=(-1.0
 
 
 def _voronoi_centroids_square(generators, samples):
-    """基于样本点计算二维 Voronoi 区域的质心（均匀密度）."""
     n = generators.shape[0]
     centroids = np.zeros_like(generators)
     counts = np.zeros(n)
@@ -75,13 +54,12 @@ def _voronoi_centroids_square(generators, samples):
         if counts[i] > 0:
             centroids[i] /= counts[i]
         else:
-            # 边界保护：若某生成元未分配到样本，保持原位
+
             centroids[i] = generators[i].copy()
     return centroids
 
 
 def _voronoi_centroids_weighted(generators, samples, weights):
-    """基于样本点与权重计算加权质心."""
     n = generators.shape[0]
     centroids = np.zeros_like(generators)
     weight_sums = np.zeros(n)
@@ -101,10 +79,6 @@ def _voronoi_centroids_weighted(generators, samples, weights):
 
 def cvt_step_square(generators, density_func=None, n_samples=5000,
                     xlim=(-1.0, 1.0), ylim=(-1.0, 1.0)):
-    """
-    执行一步二维 Lloyd 松弛（参考 florida_cvt_pop 的 centroid_pop 思想）。
-    若 density_func 为 None，则退化为均匀密度 CVT。
-    """
     generators = np.asarray(generators, dtype=float)
     if density_func is None:
         samples = np.random.uniform(
@@ -114,7 +88,7 @@ def cvt_step_square(generators, density_func=None, n_samples=5000,
     else:
         samples = _sample_density_square(density_func, n_samples, xlim, ylim)
         weights = np.array([density_func(s[0], s[1]) for s in samples])
-        # 防止全零权重导致除零
+
         wmax = np.max(weights)
         if wmax > 0:
             weights = weights / wmax
@@ -127,12 +101,8 @@ def cvt_step_square(generators, density_func=None, n_samples=5000,
 def lloyd_relaxation_square(n_generators, n_steps=15, density_func=None,
                             n_samples=8000, xlim=(-1.0, 1.0), ylim=(-1.0, 1.0),
                             seed=42):
-    """
-    完整的 Lloyd 松弛，返回优化后的生成元坐标。
-    对应原 florida_cvt_pop 中的迭代流程。
-    """
     np.random.seed(seed)
-    # 初始生成元在定义域内均匀撒点
+
     generators = np.random.uniform(
         [xlim[0], ylim[0]], [xlim[1], ylim[1]], size=(n_generators, 2)
     )
@@ -142,7 +112,6 @@ def lloyd_relaxation_square(n_generators, n_steps=15, density_func=None,
 
 
 def _sample_uniform_sphere(n):
-    """在单位球面上均匀采样 n 个点（参考 uniform_on_sphere01_map）."""
     points = np.random.normal(size=(n, 3))
     norms = norm(points, axis=1, keepdims=True)
     norms = np.where(norms < 1e-12, 1.0, norms)
@@ -150,15 +119,11 @@ def _sample_uniform_sphere(n):
 
 
 def _voronoi_centroids_sphere(generators, samples):
-    """
-    计算球面上 Voronoi 区域的质心（投影到球面上）。
-    参考 sphere_cvt_step 中的 voronoi_centroids 思想。
-    """
     n = generators.shape[0]
     centroids = np.zeros_like(generators)
     counts = np.zeros(n)
     for s in samples:
-        # 球面测地距离近似为欧氏距离（单位球上足够）
+
         dists = np.sum((generators - s) ** 2, axis=1)
         idx = int(np.argmin(dists))
         centroids[idx] += s
@@ -167,7 +132,7 @@ def _voronoi_centroids_sphere(generators, samples):
     for i in range(n):
         if counts[i] > 0:
             centroids[i] /= counts[i]
-            # 投影回球面
+
             r = norm(centroids[i])
             if r > 1e-12:
                 centroids[i] /= r
@@ -179,9 +144,6 @@ def _voronoi_centroids_sphere(generators, samples):
 
 
 def cvt_step_sphere(generators, n_samples=5000):
-    """
-    执行一步球面 Lloyd 松弛（参考 sphere_cvt_step）。
-    """
     generators = np.asarray(generators, dtype=float)
     samples = _sample_uniform_sphere(n_samples)
     centroids = _voronoi_centroids_sphere(generators, samples)
@@ -189,10 +151,6 @@ def cvt_step_sphere(generators, n_samples=5000):
 
 
 def lloyd_relaxation_sphere(n_generators, n_steps=15, n_samples=8000, seed=42):
-    """
-    完整的球面 Lloyd 松弛，用于远场全息图案的球面采样点优化。
-    对应原 sphere_cvt 的 CVT 迭代流程。
-    """
     np.random.seed(seed)
     generators = _sample_uniform_sphere(n_generators)
     for step in range(n_steps):
@@ -202,10 +160,6 @@ def lloyd_relaxation_sphere(n_generators, n_steps=15, n_samples=8000, seed=42):
 
 def compute_voronoi_areas_square(generators, n_samples=20000,
                                  xlim=(-1.0, 1.0), ylim=(-1.0, 1.0)):
-    """
-    通过蒙特卡洛采样估算二维 Voronoi 区域面积。
-    参考 voronoi_areas 的面积计算思想。
-    """
     n = generators.shape[0]
     areas = np.zeros(n)
     total_area = (xlim[1] - xlim[0]) * (ylim[1] - ylim[0])
@@ -221,10 +175,6 @@ def compute_voronoi_areas_square(generators, n_samples=20000,
 
 
 def compute_voronoi_areas_sphere(generators, n_samples=20000):
-    """
-    通过蒙特卡洛采样估算球面 Voronoi 区域面积（球面度，steradians）。
-    总球面面积为 4π。
-    """
     n = generators.shape[0]
     counts = np.zeros(n)
     samples = _sample_uniform_sphere(n_samples)

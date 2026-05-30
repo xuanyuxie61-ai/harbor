@@ -1,37 +1,11 @@
-"""
-data_statistics.py
-==================
-Statistical post-processing of multi-condition combustion simulation results.
-
-Incorporates:
-- brc_naive (118): grouped aggregation (city statistics) applied to
-  combustion condition groups.
-- hand_data (502): discrete data contour fitting via polynomial approximation.
-
-Scientific application: after running many burner simulations with varying
-operating conditions, aggregate results by condition groups (e.g., by
-excess air ratio bins) and compute statistics: mean NOx, min, max, std.
-Also fit response surfaces to the data.
-
-Key formulas:
-    Grouped mean:
-        mu_g = (1/N_g) * sum_{i in group g} y_i
-    
-    Response surface (2D polynomial):
-        R(x1, x2) = sum_{i=0}^p sum_{j=0}^{p-i} c_{ij} * x1^i * x2^j
-    
-    Coefficients via least squares:
-        c = (Phi^T Phi)^{-1} Phi^T y
-    where Phi is the Vandermonde matrix.
-"""
 
 import numpy as np
 from typing import List, Dict
 
 
-# ======================================================================
-# 1. Grouped aggregation (from brc_naive)
-# ======================================================================
+
+
+
 
 def group_statistics(
     conditions: np.ndarray,
@@ -39,19 +13,6 @@ def group_statistics(
     burnout_values: np.ndarray,
     n_bins: int = 5
 ) -> dict:
-    """
-    Aggregate simulation results by condition bins.
-    Analogous to brc_naive city grouping.
-    
-    Args:
-        conditions: array of condition values (e.g., excess air ratio)
-        nox_values: corresponding NOx emissions [ppm]
-        burnout_values: corresponding burnout efficiencies [-]
-        n_bins: number of bins for grouping
-    
-    Returns:
-        dict with bin edges and statistics per bin.
-    """
     if len(conditions) == 0:
         return {}
     
@@ -93,15 +54,11 @@ def group_statistics(
     }
 
 
-# ======================================================================
-# 2. Response surface fitting (from hand_data contour fitting)
-# ======================================================================
+
+
+
 
 def polynomial_features_2d(x1: np.ndarray, x2: np.ndarray, degree: int = 3) -> np.ndarray:
-    """
-    Build Vandermonde matrix for 2D polynomial of given degree.
-    Basis: {x1^i * x2^j | i+j <= degree}
-    """
     n = len(x1)
     cols = []
     for i in range(degree + 1):
@@ -113,18 +70,9 @@ def polynomial_features_2d(x1: np.ndarray, x2: np.ndarray, degree: int = 3) -> n
 def fit_response_surface(
     x1: np.ndarray, x2: np.ndarray, y: np.ndarray, degree: int = 3
 ) -> dict:
-    """
-    Fit a 2D polynomial response surface via least squares.
-    
-    Model:
-        y = Phi(x1, x2) * c + epsilon
-    
-    Solution:
-        c = (Phi^T Phi + lambda*I)^{-1} Phi^T y   (ridge regression for stability)
-    """
     Phi = polynomial_features_2d(x1, x2, degree)
     
-    # Ridge regression for numerical stability
+
     lam = 1e-6
     A = Phi.T @ Phi + lam * np.eye(Phi.shape[1])
     b = Phi.T @ y
@@ -151,7 +99,6 @@ def fit_response_surface(
 
 def evaluate_response_surface(coeffs: np.ndarray, x1: float, x2: float,
                               degree: int = 3) -> float:
-    """Evaluate fitted response surface at a single point."""
     idx = 0
     y = 0.0
     for i in range(degree + 1):
@@ -161,20 +108,14 @@ def evaluate_response_surface(coeffs: np.ndarray, x1: float, x2: float,
     return y
 
 
-# ======================================================================
-# 3. Uncertainty quantification
-# ======================================================================
+
+
+
 
 def monte_carlo_uncertainty(
     model_func, param_means: np.ndarray, param_stds: np.ndarray,
     n_samples: int = 1000, seed: int = 42
 ) -> dict:
-    """
-    Propagate parameter uncertainties through the combustion model
-    using Monte Carlo sampling.
-    
-    Returns mean, std, and 95% confidence interval of model output.
-    """
     rng = np.random.default_rng(seed)
     outputs = []
     for _ in range(n_samples):

@@ -1,11 +1,3 @@
-"""
-Time integration methods for stiff ODE systems arising in membrane mass transfer.
-
-Adapted from:
-  - backward_euler_fixed.m (fixed-point backward Euler)
-  - runge_power_series.m (series expansion)
-  - Kepler and quasiperiodic conserved-quantity monitoring
-"""
 
 import numpy as np
 from mass_transfer_ode import (
@@ -16,12 +8,6 @@ from mass_transfer_ode import (
 
 
 def backward_euler_fixed(f, tspan, y0, n_steps, it_max=10):
-    """
-    Fixed-point backward Euler integration.
-
-    y_{n+1} = y_n + dt * f(t_{n+1}, y_{n+1})
-    Solved via simple fixed-point iteration.
-    """
     y0 = np.asarray(y0, dtype=float)
     m = y0.shape[0]
     t = np.linspace(tspan[0], tspan[1], n_steps + 1)
@@ -39,9 +25,6 @@ def backward_euler_fixed(f, tspan, y0, n_steps, it_max=10):
 
 
 def forward_euler(f, tspan, y0, n_steps):
-    """
-    Explicit forward Euler (for comparison / non-stiff regions).
-    """
     y0 = np.asarray(y0, dtype=float)
     m = y0.shape[0]
     t = np.linspace(tspan[0], tspan[1], n_steps + 1)
@@ -54,9 +37,6 @@ def forward_euler(f, tspan, y0, n_steps):
 
 
 def runge_kutta4(f, tspan, y0, n_steps):
-    """
-    Classical fourth-order Runge-Kutta integrator.
-    """
     y0 = np.asarray(y0, dtype=float)
     m = y0.shape[0]
     t = np.linspace(tspan[0], tspan[1], n_steps + 1)
@@ -75,10 +55,6 @@ def runge_kutta4(f, tspan, y0, n_steps):
 
 
 def adaptive_rk45(f, tspan, y0, atol=1e-8, rtol=1e-6, h_init=None):
-    """
-    Adaptive RK45 (Dormand-Prince) integration for stiff membrane ODEs.
-    Simplified implementation for robustness.
-    """
     y0 = np.asarray(y0, dtype=float)
     m = y0.shape[0]
     t0, tf = tspan
@@ -91,7 +67,7 @@ def adaptive_rk45(f, tspan, y0, atol=1e-8, rtol=1e-6, h_init=None):
     t = t0
     y = y0.copy()
 
-    # Dormand-Prince coefficients (simplified)
+
     a2, a3, a4, a5, a6 = 1 / 5, 3 / 10, 4 / 5, 8 / 9, 1.0
     b21 = 1 / 5
     b31, b32 = 3 / 40, 9 / 40
@@ -137,11 +113,6 @@ def adaptive_rk45(f, tspan, y0, atol=1e-8, rtol=1e-6, h_init=None):
 
 
 def conserved_quantity_kepler(y):
-    """
-    Compute the Hamiltonian (total energy) of the Kepler-like trajectory:
-        H = 0.5 (p1^2 + p2^2) - mu / sqrt(q1^2 + q2^2)
-    For validation of symplectic/energy-conserving properties.
-    """
     q1, q2, p1, p2 = y[:4]
     mu = 1.0e-20
     eps = 1e-12
@@ -151,19 +122,12 @@ def conserved_quantity_kepler(y):
 
 
 def conserved_quantity_quasiperiodic(y, omega1=np.pi):
-    """
-    First integral of the quasiperiodic ODE:
-        I = (d^2u/dt^2)^2 + (omega1^2+1) (du/dt)^2 + omega1^2 u^2 + 2 u d^2u/dt^2
-    """
     u, ud, udd, uddd = y[:4]
     I = udd ** 2 + (omega1 ** 2 + 1.0) * ud ** 2 + (omega1 ** 2) * u ** 2 + 2.0 * u * udd
     return I
 
 
 def compute_conservation_drift(t, y, conserved_fn):
-    """
-    Compute the relative drift of a conserved quantity over a trajectory.
-    """
     if len(y) == 0:
         return 0.0
     vals = np.array([conserved_fn(yi) for yi in y], dtype=float)
@@ -173,9 +137,6 @@ def compute_conservation_drift(t, y, conserved_fn):
 
 
 def power_series_solution_ode(t, coeffs):
-    """
-    Evaluate a power-series solution sum c_k t^k.
-    """
     t = np.asarray(t, dtype=float)
     val = np.zeros_like(t, dtype=float)
     for k, c in enumerate(coeffs):

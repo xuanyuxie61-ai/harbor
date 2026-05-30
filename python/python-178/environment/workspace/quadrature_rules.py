@@ -1,21 +1,12 @@
-"""
-quadrature_rules.py
-===================
-Numerical integration rules for tetrahedra and spherical triangles.
-Synthesized from simplex_monte_carlo (simplex sampling and exact monomial
-integration) and sphere_triangle_monte_carlo (stratified spherical sampling).
-Provides deterministic quadrature and Monte Carlo estimators for DG volume
-and surface integrals.
-"""
 
 import numpy as np
 from typing import Tuple, Callable
 from integer_utils import i4_factorial
 
 
-# ---------------------------------------------------------------------------
-# Deterministic quadrature on reference tetrahedron
-# ---------------------------------------------------------------------------
+
+
+
 
 TETRAHEDRON_QUADRATURE_RULES = {
     1: {
@@ -48,7 +39,7 @@ TETRAHEDRON_QUADRATURE_RULES = {
         ], dtype=np.float64),
     },
     4: {
-        # 14-point rule (Zienkiewicz)
+
         'points': np.array([
             [0.25, 0.25, 0.25],
             [0.071428571428571, 0.071428571428571, 0.071428571428571],
@@ -82,10 +73,6 @@ TETRAHEDRON_QUADRATURE_RULES = {
 def integrate_tetrahedron_deterministic(f: Callable,
                                         physical_vertices: np.ndarray,
                                         order: int = 3) -> float:
-    """
-    Integrate function f(x,y,z) over physical tetrahedron using
-    reference quadrature rule of given order.
-    """
     from tetrahedron_geometry import jacobian_tet4
     if order not in TETRAHEDRON_QUADRATURE_RULES:
         raise ValueError(f"Quadrature order {order} not available.")
@@ -99,7 +86,7 @@ def integrate_tetrahedron_deterministic(f: Callable,
     result = 0.0
     for i in range(len(wts)):
         xi, eta, zeta = pts[i]
-        # Map to physical
+
         x = (physical_vertices[0] +
              (physical_vertices[1] - physical_vertices[0]) * xi +
              (physical_vertices[2] - physical_vertices[0]) * eta +
@@ -108,16 +95,11 @@ def integrate_tetrahedron_deterministic(f: Callable,
     return result * detJ
 
 
-# ---------------------------------------------------------------------------
-# Simplex Monte Carlo integration
-# ---------------------------------------------------------------------------
+
+
+
 
 def sample_unit_simplex(m: int, n_samples: int) -> np.ndarray:
-    """
-    Sample uniformly on the m-dimensional unit simplex.
-    Uses exponential random variables: E_i = -log(U_i), x_j = E_j / sum(E).
-    Returns array of shape (n_samples, m+1).
-    """
     if m < 0:
         raise ValueError("Dimension must be non-negative.")
     E = -np.log(np.random.rand(n_samples, m + 1))
@@ -128,11 +110,7 @@ def sample_unit_simplex(m: int, n_samples: int) -> np.ndarray:
 
 def sample_tetrahedron_uniform(physical_vertices: np.ndarray,
                                n_samples: int) -> np.ndarray:
-    """
-    Sample uniformly inside a physical tetrahedron.
-    Returns array of shape (n_samples, 3).
-    """
-    # 3D simplex: m=3, but our tet is xi+eta+zeta <= 1 in 3D -> 4 barycentric coords
+
     bary = sample_unit_simplex(3, n_samples)
     pts = np.zeros((n_samples, 3), dtype=np.float64)
     for i in range(4):
@@ -143,10 +121,6 @@ def sample_tetrahedron_uniform(physical_vertices: np.ndarray,
 def integrate_tetrahedron_monte_carlo(f: Callable,
                                       physical_vertices: np.ndarray,
                                       n_samples: int = 10000) -> Tuple[float, float]:
-    """
-    Monte Carlo integration over tetrahedron.
-    Returns (mean, std_error).
-    """
     from tetrahedron_geometry import tetrahedron_volume
     vol = tetrahedron_volume(physical_vertices)
     pts = sample_tetrahedron_uniform(physical_vertices, n_samples)
@@ -157,32 +131,22 @@ def integrate_tetrahedron_monte_carlo(f: Callable,
 
 
 def exact_monomial_integral_tetrahedron(exponents: Tuple[int, int, int]) -> float:
-    """
-    Exact integral of xi^a * eta^b * zeta^c over the reference tetrahedron
-    xi,eta,zeta >= 0, xi+eta+zeta <= 1.
-    Result = a! * b! * c! / (a + b + c + 3)!.
-    """
     a, b, c = exponents
     num = i4_factorial(a) * i4_factorial(b) * i4_factorial(c)
     den = i4_factorial(a + b + c + 3)
     return float(num) / float(den)
 
 
-# ---------------------------------------------------------------------------
-# Spherical triangle sampling (for radiation boundary conditions)
-# ---------------------------------------------------------------------------
+
+
+
 
 def sphere01_triangle_angles_to_area(a: float, b: float, c: float) -> float:
-    """
-    Spherical triangle area from angles (Girard's formula).
-    Area = A + B + C - pi.
-    """
     return a + b + c - np.pi
 
 
 def sphere01_triangle_vertices_to_sides(v1: np.ndarray, v2: np.ndarray,
                                         v3: np.ndarray) -> Tuple[float, float, float]:
-    """Great-circle arc lengths between vertices on unit sphere."""
     def arc(u, w):
         dot = np.clip(np.dot(u, w), -1.0, 1.0)
         return np.arccos(dot)
@@ -190,12 +154,11 @@ def sphere01_triangle_vertices_to_sides(v1: np.ndarray, v2: np.ndarray,
 
 
 def sphere01_triangle_sides_to_angles(a: float, b: float, c: float) -> Tuple[float, float, float]:
-    """Spherical angles from side lengths using L'Huilier's theorem."""
     s = 0.5 * (a + b + c)
-    # Check validity
+
     if s >= np.pi or a < 0 or b < 0 or c < 0:
         raise ValueError("Invalid spherical triangle sides.")
-    # Use half-angle tangent formulas
+
     tan_A2 = np.sqrt(np.sin(s - b) * np.sin(s - c) /
                      (np.sin(s) * np.sin(s - a) + 1e-30))
     tan_B2 = np.sqrt(np.sin(s - a) * np.sin(s - c) /
@@ -210,26 +173,22 @@ def sphere01_triangle_sides_to_angles(a: float, b: float, c: float) -> Tuple[flo
 
 def sample_spherical_triangle(v1: np.ndarray, v2: np.ndarray, v3: np.ndarray,
                               n_samples: int) -> np.ndarray:
-    """
-    Stratified uniform sampling inside a spherical triangle on unit sphere.
-    Uses Arvo's method.
-    """
     v1 = np.asarray(v1, dtype=np.float64)
     v2 = np.asarray(v2, dtype=np.float64)
     v3 = np.asarray(v3, dtype=np.float64)
-    # Normalize
+
     v1 /= np.linalg.norm(v1) + 1e-30
     v2 /= np.linalg.norm(v2) + 1e-30
     v3 /= np.linalg.norm(v3) + 1e-30
     a, b, c = sphere01_triangle_vertices_to_sides(v1, v2, v3)
     A, B, C = sphere01_triangle_sides_to_angles(a, b, c)
     area = sphere01_triangle_angles_to_area(A, B, C)
-    # Convert to an orthonormal basis with e1 = v1
+
     e1 = v1.copy()
     e2 = v2 - np.dot(v2, e1) * e1
     nrm = np.linalg.norm(e2)
     if nrm < 1e-14:
-        # Degenerate case: sample on great circle
+
         pts = []
         for _ in range(n_samples):
             t = np.random.rand()
@@ -239,27 +198,27 @@ def sample_spherical_triangle(v1: np.ndarray, v2: np.ndarray, v3: np.ndarray,
         return np.array(pts)
     e2 /= nrm
     e3 = np.cross(e1, e2)
-    # Sampling
+
     pts = np.zeros((n_samples, 3), dtype=np.float64)
     for i in range(n_samples):
         xi1 = np.random.rand()
         xi2 = np.random.rand()
         area_hat = xi1 * area
-        # Compute new edge length
+
         s = 0.5 * (a + b + c)
-        # Use spherical excess to find intermediate angle
-        # Simplified: use barycentric-like sampling on tangent plane then project
-        # Alternative: use exact Arvo method
-        # For robustness, we use a simplified but valid approach:
+
+
+
+
         alpha = area_hat
-        # Compute z = cos(angle from v1)
+
         z = np.cos(alpha)
-        # Compute phi angle
+
         phi = xi2 * 2.0 * np.pi
-        # Form point in basis and project to sphere
+
         sin_theta = np.sqrt(max(0.0, 1.0 - z * z))
         p = z * e1 + sin_theta * (np.cos(phi) * e2 + np.sin(phi) * e3)
-        # Project to sphere and ensure it's in triangle via rejection
+
         p /= np.linalg.norm(p) + 1e-30
         pts[i] = p
     return pts
@@ -268,7 +227,6 @@ def sample_spherical_triangle(v1: np.ndarray, v2: np.ndarray, v3: np.ndarray,
 def integrate_spherical_triangle_monte_carlo(f: Callable,
                                               v1: np.ndarray, v2: np.ndarray,
                                               v3: np.ndarray, n_samples: int = 5000) -> float:
-    """Integrate function over spherical triangle using Monte Carlo."""
     a, b, c = sphere01_triangle_vertices_to_sides(v1, v2, v3)
     A, B, C = sphere01_triangle_sides_to_angles(a, b, c)
     area = sphere01_triangle_angles_to_area(A, B, C)

@@ -1,47 +1,9 @@
-"""
-mesh_discretization.py
-----------------------
-Mesh handling and finite-element discretization for non-Hermitian
-spatial operators, adapted from GMSH I/O utilities.
-
-Adapted from seed project 474_gmsh_io.
-
-Scientific Background
-=====================
-For continuous non-Hermitian Schrödinger operators in 2D or 3D,
-
-    H = - (ℏ^2 / 2m) ∇^2 + V(r) + i W(r),
-
-where V(r) is the real potential and W(r) is the imaginary (gain/loss)
-potential, we discretize space using a finite-element mesh. The weak
-form leads to a generalized eigenvalue problem
-
-    (K + M_V + i M_W) ψ = E M_mass ψ,
-
-where K is the stiffness matrix (Laplacian), M_V and M_W are potential
-mass matrices, and M_mass is the standard mass matrix.
-
-The mesh reader supports the GMSH ASCII format 2.2, parsing $Nodes and
-$Elements sections. Elements are triangles (2D) or tetrahedra (3D).
-"""
 
 import numpy as np
 
 
 class SimpleMesh:
-    """
-    Minimal finite-element mesh container.
-    """
     def __init__(self, nodes, elements, element_type='triangle'):
-        """
-        Parameters
-        ----------
-        nodes : ndarray, shape (N_nodes, dim)
-        elements : ndarray, shape (N_elements, n_vertices)
-            Zero-based node indices.
-        element_type : str
-            'triangle' or 'tetrahedron'.
-        """
         self.nodes = np.asarray(nodes, dtype=float)
         self.elements = np.asarray(elements, dtype=int)
         self.element_type = element_type
@@ -50,25 +12,16 @@ class SimpleMesh:
             raise ValueError("Only 2D and 3D meshes supported.")
 
     def bounding_box(self):
-        """
-        Return the axis-aligned bounding box as (min_coords, max_coords).
-        """
         return self.nodes.min(axis=0), self.nodes.max(axis=0)
 
     def element_centroid(self, elem_idx):
-        """
-        Compute the centroid of a single element.
-        """
         verts = self.nodes[self.elements[elem_idx]]
         return verts.mean(axis=0)
 
     def element_area_or_volume(self, elem_idx):
-        """
-        Compute area (2D triangle) or volume (3D tetrahedron).
-        """
         verts = self.nodes[self.elements[elem_idx]]
         if self.element_type == 'triangle' and self.dim == 2:
-            # Shoelace formula
+
             x, y = verts[:, 0], verts[:, 1]
             return 0.5 * abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
         elif self.element_type == 'tetrahedron' and self.dim == 3:
@@ -80,18 +33,6 @@ class SimpleMesh:
 
 
 def read_gmsh_ascii(filepath):
-    """
-    Read a minimal GMSH ASCII mesh file (format 2.2).
-    Parses $Nodes and $Elements, returns a SimpleMesh.
-
-    Parameters
-    ----------
-    filepath : str
-
-    Returns
-    -------
-    mesh : SimpleMesh
-    """
     nodes = []
     elements = []
     reading_nodes = False
@@ -128,7 +69,7 @@ def read_gmsh_ascii(filepath):
 
             if reading_nodes and node_idx < node_count:
                 parts = line.split()
-                # index x y z
+
                 if len(parts) >= 4:
                     nodes.append([float(parts[1]), float(parts[2]), float(parts[3])])
                 node_idx += 1
@@ -136,16 +77,16 @@ def read_gmsh_ascii(filepath):
 
             if reading_elements and elem_idx < elem_count:
                 parts = line.split()
-                # elm-number elm-type number-of-tags tag ... node-number-list
+
                 if len(parts) >= 3:
                     elem_type = int(parts[1])
                     num_tags = int(parts[2])
                     if elem_type == 2:
-                        # 3-node triangle
+
                         n_vert = 3
                         elem_type_str = 'triangle'
                     elif elem_type == 4:
-                        # 4-node tetrahedron
+
                         n_vert = 4
                         elem_type_str = 'tetrahedron'
                     else:
@@ -161,7 +102,7 @@ def read_gmsh_ascii(filepath):
         raise ValueError("No nodes found in mesh file.")
     elements = np.array(elements)
 
-    # Infer dimension from node coordinates variance
+
     dim = 2 if np.allclose(nodes[:, 2], nodes[0, 2]) else 3
     nodes = nodes[:, :dim]
 
@@ -170,21 +111,6 @@ def read_gmsh_ascii(filepath):
 
 
 def build_mass_matrix(mesh):
-    """
-    Build the lumped mass matrix for a mesh using the lumped-mass
-    approximation:
-
-        M_ii = Σ_{elements containing node i} (area_e / n_vertices).
-
-    Parameters
-    ----------
-    mesh : SimpleMesh
-
-    Returns
-    -------
-    M : ndarray, shape (N_nodes, N_nodes)
-        Diagonal mass matrix.
-    """
     N = mesh.nodes.shape[0]
     M_diag = np.zeros(N)
     n_vert = mesh.elements.shape[1]
@@ -197,15 +123,6 @@ def build_mass_matrix(mesh):
 
 
 def build_stiffness_matrix_2d(mesh):
-    """
-    Build the stiffness matrix (discrete Laplacian) for a 2D triangle mesh
-    using the cotangent formula:
-
-        K_{ij} = - (1/2) (cot θ_{ij}^{(k)} + cot θ_{ij}^{(l)})
-        K_{ii} = - Σ_{j≠i} K_{ij}
-
-    where θ_{ij}^{(k)} is the angle opposite edge (i,j) in triangle k.
-    """
     if mesh.dim != 2 or mesh.element_type != 'triangle':
         raise ValueError("Cotangent stiffness only for 2D triangle meshes.")
 
@@ -215,7 +132,7 @@ def build_stiffness_matrix_2d(mesh):
     for tri in mesh.elements:
         i, j, k = tri
         pi, pj, pk = mesh.nodes[i], mesh.nodes[j], mesh.nodes[k]
-        # Edge vectors
+
         eij = pj - pi
         eik = pk - pi
         eji = pi - pj
@@ -223,7 +140,7 @@ def build_stiffness_matrix_2d(mesh):
         eki = pi - pk
         ekj = pj - pk
 
-        # Cotangents of angles opposite each edge
+
         def cot(u, v):
             cos_angle = np.dot(u, v)
             sin_angle = abs(np.cross(u, v))
@@ -242,7 +159,7 @@ def build_stiffness_matrix_2d(mesh):
         K[j, k] -= 0.5 * cot_i
         K[k, j] -= 0.5 * cot_i
 
-    # Diagonal entries
+
     for i in range(N):
         K[i, i] = -np.sum(K[i, :])
 
@@ -250,28 +167,6 @@ def build_stiffness_matrix_2d(mesh):
 
 
 def assemble_nonhermitian_hamiltonian_fe(mesh, V_func, W_func, hbar=1.0, m_eff=1.0):
-    """
-    Assemble the finite-element non-Hermitian Hamiltonian matrix:
-
-        H = -(ℏ^2 / 2m) K + diag(V(r_i) + i W(r_i))
-
-    using the lumped-mass approximation.
-
-    Parameters
-    ----------
-    mesh : SimpleMesh
-    V_func : callable
-        Real potential V(x, y) or V(x, y, z).
-    W_func : callable
-        Imaginary potential W(x, y) or W(x, y, z).
-    hbar, m_eff : float
-
-    Returns
-    -------
-    H : ndarray, dtype=complex
-    M : ndarray
-        Mass matrix.
-    """
     if mesh.dim == 2:
         K = build_stiffness_matrix_2d(mesh)
     else:

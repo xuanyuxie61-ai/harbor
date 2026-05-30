@@ -1,34 +1,9 @@
-"""
-forward_models.py
-
-Forward physical models for the Bayesian inference engine:
-  - FitzHugh-Nagumo reaction kinetics (ODE + Euler time-stepping)
-  - Helmholtz wave equation exact solution (Bessel separation of variables)
-
-Reimplemented from seed projects:
-  - fitzhugh_nagumo_ode + euler: excitable media dynamics
-  - helmholtz_exact + besselzero: vibrating membrane wave fields
-"""
 import math
 import numpy as np
 from scipy.special import jv, yv
 
 
 def fitzhugh_nagumo_deriv(t: float, y: np.ndarray, a: float, b: float, c: float, d: float):
-    """
-    Right-hand side of the FitzHugh-Nagumo system:
-
-        dv/dt = v - v^3/3 - w + d
-        dw/dt = (v + a - b*w) / c
-
-    Parameters:
-        t: time (unused, autonomous system)
-        y: array [v, w]
-        a, b, c, d: model parameters
-
-    Returns:
-        dydt: array [dv/dt, dw/dt]
-    """
     v = y[0]
     w = y[1]
     dvdt = v - (v ** 3) / 3.0 - w + d
@@ -37,23 +12,6 @@ def fitzhugh_nagumo_deriv(t: float, y: np.ndarray, a: float, b: float, c: float,
 
 
 def euler_integrate(dydt, tspan, y0: np.ndarray, n: int, **kwargs):
-    """
-    Classical forward Euler explicit integration.
-
-        y_{i+1} = y_i + dt * f(t_i, y_i)
-        dt = (tstop - t0) / n
-
-    Parameters:
-        dydt: callable (t, y, **kwargs) -> dy/dt
-        tspan: (t0, tstop)
-        y0: initial condition vector
-        n: number of steps
-        **kwargs: passed to dydt
-
-    Returns:
-        t: array of length n+1
-        y: array of shape (n+1, m)
-    """
     t0, tstop = float(tspan[0]), float(tspan[1])
     if n < 1:
         raise ValueError("euler_integrate: n must be >= 1")
@@ -70,10 +28,6 @@ def euler_integrate(dydt, tspan, y0: np.ndarray, n: int, **kwargs):
 
 
 def _findzero(n: int, kind: int, x0: float):
-    """
-    Halley's method for finding a zero of J_n (kind=1) or Y_n (kind=2).
-    Reimplemented from besselzero.m.
-    """
     ITERATIONS_MAX = 100
     TOLERANCE_RELATIVE = 1e4
     error = 1.0
@@ -98,18 +52,6 @@ def _findzero(n: int, kind: int, x0: float):
 
 
 def besselzero(n: int, k: int, kind: int = 1):
-    """
-    Calculate the first k positive zeros of the n-th order Bessel function
-    using least-squares initial guesses and Halley's method.
-
-    Parameters:
-        n: order (non-negative real)
-        k: number of zeros
-        kind: 1 for J_n, 2 for Y_n
-
-    Returns:
-        zeros: array of length k
-    """
     if k < 1:
         raise ValueError("besselzero: k must be >= 1")
     n = abs(n)
@@ -168,7 +110,7 @@ def besselzero(n: int, k: int, kind: int = 1):
                      + coeff3[3] * (n + 1.0) ** exp3[1])
             zeros[2] = _findzero(n, kind, guess)
 
-    # Higher roots via linear extrapolation of spacing
+
     for iroot in range(3, k):
         guess = 2.0 * zeros[iroot - 1] - zeros[iroot - 2]
         zeros[iroot] = _findzero(n, kind, guess)
@@ -178,25 +120,6 @@ def besselzero(n: int, k: int, kind: int = 1):
 
 def helmholtz_exact(a: float, m: int, n: int, alpha: float, beta: float,
                     gamma: float, x: np.ndarray, y: np.ndarray):
-    """
-    Exact solution of the Helmholtz equation on a disk of radius a:
-
-        Del^2 Z = -k^2 Z,   Z(a, theta) = 0
-
-    via separation of variables:
-        Z(r,theta) = gamma * J_n(k*r) * (alpha*cos(n*theta) + beta*sin(n*theta))
-    where k = rho(m,n) / a and rho(m,n) is the m-th positive zero of J_n.
-
-    Parameters:
-        a: disk radius
-        m: index of Bessel zero (m>=1 for n=0, m>=0 otherwise)
-        n: order of Bessel function
-        alpha, beta, gamma: angular and radial coefficients
-        x, y: Cartesian coordinates (arrays)
-
-    Returns:
-        Z: solution values at (x,y)
-    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     theta = np.arctan2(y, x)
@@ -215,10 +138,6 @@ def helmholtz_exact(a: float, m: int, n: int, alpha: float, beta: float,
 
 def fhn_stationary_voltage(a: float, b: float, c: float, d: float,
                            tspan=(0.0, 20.0), n_steps: int = 30):
-    """
-    Integrate FitzHugh-Nagumo from rest (v=0, w=0) and return the
-    membrane voltage v at the final time.
-    """
     y0 = np.array([0.0, 0.0], dtype=float)
     t, y = euler_integrate(fitzhugh_nagumo_deriv, tspan, y0, n_steps,
                            a=a, b=b, c=c, d=d)

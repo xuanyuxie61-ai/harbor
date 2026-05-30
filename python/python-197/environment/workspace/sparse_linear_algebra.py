@@ -18,26 +18,23 @@ sparse_linear_algebra.py
 import numpy as np
 
 
-# =============================================================================
-# R83S : 三对角 Toeplitz 标量矩阵 [sub, diag, super]
-# =============================================================================
+
+
+
 class R83SMatrix:
-    """紧凑存储三对角标量矩阵 A = sub * I_{-1} + diag * I_0 + super * I_{+1}。"""
 
     def __init__(self, m: int, n: int, a: np.ndarray):
         self.m = m
         self.n = n
-        self.a = np.asarray(a, dtype=float)  # shape (3,)
+        self.a = np.asarray(a, dtype=float)
         if self.a.shape != (3,):
             raise ValueError("a must have shape (3,)")
 
     @staticmethod
     def dif2(n: int):
-        """经典 DIF2 矩阵: [-1, 2, -1]。"""
         return R83SMatrix(n, n, np.array([-1.0, 2.0, -1.0]))
 
     def mv(self, x: np.ndarray) -> np.ndarray:
-        """矩阵-向量乘积 y = A @ x。"""
         x = np.asarray(x, dtype=float)
         y = np.zeros(self.m, dtype=float)
         if self.n != len(x):
@@ -52,7 +49,6 @@ class R83SMatrix:
         return y
 
     def mtv(self, x: np.ndarray) -> np.ndarray:
-        """转置矩阵-向量乘积 y = A^T @ x。"""
         x = np.asarray(x, dtype=float)
         y = np.zeros(self.n, dtype=float)
         sub, diag, sup = self.a
@@ -65,11 +61,9 @@ class R83SMatrix:
         return y
 
     def residual(self, x: np.ndarray, b: np.ndarray) -> np.ndarray:
-        """残差 r = b - A @ x。"""
         return b - self.mv(x)
 
     def to_dense(self) -> np.ndarray:
-        """展开为稠密矩阵。"""
         A = np.zeros((self.m, self.n))
         sub, diag, sup = self.a
         for i in range(min(self.m, self.n)):
@@ -80,15 +74,11 @@ class R83SMatrix:
         return A
 
 
-# =============================================================================
-# 迭代求解器
-# =============================================================================
+
+
+
 def r83s_cg(n: int, a: np.ndarray, b: np.ndarray, x0: np.ndarray = None,
             tol: float = 1.0e-10, max_iter: int = None):
-    """
-    共轭梯度法求解对称正定的 R83S 线性系统 A x = b。
-    a: shape (3,) 的 [sub, diag, super]。
-    """
     if max_iter is None:
         max_iter = n
     A = R83SMatrix(n, n, a)
@@ -115,7 +105,6 @@ def r83s_cg(n: int, a: np.ndarray, b: np.ndarray, x0: np.ndarray = None,
 
 def r83s_jacobi(n: int, a: np.ndarray, b: np.ndarray, x0: np.ndarray = None,
                 tol: float = 1.0e-10, max_iter: int = 10000):
-    """Jacobi 迭代法求解 R83S 线性系统。"""
     A = R83SMatrix(n, n, a)
     b = np.asarray(b, dtype=float)
     if x0 is None:
@@ -142,7 +131,6 @@ def r83s_jacobi(n: int, a: np.ndarray, b: np.ndarray, x0: np.ndarray = None,
 
 def r83s_gauss_seidel(n: int, a: np.ndarray, b: np.ndarray, x0: np.ndarray = None,
                       tol: float = 1.0e-10, max_iter: int = 10000):
-    """Gauss-Seidel 迭代法求解 R83S 线性系统。"""
     A = R83SMatrix(n, n, a)
     b = np.asarray(b, dtype=float)
     if x0 is None:
@@ -166,15 +154,10 @@ def r83s_gauss_seidel(n: int, a: np.ndarray, b: np.ndarray, x0: np.ndarray = Non
     return x
 
 
-# =============================================================================
-# Cholesky 分解（AS 6）
-# =============================================================================
+
+
+
 def cholesky_decompose(A: np.ndarray, eta: float = 1.0e-14):
-    """
-    对对称半正定矩阵 A 进行 Cholesky 分解 A = L @ L^T。
-    返回 (L, nullty, ifault)。
-    nullty: 秩亏数（接近零的对角元个数）。
-    """
     A = np.asarray(A, dtype=float)
     n = A.shape[0]
     if A.shape[0] != A.shape[1]:

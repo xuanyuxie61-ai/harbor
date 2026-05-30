@@ -1,12 +1,3 @@
-"""
-scalar_advection.py
-===================
-Scalar linear advection equation as a validation test case for the DG solver.
-    du/dt + a·grad(u) = 0
-with a = (ax, ay, az).
-This serves as a stable, verifiable conservation law to demonstrate
-all DG infrastructure without the stiffness of full Euler equations.
-"""
 
 import numpy as np
 from typing import Callable, Optional
@@ -17,7 +8,6 @@ from quadrature_rules import TETRAHEDRON_QUADRATURE_RULES
 
 
 class ScalarDGSolver3D:
-    """DG solver for 3D scalar linear advection on tetrahedral meshes."""
     def __init__(self, mesh: TetrahedralMesh, poly_order: int = 2,
                  ax: float = 1.0, ay: float = 0.5, az: float = 0.25):
         self.mesh = mesh
@@ -62,7 +52,7 @@ class ScalarDGSolver3D:
                     self.quad_pts_ref[q, 1],
                     self.quad_pts_ref[q, 2]
                 )
-                # Transform reference gradient to physical gradient: grad_phys = grad_ref * J^{-T}
+
                 J = jacobian_tet4(verts)
                 try:
                     JinvT = np.linalg.inv(J).T
@@ -100,7 +90,7 @@ class ScalarDGSolver3D:
                     wts.append(self.face_quad_wts[q] * 2.0 * area)
                 self.face_quad_pts[(e, f)] = np.array(pts, dtype=np.float64)
                 self.face_quad_wts_phys[(e, f)] = np.array(wts, dtype=np.float64)
-                # Evaluate basis at face quad points in reference coords
+
                 verts = self.mesh.nodes[self.mesh.elements[e]]
                 ref_pts = []
                 for pt in pts:
@@ -141,7 +131,7 @@ class ScalarDGSolver3D:
         nq = len(self.quad_wts_ref)
         nq_face = 3
         ax, ay, az = self.a
-        # Volume integral: (a·grad(phi), u)
+
         for e in range(self.n_elem):
             for q in range(nq):
                 u_q = self._eval_at_quad(e, q)
@@ -151,16 +141,16 @@ class ScalarDGSolver3D:
                     rhs[e, j] += w * u_q * (ax * grad_phi[j, 0] +
                                              ay * grad_phi[j, 1] +
                                              az * grad_phi[j, 2])
-        # Surface integral: <a·n * u_hat, phi>
-        # TODO: Implement upwind numerical flux for scalar linear advection.
-        # For each face, compute an = a · n, then select u_hat based on an:
-        #   an >= 0  =>  u_hat = u_left (upwind, information from left)
-        #   an < 0   =>  u_hat = u_right (upwind, information from right)
-        # For boundary faces without neighbor, use boundary_func if provided,
-        # otherwise set u_right = u_left (zero-gradient outflow).
-        # Finally subtract contribution: rhs[e,:] -= w * an * u_hat * phi
+
+
+
+
+
+
+
+
         raise NotImplementedError("Hole 3: upwind flux for scalar advection is not implemented.")
-        # Apply mass matrix inverse
+
         for e in range(self.n_elem):
             M = np.zeros((self.dof_per_elem, self.dof_per_elem), dtype=np.float64)
             for q in range(nq):

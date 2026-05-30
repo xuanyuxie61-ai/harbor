@@ -1,44 +1,9 @@
-"""
-task_workload_model.py
-异构计算任务负载建模与随机性分析模块
-
-包含：
-- 对数正态分布：任务执行时间建模（源自 log_normal_sample, log_normal_pdf, log_normal_cdf_inv）
-- 正态分布CDF：可靠性评估与置信度计算（源自 alnorm / asa076）
-- 任务特征的随机生成与统计检验
-
-科学背景：
-在异构HPC集群中，任务执行时间受以下因素影响：
-  1) 处理器异构性（CPU/GPU/FPGA的峰值算力差异）
-  2) 内存带宽竞争
-  3) 缓存未命中导致的波动
-  4) 温度导致的动态频率调整
-
-经验研究表明，这类执行时间通常服从对数正态分布：
-    X ~ LogNormal(mu, sigma^2)
-    即 ln(X) ~ Normal(mu, sigma^2)
-
-其概率密度函数：
-    f(x; mu, sigma) = 1/(x sigma sqrt(2pi)) * exp(-0.5*((ln x - mu)/sigma)^2),  x > 0
-"""
 
 import numpy as np
 from utils import safe_log
 
 
 def alnorm_cdf(x, upper=False):
-    """
-    标准正态分布累积分布函数（CDF）。
-    源自 David Hill 的 Algorithm AS 66 (asa076 / alnorm)。
-
-    Phi(x) = integral_{-inf}^{x} (1/sqrt(2pi)) exp(-t^2/2) dt
-
-    参数:
-        x: float, 积分端点
-        upper: bool, True 则计算上尾概率 integral_x^{+inf}
-    返回:
-        float, CDF值
-    """
     a1 = 5.75885480458
     a2 = 2.62433121679
     a3 = 5.92885724438
@@ -95,15 +60,11 @@ def alnorm_cdf(x, upper=False):
 
 
 def normal_cdf_inv(p):
-    """
-    标准正态分布逆CDF（分位数函数）。
-    使用 Acklam 近似，精度足够用于合成项目。
-    """
     if p <= 0.0:
         return -1e10
     if p >= 1.0:
         return 1e10
-    # Acklam approximation coefficients
+
     a1 = -3.969683028665376e+01
     a2 = 2.209460984245205e+02
     a3 = -2.759285104469687e+02
@@ -145,12 +106,6 @@ def normal_cdf_inv(p):
 
 
 def log_normal_pdf(x, mu, sigma):
-    """
-    对数正态分布概率密度函数。
-    源自 log_normal_pdf。
-
-    f(x) = exp(-0.5*((ln(x) - mu)/sigma)^2) / (sigma * x * sqrt(2*pi))
-    """
     x = np.array(x, dtype=float)
     if sigma <= 0:
         raise ValueError("sigma must be positive")
@@ -164,16 +119,10 @@ def log_normal_pdf(x, mu, sigma):
 
 
 def log_normal_sample(mu, sigma, size=None, rng=None):
-    """
-    对数正态分布随机采样。
-    源自 log_normal_sample：先生成均匀随机数，再通过逆CDF转换。
-
-    X = exp( Normal_CDF^{-1}(U) * sigma + mu )
-    """
     if rng is None:
         rng = np.random.default_rng()
     u = rng.random(size=size)
-    # 避免 u=0 或 u=1
+
     u = np.clip(u, 1e-15, 1.0 - 1e-15)
     if size is None:
         z = normal_cdf_inv(float(u))
@@ -183,25 +132,14 @@ def log_normal_sample(mu, sigma, size=None, rng=None):
 
 
 def log_normal_mean(mu, sigma):
-    """
-    E[X] = exp(mu + sigma^2/2)
-    """
     return float(np.exp(mu + 0.5 * sigma ** 2))
 
 
 def log_normal_variance(mu, sigma):
-    """
-    Var[X] = (exp(sigma^2) - 1) * exp(2*mu + sigma^2)
-    """
     return float((np.exp(sigma ** 2) - 1.0) * np.exp(2.0 * mu + sigma ** 2))
 
 
 class TaskWorkload:
-    """
-    单个计算任务的负载模型。
-    mu_exec, sigma_exec 描述任务在 reference_peak_gflops (默认100 GFLOPS)
-    参考处理器上的执行时间分布。
-    """
     def __init__(self, task_id, base_flops, compute_intensity, memory_footprint,
                  mu_exec, sigma_exec, deadline=None, reference_peak_gflops=100.0):
         self.task_id = task_id
@@ -214,18 +152,10 @@ class TaskWorkload:
         self.reference_peak_gflops = float(reference_peak_gflops)
 
     def sample_execution_time(self, processor_speed_ratio=1.0, rng=None):
-        """
-        采样任务在给定处理器上的执行时间。
-        t_exec = LogNormal(mu_exec - log(speed_ratio), sigma_exec)
-        """
         adjusted_mu = self.mu_exec - np.log(max(processor_speed_ratio, 1e-12))
         return float(log_normal_sample(adjusted_mu, self.sigma_exec, rng=rng))
 
     def reliability_probability(self, allocated_time, processor_speed_ratio=1.0):
-        """
-        计算任务在给定时间内完成的概率（可靠性）。
-        P(T <= allocated_time) = Phi( (ln(allocated_time) - mu_adj) / sigma )
-        """
         adjusted_mu = self.mu_exec - np.log(max(processor_speed_ratio, 1e-12))
         if allocated_time <= 0:
             return 0.0
@@ -234,25 +164,15 @@ class TaskWorkload:
 
 
 def generate_task_set(n_tasks, seed=42):
-    """
-    生成一个随机的任务集合，用于调度实验。
-
-    参数:
-        n_tasks: int, 任务数量
-        seed: int, 随机种子
-
-    返回:
-        list of TaskWorkload
-    """
     rng = np.random.default_rng(seed)
     tasks = []
     for i in range(n_tasks):
-        # 执行时间对数正态参数：均值约数秒到数百秒
+
         mean_sec = rng.uniform(5.0, 120.0)
-        cv = rng.uniform(0.05, 0.3)  # 变异系数
+        cv = rng.uniform(0.05, 0.3)
         sigma = np.sqrt(np.log(1.0 + cv ** 2))
         mu = np.log(mean_sec) - 0.5 * sigma ** 2
-        # base_flops 与 mean_sec 一致：假设参考处理器峰值性能约 100 GFLOPS
+
         ref_peak_gflops = 100.0
         base_flops = mean_sec * ref_peak_gflops * 1e9
         compute_intensity = rng.uniform(0.1, 5.0)

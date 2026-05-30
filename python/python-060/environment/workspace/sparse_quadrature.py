@@ -1,36 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-sparse_quadrature.py
-稀疏网格 Clenshaw-Curtis 求积模块，用于计算平流层光化辐射通量的
-高维积分（波长-天顶角-方位角空间）。
-
-融合来源：
-  - 1103_sparse_grid_cc: Smolyak 构造的稀疏网格求积
-"""
 
 import numpy as np
 
 
 def cc_abscissa(order, index):
-    r"""
-    Clenshaw-Curtis 一维节点：
-
-        x_i = \cos\left( \frac{(i-1)\pi}{n-1} \right), \quad i = 1,\dots,n
-
-    当 n=1 时，x_1 = 0。
-
-    Parameters
-    ----------
-    order : int
-        节点总数 n。
-    index : int
-        1-based 节点索引。
-
-    Returns
-    -------
-    x : float
-        节点坐标，已映射到 [0, 1]。
-    """
     if order < 1:
         raise ValueError("order 必须 ≥ 1")
     if order == 1:
@@ -42,25 +15,6 @@ def cc_abscissa(order, index):
 
 
 def cc_weights_1d(order):
-    r"""
-    一维 Clenshaw-Curtis 权重（闭区间 [0,1]）。
-    使用基于余弦变换的显式公式：
-
-        w_i = \frac{c_i}{n-1} \sum_{j=0}^{\lfloor (n-1)/2 \rfloor}
-              \frac{b_j}{4j^2 - 1} \cos\left( \frac{2ij\pi}{n-1} \right)
-
-    其中 c_0 = c_{n-1} = 1/2，其余 c_i = 1；
-    b_0 = 1，b_{\lfloor(n-1)/2\rfloor} = 1（若 n-1 偶），其余 b_j = 2。
-
-    Parameters
-    ----------
-    order : int
-        节点数。
-
-    Returns
-    -------
-    w : ndarray, shape (order,)
-    """
     if order == 1:
         return np.array([1.0])
     n = order
@@ -84,25 +38,6 @@ def cc_weights_1d(order):
 
 
 def sparse_grid_cc_size(dim_num, level_max):
-    r"""
-    计算稀疏网格的节点数（Smolyak 构造）：
-
-        |Q_{\ell}^{(d)}| = \sum_{\ell-d+1 \le |\mathbf{i}|_1 \le \ell}
-                           \prod_{k=1}^{d} n(i_k),
-        n(i) = \begin{cases} 1 & i=0 \\ 2^{i-1}+1 & i \ge 1 \end{cases}
-
-    Parameters
-    ----------
-    dim_num : int
-        空间维数 d。
-    level_max : int
-        最大层级 ℓ。
-
-    Returns
-    -------
-    point_num : int
-        节点总数。
-    """
     if dim_num < 1 or level_max < 0:
         return 0
     point_num = 0
@@ -147,19 +82,6 @@ def sparse_grid_cc_size(dim_num, level_max):
 
 
 def multigrid_index0(dim_num, level_max):
-    r"""
-    生成满足 |i|_1 ≤ ℓ 的多层索引。
-
-    Parameters
-    ----------
-    dim_num : int
-    level_max : int
-
-    Returns
-    -------
-    indices : list of ndarray
-        每一层的索引列表。
-    """
     def comp_next(k, a, more, h, t):
         if not more:
             a[:] = 0
@@ -192,22 +114,6 @@ def multigrid_index0(dim_num, level_max):
 
 
 def sparse_grid_cc(dim_num, level_max):
-    r"""
-    构造 d 维稀疏网格 Clenshaw-Curtis 求积规则。
-    返回节点（映射到 [0,1]^d）和权重。
-
-    Parameters
-    ----------
-    dim_num : int
-        维数 d（≥1）。
-    level_max : int
-        最大层级 ℓ（≥0）。
-
-    Returns
-    -------
-    points : ndarray, shape (point_num, dim_num)
-    weights : ndarray, shape (point_num,)
-    """
     if dim_num < 1:
         raise ValueError("dim_num 必须 ≥ 1")
     if level_max < 0:
@@ -244,7 +150,7 @@ def sparse_grid_cc(dim_num, level_max):
                             pos = t * od * repeats + i * repeats + r
                             sub_pts[pos, d] = x
                             sub_w[pos] *= w1d[i]
-            # 组合系数
+
             coeff = (-1) ** (level_max - level)
             from math import comb
             coeff *= comb(dim_num - 1, level_max - level)
@@ -252,7 +158,7 @@ def sparse_grid_cc(dim_num, level_max):
             weights[idx:idx + total] = coeff * sub_w
             idx += total
 
-    # 合并重复点（简单去重：若两点距离小于容差则合并）
+
     tol = 1e-12
     unique_pts = []
     unique_w = []
@@ -272,23 +178,6 @@ def sparse_grid_cc(dim_num, level_max):
 
 
 def integrate_sparse_grid(f, dim_num, level_max):
-    r"""
-    使用稀疏网格数值积分：
-
-        I = \int_{[0,1]^d} f(\mathbf{x}) \, d\mathbf{x}
-          \approx \sum_{i=1}^{N} w_i f(\mathbf{x}_i)
-
-    Parameters
-    ----------
-    f : callable
-        被积函数 f(x) -> float，x 为 ndarray。
-    dim_num : int
-    level_max : int
-
-    Returns
-    -------
-    integral : float
-    """
     pts, wts = sparse_grid_cc(dim_num, level_max)
     s = 0.0
     for i in range(pts.shape[0]):

@@ -1,24 +1,8 @@
-"""
-friction_optimization.py
-摩擦参数反演与优化模块
-融合种子项目：
-  - 1266_toms178（Hooke-Jeeves 直接搜索优化）
-  - 856_peaks_movie（峰值测试函数，提取其数学形式用于验证）
-"""
 import numpy as np
 from typing import Callable, Tuple, Optional
 
 
 def peaks_function(x: float, y: float) -> float:
-    r"""
-    MATLAB peaks 测试函数（提取自 856_peaks_movie）：
-
-    f(x,y) = 3(1-x)^2 \exp(-x^2 - (y+1)^2)
-             - 10(\frac{x}{5} - x^3 - y^5) \exp(-x^2 - y^2)
-             - \frac{1}{3} \exp(-(x+1)^2 - y^2)
-
-    用于构造接触本构的非线性测试曲面。
-    """
     term1 = 3.0 * (1.0 - x) ** 2 * np.exp(-(x ** 2) - (y + 1.0) ** 2)
     term2 = -10.0 * (x / 5.0 - x ** 3 - y ** 5) * np.exp(-(x ** 2) - y ** 2)
     term3 = -(1.0 / 3.0) * np.exp(-((x + 1.0) ** 2) - y ** 2)
@@ -26,10 +10,6 @@ def peaks_function(x: float, y: float) -> float:
 
 
 def peaks_gradient(x: float, y: float) -> Tuple[float, float]:
-    r"""
-    peaks 函数的数值梯度（有限差分）。
-    \nabla f = [\partial f / \partial x, \partial f / \partial y]^T
-    """
     h = 1e-6
     fx = (peaks_function(x + h, y) - peaks_function(x - h, y)) / (2.0 * h)
     fy = (peaks_function(x, y + h) - peaks_function(x, y - h)) / (2.0 * h)
@@ -37,16 +17,6 @@ def peaks_gradient(x: float, y: float) -> Tuple[float, float]:
 
 
 class HookeJeevesOptimizer:
-    r"""
-    Hooke-Jeeves 直接搜索优化算法（融合 1266_toms178）。
-
-    算法步骤：
-    1. 探索搜索（exploratory move）：沿各坐标轴试探
-    2. 模式移动（pattern move）：沿改善方向外推
-    3. 步长缩减（step reduction）：rho \in (0,1)
-
-    用于无梯度优化摩擦系数 \mu，使得模拟结果与实验数据误差最小。
-    """
 
     def __init__(self, rho: float = 0.5, eps: float = 1e-6, itermax: int = 500):
         self.rho = rho
@@ -122,14 +92,6 @@ def friction_coefficient_calibration(
     target_value: float,
     mu_bounds: Tuple[float, float] = (0.05, 1.0)
 ) -> Tuple[float, dict]:
-    r"""
-    使用 Hooke-Jeeves 优化校准摩擦系数 \mu。
-
-    目标函数：
-    J(\mu) = (Q_{sim}(\mu) - Q_{target})^2
-
-    其中 Q 为观测到的接触力学量（如最大切向位移、摩擦耗散等）。
-    """
     def objective(mu_vec: np.ndarray) -> float:
         mu = float(np.clip(mu_vec[0], mu_bounds[0], mu_bounds[1]))
         try:
@@ -152,9 +114,4 @@ def friction_coefficient_calibration(
 
 def peaks_surface_contact_potential(x: np.ndarray, y: np.ndarray,
                                      amplitude: float = 1e8) -> float:
-    r"""
-    将 peaks 函数作为接触势能：
-    \Phi(x,y) = amplitude \cdot peaks(x, y)
-    用于测试非线性接触本构。
-    """
     return amplitude * peaks_function(x, y)

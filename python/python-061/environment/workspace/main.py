@@ -1,38 +1,13 @@
 #!/usr/bin/env python3
-"""
-================================================================================
-台风路径与强度集合预报数值实验系统
-Typhoon Track and Intensity Ensemble Forecast Numerical Experiment System
-================================================================================
-
-指定科学领域: 大气科学 — 台风路径与强度预测
-
-本系统基于15个种子科研项目的核心算法，融合构建了一个面向前沿大气科学
-问题的博士级数值计算平台。系统包含以下核心模块：
-
-    1. 球坐标浅水方程大尺度背景场模拟
-    2. 台风涡旋中心运动与强度演变ODE系统
-    3. 集合预报初始扰动生成与概率统计
-    4. 球谐函数谱展开与滤波
-    5. 边界层径向有限元分析
-    6. 多源观测数据聚合与EnKF同化
-    7. 球面三角网格生成
-    8. 稀疏线性系统求解
-    9. 气压场梯度增强与锋面检测
-
-运行方式: python main.py （零参数）
-================================================================================
-"""
 
 import sys
 import numpy as np
 
-# 设置随机种子以保证可重复性
+
 np.random.seed(42)
 
 
 def print_section(title):
-    """打印带分隔线的章节标题。"""
     print("\n" + "=" * 80)
     print(f"  {title}")
     print("=" * 80)
@@ -44,10 +19,10 @@ def main():
     print("#  Typhoon Track & Intensity Ensemble Forecast System")
     print("#" * 80)
     
-    # ========================================================================
-    # 模块 1: 球坐标浅水方程大尺度背景场
-    # 基于 1070_shallow_water_1d_movie + 766_midpoint_explicit + 104_boundary_locus
-    # ========================================================================
+
+
+
+
     print_section("模块 1: 球坐标浅水方程大尺度背景场模拟")
     
     from shallow_water_sphere import (
@@ -70,10 +45,10 @@ def main():
     print(f"  最终高度范围: [{np.min(h_hist[:,-1]):.2f}, {np.max(h_hist[:,-1]):.2f}] m")
     print(f"  CFL条件满足: 是")
     
-    # ========================================================================
-    # 模块 2: 台风涡旋ODE（路径与强度）
-    # 基于 100_blood_pressure_ode + 1374_unstable_ode + 1032_rk2_implicit
-    # ========================================================================
+
+
+
+
     print_section("模块 2: 台风涡旋中心运动与强度演变ODE")
     
     from typhoon_vortex_ode import (
@@ -97,20 +72,20 @@ def main():
     vortex_solver = TyphoonVortexODE(params)
     t_vortex, states_vortex = vortex_solver.solve(t_span=(0.0, 72.0), n_steps=720)
     
-    # HOLE 3A BEGIN: 请补全确定性预报状态提取
-    # TODO: 从 states_vortex 中提取路径与强度时间序列
-    # 注意: 状态向量索引必须与 typhoon_vortex_ode.py 中 rhs() 的定义一致
-    # 原始顺序为 [x, y, p_min, r_max]，若 rhs() 中顺序改变，此处必须同步修改
-    # x_track = states_vortex[:, 0]   # TODO: 确认索引
-    # y_track = states_vortex[:, 1]   # TODO: 确认索引
-    # pmin_track = states_vortex[:, 2]  # TODO: 确认索引
-    # rmax_track = states_vortex[:, 3]  # TODO: 确认索引
+
+
+
+
+
+
+
+
     n_steps_vortex = len(t_vortex)
-    x_track = np.zeros(n_steps_vortex)      # HOLE 3A: 替换为 states_vortex[:, ?]
-    y_track = np.zeros(n_steps_vortex)      # HOLE 3A: 替换为 states_vortex[:, ?]
-    pmin_track = np.zeros(n_steps_vortex)   # HOLE 3A: 替换为 states_vortex[:, ?]
-    rmax_track = np.zeros(n_steps_vortex)   # HOLE 3A: 替换为 states_vortex[:, ?]
-    # HOLE 3A END
+    x_track = np.zeros(n_steps_vortex)
+    y_track = np.zeros(n_steps_vortex)
+    pmin_track = np.zeros(n_steps_vortex)
+    rmax_track = np.zeros(n_steps_vortex)
+
     
     print(f"  预报时长: 72 小时")
     print(f"  72h 预报位置: ({x_track[-1]:.2f}°E, {y_track[-1]:.2f}°N)")
@@ -118,10 +93,10 @@ def main():
     print(f"  72h 预报最大风速半径: {rmax_track[-1]:.1f} km")
     print(f"  路径总位移: {np.sqrt((x_track[-1]-x_track[0])**2 + (y_track[-1]-y_track[0])**2):.2f} 度")
     
-    # ========================================================================
-    # 模块 3: 集合预报
-    # 基于 1124_sphere_monte_carlo + 189_clock_solitaire_simulation + 118_brc_naive
-    # ========================================================================
+
+
+
+
     print_section("模块 3: 集合预报与概率统计分析")
     
     from ensemble_perturbation import (
@@ -133,26 +108,26 @@ def main():
     n_ens = 16
     print(f"  集合成员数: {n_ens}")
     
-    # HOLE 3B BEGIN: 请补全集合预报集成
-    # TODO: 运行集合预报并提取统计量
-    # 注意: 状态向量维度必须与 typhoon_vortex_ode.py 中 rhs() 一致
+
+
+
     ensemble_states, stats, t_ens = run_ensemble_forecast(
         TyphoonVortexODE, n_ens=n_ens, t_span=(0.0, 72.0), n_steps=360
     )
     
-    # TODO: 从 stats 中提取集合统计量，注意状态向量索引一致性
-    # mean_states = stats.ensemble_mean()
-    # spread_states = stats.ensemble_spread()
-    # groups = stats.group_by_intensity()
-    # summary = stats.summarize_groups(groups)
-    # ci_lower, ci_upper = stats.confidence_interval(2, level=0.95)
+
+
+
+
+
+
     n_time_ens = len(t_ens)
-    mean_states = np.zeros((n_time_ens, 4))      # HOLE 3B: 替换为 stats.ensemble_mean()
-    spread_states = np.zeros((n_time_ens, 4))    # HOLE 3B: 替换为 stats.ensemble_spread()
-    groups = {}                                   # HOLE 3B: 替换为 stats.group_by_intensity()
-    summary = {}                                  # HOLE 3B: 替换为 stats.summarize_groups(...)
-    ci_lower = np.zeros(n_time_ens)              # HOLE 3B: 替换为 stats.confidence_interval(...)
-    ci_upper = np.zeros(n_time_ens)              # HOLE 3B: 替换为 stats.confidence_interval(...)
+    mean_states = np.zeros((n_time_ens, 4))
+    spread_states = np.zeros((n_time_ens, 4))
+    groups = {}
+    summary = {}
+    ci_lower = np.zeros(n_time_ens)
+    ci_upper = np.zeros(n_time_ens)
     
     print("  集合预报72h统计:")
     print(f"    平均位置: ({mean_states[-1,0]:.2f}°E, {mean_states[-1,1]:.2f}°N)")
@@ -163,18 +138,18 @@ def main():
     for name, info in summary.items():
         print(f"    {name}: {info['count']} 成员 ({info['percentage']:.1f}%)")
     
-    # 置信区间
+
     print(f"  中心气压95%置信区间 (72h): [{ci_lower[-1]:.1f}, {ci_upper[-1]:.1f}] hPa")
-    # HOLE 3B END
+
     
-    # 球面积分验证
+
     integral_test = sphere01_monomial_integral(np.array([0, 0, 0]))
     print(f"  球面蒙特卡洛积分验证 (1 dS): {integral_test:.6f} (理论值: 4π = {4*np.pi:.6f})")
     
-    # ========================================================================
-    # 模块 4: 球谐函数谱展开
-    # 基于 990_r8poly (Legendre/Chebyshev 多项式)
-    # ========================================================================
+
+
+
+
     print_section("模块 4: 球谐函数谱展开与滤波")
     
     from spherical_harmonics import (
@@ -183,20 +158,20 @@ def main():
         spectral_laplacian_1d
     )
     
-    # 对最终高度场进行谱分析
+
     h_final = h_hist[:, -1]
     L_max = 30
     coeffs = compute_spectral_coefficients_1d(theta, h_final, L_max=L_max)
     h_reconstructed = reconstruct_from_spectral_1d(theta, coeffs)
     
-    # 谱滤波
+
     coeffs_filtered = chebyshev_spectral_filter(coeffs, order=4)
     h_filtered = reconstruct_from_spectral_1d(theta, coeffs_filtered)
     
-    # 能量谱
+
     energy, wavenumbers = spectral_variance_spectrum(coeffs)
     
-    # Laplacian谱
+
     lap_coeffs = spectral_laplacian_1d(coeffs)
     
     print(f"  谱截断阶数 L_max = {L_max}")
@@ -205,10 +180,10 @@ def main():
     print(f"  主导波数 (能量最大): {np.argmax(energy[1:])+1}")
     print(f"  谱Laplacian l=1系数: {lap_coeffs[1]:.6e}")
     
-    # ========================================================================
-    # 模块 5: 边界层有限元分析
-    # 基于 387_fem1d_bvp_quadratic
-    # ========================================================================
+
+
+
+
     print_section("模块 5: 边界层径向有限元分析")
     
     from radial_boundary_layer_fem import compute_boundary_layer_inflow_profile
@@ -224,10 +199,10 @@ def main():
     print(f"  边界层顶最大垂直速度: {np.max(w_bl):.3f} m/s")
     print(f"  眼墙区(r=20-50km)平均入流: {np.mean(u_bl[(r_bl>=20)&(r_bl<=50)]):.2f} m/s")
     
-    # ========================================================================
-    # 模块 6: 观测数据同化
-    # 基于 118_brc_naive
-    # ========================================================================
+
+
+
+
     print_section("模块 6: 多源观测数据聚合与EnKF同化")
     
     from observation_assimilation import (
@@ -236,7 +211,7 @@ def main():
         gaspari_cohn_localization
     )
     
-    # 模拟真实状态
+
     true_state = np.array([128.5, 21.0, 945.0, 35.0])
     aggregator = generate_synthetic_observations(true_state)
     summary_obs = aggregator.summarize_all_groups()
@@ -245,14 +220,14 @@ def main():
     for obs_type, info in summary_obs.items():
         print(f"    {obs_type}: 均值={info['mean']:.1f}, 方差={info['variance']:.2f}, 数量={info['count']}")
     
-    # EnKF同化实验
+
     n_ens_enkf = 20
     state_dim = 4
     ensemble = np.zeros((n_ens_enkf, state_dim))
     for i in range(n_ens_enkf):
         ensemble[i, :] = true_state + np.random.normal(0, [1.0, 0.5, 8.0, 5.0])
     
-    # 构造观测算子（只观测气压和半径）
+
     H = np.array([[0, 0, 1, 0],
                   [0, 0, 0, 1]], dtype=float)
     observations = np.array([true_state[2], true_state[3]])
@@ -273,14 +248,14 @@ def main():
     print(f"    同化前Rmax均值/离散度: {prior_mean[3]:.1f} ± {prior_spread[3]:.1f} km")
     print(f"    同化后Rmax均值/离散度: {post_mean[3]:.1f} ± {post_spread[3]:.1f} km")
     
-    # 局地化函数测试
+
     loc_test = gaspari_cohn_localization(300.0, 500.0)
     print(f"  Gaspari-Cohn局地化 (300km, L=500km): {loc_test:.4f}")
     
-    # ========================================================================
-    # 模块 7: 球面三角网格
-    # 基于 874_ply_to_tri_surface + 1194_t_puzzle_gui
-    # ========================================================================
+
+
+
+
     print_section("模块 7: 球面测地线网格生成")
     
     from spherical_mesh_triangulation import (
@@ -300,10 +275,10 @@ def main():
     print(f"  面积均匀性 (CV): {stats_mesh['area_uniformity']:.4f}")
     print(f"  质心数: {len(centroids)}")
     
-    # ========================================================================
-    # 模块 8: 稀疏线性求解器
-    # 基于 736_matman
-    # ========================================================================
+
+
+
+
     print_section("模块 8: 稀疏线性系统求解")
     
     from sparse_linear_solver import (
@@ -311,7 +286,7 @@ def main():
         lu_decomposition_pivot
     )
     
-    # 测试用例：三对角系统（有限差分离散的一维Poisson方程）
+
     n_test = 50
     A_test = np.zeros((n_test, n_test))
     for i in range(n_test):
@@ -324,7 +299,7 @@ def main():
     b_test = np.ones(n_test)
     x_test, res_norm = solve_linear_system(A_test, b_test)
     
-    # 迭代精化
+
     x_refined, res_history = iterative_refinement(A_test, b_test, x_test, max_iter=3)
     
     print(f"  测试矩阵维度: {n_test} x {n_test}")
@@ -332,10 +307,10 @@ def main():
     print(f"  精化后残差范数: {np.linalg.norm(np.dot(A_test, x_refined) - b_test):.3e}")
     print(f"  迭代精化历史: {[f'{r:.3e}' for r in res_history]}")
     
-    # ========================================================================
-    # 模块 9: 气压场梯度增强与锋面检测
-    # 基于 574_image_contrast
-    # ========================================================================
+
+
+
+
     print_section("模块 9: 气压场梯度增强与锋面检测")
     
     from field_gradient_enhancement import (
@@ -344,8 +319,8 @@ def main():
         anisotropic_diffusion_1d
     )
     
-    # 使用浅水方程最终高度场
-    x_field = theta * 6.371e6  # 转换为弧长
+
+    x_field = theta * 6.371e6
     field = h_hist[:, -1]
     
     filtered, info = apply_spatial_filter_pipeline(
@@ -361,9 +336,9 @@ def main():
     if info['n_fronts'] > 0:
         print(f"  最强锋面梯度: {np.max(info['front_strength']):.6e}")
     
-    # ========================================================================
-    # 综合报告
-    # ========================================================================
+
+
+
     print_section("综合预报结果汇总")
     
     print("  【确定性预报（控制成员）】")

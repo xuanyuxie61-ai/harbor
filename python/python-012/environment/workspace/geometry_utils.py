@@ -1,83 +1,24 @@
-"""
-Sample Geometry and Boundary Definition for TI Nanostructures
-==============================================================
-Defines the geometric boundaries and shapes for topological insulator
-surface state simulations, including:
-- Hexagonal sample shapes (relevant for Bi2Se3, Bi2Te3 crystal structure)
-- Tortoise-grid boundary tracing (project 1282)
-- Ellipsoidal cross-sections
-
-The hexagonal warping of Bi2Te3 is tied to the crystal symmetry (R-3m),
-and sample geometries with hexagonal boundaries exhibit unique
-edge state distributions.
-
-Boundary word encoding (inspired by tortoise_grid_word, project 1282):
-    A = East, C = NNE, E = NNW, G = West, I = SSW, K = SSE
-    with intermediate directions for hexagonal symmetry.
-"""
 
 import numpy as np
 
 
 class SampleGeometry:
-    """
-    Defines sample geometries for TI surface state simulations.
-    """
 
     def __init__(self, size=100.0, shape='square'):
-        """
-        Parameters
-        ----------
-        size : float
-            Characteristic size in nm.
-        shape : str
-            'square', 'hexagon', 'rectangle', 'circle'.
-        """
         self.size = size
         self.shape = shape
 
     def hexagon_vertices(self):
-        """
-        Generate vertices of a regular hexagon.
-
-        For a hexagon of side length L:
-            vertices = L * [cos(n*pi/3), sin(n*pi/3)]
-
-        Returns
-        -------
-        vertices : ndarray
-            Shape (6, 2).
-        """
         L = self.size
         angles = np.linspace(0.0, 2.0 * np.pi, 7)[:-1]
         vertices = np.column_stack((L * np.cos(angles), L * np.sin(angles)))
         return vertices
 
     def boundary_word_trace(self, word, step_sizes=None):
-        """
-        Trace a boundary from a word encoding (inspired by project 1282).
-
-        Directions (hexagonal symmetry, 6 primary + 6 secondary):
-            A: 0°,    B: 30°,   C: 60°,   D: 90°
-            E: 120°,  F: 150°,  G: 180°,  H: 210°
-            I: 240°,  J: 270°,  K: 300°,  L: 330°
-
-        Parameters
-        ----------
-        word : str
-            String of direction letters.
-        step_sizes : dict, optional
-            Step size for each direction.
-
-        Returns
-        -------
-        path : ndarray
-            Shape (N, 2) path coordinates.
-        """
         if step_sizes is None:
             step_sizes = {c: 1.0 for c in 'ABCDEFGHIJKLabcdefghijkl'}
 
-        # Direction angles in radians
+
         angles = {
             'A': 0.0, 'a': 0.0,
             'B': np.pi / 6.0, 'b': np.pi / 6.0,
@@ -108,16 +49,7 @@ class SampleGeometry:
         return np.array(path)
 
     def tortoise_boundary(self):
-        """
-        Generate the tortoise-grid boundary word from project 1282
-        as a sample geometry. This creates a complex non-convex
-        boundary useful for studying edge state interference.
 
-        Returns
-        -------
-        path : ndarray
-        """
-        # Boundary word from tortoise_grid_word.m
         word = ('AAAAAAAADdGEEEEEEDdGEEEEEEEEEEEEEEEEEEEEEECCC'
                 'fFFffFFffFEEIfFIIIIJjjJJjjJJjjJJjjJKKKKKKKKKK'
                 'KKKKLllLLllLLllLLllL')
@@ -138,20 +70,6 @@ class SampleGeometry:
         return self.boundary_word_trace(word, step_sizes)
 
     def point_in_polygon(self, point, polygon):
-        """
-        Ray casting algorithm to test if a point is inside a polygon.
-
-        Parameters
-        ----------
-        point : tuple
-            (x, y).
-        polygon : ndarray
-            Shape (N, 2).
-
-        Returns
-        -------
-        inside : bool
-        """
         x, y = point
         n = len(polygon)
         inside = False
@@ -166,20 +84,6 @@ class SampleGeometry:
         return inside
 
     def generate_grid_in_shape(self, nx=50, ny=50):
-        """
-        Generate a grid of points inside the sample shape.
-
-        Parameters
-        ----------
-        nx, ny : int
-
-        Returns
-        -------
-        points : ndarray
-            Shape (N, 2) points inside the shape.
-        mask : ndarray
-            Shape (nx, ny) boolean mask.
-        """
         if self.shape == 'hexagon':
             vertices = self.hexagon_vertices()
         elif self.shape == 'tortoise':
@@ -187,7 +91,7 @@ class SampleGeometry:
         elif self.shape == 'circle':
             pass
         else:
-            # Square
+
             x = np.linspace(-self.size, self.size, nx)
             y = np.linspace(-self.size, self.size, ny)
             X, Y = np.meshgrid(x, y)
@@ -195,7 +99,7 @@ class SampleGeometry:
             mask = np.ones((nx, ny), dtype=bool)
             return points, mask
 
-        # For polygon shapes
+
         x = np.linspace(-2.0 * self.size, 2.0 * self.size, nx)
         y = np.linspace(-2.0 * self.size, 2.0 * self.size, ny)
         X, Y = np.meshgrid(x, y)
@@ -209,13 +113,6 @@ class SampleGeometry:
         return points, mask
 
     def edge_length(self):
-        """
-        Compute the total boundary length.
-
-        Returns
-        -------
-        length : float
-        """
         if self.shape == 'hexagon':
             return 6.0 * self.size
         elif self.shape == 'circle':
@@ -223,19 +120,12 @@ class SampleGeometry:
         elif self.shape == 'square':
             return 8.0 * self.size
         else:
-            # Approximate from polygon
+
             vertices = self.tortoise_boundary()
             diffs = np.diff(vertices, axis=0)
             return np.sum(np.sqrt(np.sum(diffs ** 2, axis=1)))
 
     def area(self):
-        """
-        Compute the sample area using the shoelace formula.
-
-        Returns
-        -------
-        area : float
-        """
         if self.shape == 'hexagon':
             return 3.0 * np.sqrt(3.0) / 2.0 * self.size ** 2
         elif self.shape == 'circle':

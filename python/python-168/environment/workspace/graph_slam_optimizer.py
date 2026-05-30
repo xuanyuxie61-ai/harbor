@@ -1,56 +1,9 @@
-"""
-graph_slam_optimizer.py
-图优化SLAM：位姿图优化与协方差分析
-
-核心数学模型：
-1. 位姿图定义：
-   顶点 V = {x_i}_{i=1}^N,  x_i ∈ SE(2)
-   边 E = {(i,j, ξ̄_ij, Ω_ij)}  相对位姿观测与信息矩阵
-   
-2. 误差函数（标准SE(2)位姿图）：
-   T_i = [[cosθ_i, -sinθ_i, x_i],
-          [sinθ_i,  cosθ_i, y_i],
-          [0,       0,       1  ]]
-   
-   T_ij^pred = T_i^{-1} T_j
-   T_z = [[cosθ_z, -sinθ_z, x_z],
-          [sinθ_z,  cosθ_z, y_z],
-          [0,       0,       1  ]]
-   
-   T_err = T_ij^pred * T_z^{-1}
-   e_ij = [T_err[0,2], T_err[1,2], atan2(T_err[1,0], T_err[0,0])]^T
-
-3. 目标泛函（非线性最小二乘）：
-   F(x) = Σ_{(i,j)∈E} e_ij^T Ω_ij e_ij
-   
-4. Gauss-Newton 迭代：
-   H Δx = -b
-   其中 H = Σ J_ij^T Ω_ij J_ij,  b = Σ J_ij^T Ω_ij e_ij
-   
-5. 雅可比矩阵（标准形式）：
-   令 dx = cosθ_i*(x_j-x_i) + sinθ_i*(y_j-y_i)
-       dy = -sinθ_i*(x_j-x_i) + cosθ_i*(y_j-y_i)
-   
-   J_i = [[-cosθ_i, -sinθ_i,  dx],
-          [ sinθ_i, -cosθ_i,  dy],
-          [ 0,       0,       -1]]
-   
-   J_j = [[ cosθ_i,  sinθ_i,  0],
-          [-sinθ_i,  cosθ_i,  0],
-          [ 0,       0,       1]]
-
-6. 特征值分析（可观测性）：
-   H = Q Λ Q^T
-   条件数 κ = λ_max / λ_min
-   融合自 test_eigen 项目
-"""
 
 import numpy as np
 from sparse_matrix_ops import SORSolver
 
 
 class PoseGraph:
-    """2D 位姿图结构"""
 
     def __init__(self):
         self.poses = []
@@ -87,7 +40,6 @@ class PoseGraph:
 
 
 class GraphSLAMOptimizer:
-    """图优化求解器"""
 
     def __init__(self, max_iterations=50, linear_solver='sor', tol=1e-6):
         self.max_iterations = max(int(max_iterations), 1)
@@ -96,7 +48,6 @@ class GraphSLAMOptimizer:
         self.sor_solver = SORSolver(omega=1.5, max_iter=2000, tol=1e-10)
 
     def optimize(self, graph):
-        """Levenberg-Marquardt 优化位姿图"""
         n = len(graph.poses)
         if n < 2:
             return graph, 0.0, 0
@@ -107,22 +58,22 @@ class GraphSLAMOptimizer:
         for iteration in range(self.max_iterations):
             H, b = self._build_linear_system(graph)
 
-            # Gauge fixing: 固定第一个位姿（使用单位权重，不引入大数）
+
             H[0:3, :] = 0.0
             H[:, 0:3] = 0.0
             H[0:3, 0:3] = np.eye(3)
             b[0:3] = 0.0
 
-            # Levenberg-Marquardt 阻尼
+
             H_lm = H + lambda_lm * np.eye(H.shape[0])
 
-            # 求解
+
             try:
                 delta = np.linalg.solve(H_lm, -b)
             except np.linalg.LinAlgError:
                 delta = np.linalg.lstsq(H_lm, -b, rcond=None)[0]
 
-            # 测试更新
+
             test_graph = PoseGraph()
             test_graph.poses = [p.copy() for p in graph.poses]
             test_graph.edges = list(graph.edges)
@@ -144,7 +95,6 @@ class GraphSLAMOptimizer:
         return graph, prev_cost, iteration + 1
 
     def _build_linear_system(self, graph):
-        """构建 Gauss-Newton 线性系统 H Δx = -b"""
         n = len(graph.poses)
         dim = 3 * n
         H = np.zeros((dim, dim), dtype=np.float64)
@@ -170,19 +120,17 @@ class GraphSLAMOptimizer:
 
     @staticmethod
     def _compute_error_and_jacobians(xi, xj, z):
-        """计算 SE(2) 位姿图误差与雅可比"""
-        # HOLE 1: 请实现 SE(2) 位姿图误差向量与雅可比矩阵计算
-        # 要求：
-        # 1. 计算预测相对变换 T_i^{-1} T_j 与观测 T_z 之间的 SE(2) 误差
-        # 2. 误差向量 e ∈ R^3 应包含 [x_err, y_err, theta_err]
-        # 3. 计算对 xi 和 xj 的雅可比矩阵 Ji, Jj (各为 3×3)
-        # 注意：此处的实现必须与 robot_motion_model.py 中 relative_transform 的
-        # SE(2) 表示保持一致，否则图优化将不收敛。
+
+
+
+
+
+
+
         raise NotImplementedError("Hole 1: SE(2) error and Jacobians not implemented")
 
     @staticmethod
     def _apply_delta(graph, delta):
-        """在切空间更新位姿"""
         for i in range(len(graph.poses)):
             d = delta[3*i:3*i+3]
             x, y, th = graph.poses[i]
@@ -192,7 +140,7 @@ class GraphSLAMOptimizer:
                 y + s*d[0] + c*d[1],
                 th + d[2]
             ], dtype=np.float64)
-            # 归一化角度
+
             while graph.poses[i][2] > np.pi:
                 graph.poses[i][2] -= 2.0 * np.pi
             while graph.poses[i][2] < -np.pi:
@@ -210,7 +158,6 @@ class GraphSLAMOptimizer:
 
 
 class ObservabilityAnalyzer:
-    """可观测性分析器，融合 test_eigen 项目"""
 
     @staticmethod
     def analyze_hessian(H, graph_n_poses):

@@ -1,27 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-kronrod_integrator.py
-高斯-克朗罗德 (Gauss-Kronrod) 自适应数值积分模块
-
-融合来源:
-- 629_kronrod_rule: Kronrod 积分节点与权重计算
-
-功能:
-- 计算 Gauss-Kronrod 积分节点与权重
-- 提供自适应积分器用于有限元刚度矩阵和质量矩阵的高精度数值积分
-- 计算 Navier-Stokes 方程非线性项的体积积分
-
-数学背景:
-  Gauss-Kronrod 规则通过在 N 点 Gauss 公式基础上最优添加 N+1 个点，
-  构造 2N+1 点公式，使其精度达到 3N+1（N 为奇数）或 3N+2（N 为偶数）。
-  该规则的优势在于可利用两套权重同时得到 Gauss 积分和 Kronrod 积分，
-  通过两者差值估计误差，实现自适应积分。
-"""
 
 import numpy as np
 
 
-# 预计算的 Gauss-Kronrod 节点和权重（标准值）
+
 _KRONROD_TABLES = {
     7: {
         'nodes': np.array([
@@ -81,59 +63,19 @@ _KRONROD_TABLES = {
 
 
 def kronrod_rule(n, tol=1e-12):
-    """
-    获取 Gauss-Kronrod 积分节点与权重。
-    融合自 629_kronrod_rule 的 kronrod，使用预计算的标准值。
-
-    参数:
-      n: Gauss 规则的阶数
-      tol: 节点计算容差（保留参数兼容性）
-
-    返回:
-      x: (n+1,) 非负节点（降序）
-      w1: (n+1,) Kronrod 权重
-      w2: (n+1,) Gauss 权重
-
-    数学推导:
-      设 Gauss 节点为 x_i^G (i=1..n)，Kronrod 节点为 x_j^K (j=1..2n+1)。
-      Kronrod 规则要求对所有次数 <= 3n+1 的多项式 p(x) 精确成立:
-        integral_{-1}^{1} p(x) dx = sum_{j=1}^{2n+1} w_j^K p(x_j^K)
-      且 Gauss 节点是 Kronrod 节点的子集。
-    """
     if n in _KRONROD_TABLES:
         data = _KRONROD_TABLES[n]
         return data['nodes'].copy(), data['weights_kronrod'].copy(), data['weights_gauss'].copy()
 
-    # 对于未预计算的阶数，使用 n=7 作为默认值
+
     data = _KRONROD_TABLES[7]
     return data['nodes'].copy(), data['weights_kronrod'].copy(), data['weights_gauss'].copy()
 
 
 def adaptive_kronrod_integrate(f, a, b, n=7, tol=1e-8, max_iter=20):
-    """
-    自适应 Gauss-Kronrod 积分器。
-
-    数学模型:
-      I = integral_a^b f(x) dx
-      I_K = sum_{j=1}^{2n+1} w_j^K f(x_j)   (Kronrod 近似)
-      I_G = sum_{i=1}^{n} w_i^G f(x_i^G)    (Gauss 近似)
-      err = |I_K - I_G|
-
-      若 err > tol，将区间 [a,b] 二分并递归积分。
-
-    参数:
-      f: 被积函数
-      a, b: 积分上下限
-      n: Gauss 规则阶数
-      tol: 误差容限
-      max_iter: 最大迭代次数
-
-    返回:
-      积分近似值
-    """
     x_std, w_kron, w_gauss = kronrod_rule(n)
 
-    # 构造完整对称节点和权重
+
     nodes = []
     weights_k = []
     weights_g = []
@@ -177,23 +119,6 @@ def adaptive_kronrod_integrate(f, a, b, n=7, tol=1e-8, max_iter=20):
 
 
 def integrate_convection_flux(u_func, v_func, x_nodes, y_nodes, order=7):
-    """
-    使用 Kronrod 积分计算二维对流项通量积分。
-
-    数学模型:
-      对于 Navier-Stokes 方程的对流项:
-        C_x = u * du/dx + v * du/dy
-      在单元 T 上的积分为:
-        I = integral_T (u * du/dx) dOmega
-
-    参数:
-      u_func, v_func: 速度分量的函数句柄
-      x_nodes, y_nodes: 单元节点坐标
-      order: 积分阶数
-
-    返回:
-      积分值
-    """
     x_std, w_kron, _ = kronrod_rule(order)
     nodes = []
     weights = []

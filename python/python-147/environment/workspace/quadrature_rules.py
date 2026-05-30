@@ -1,27 +1,8 @@
-"""
-quadrature_rules.py
-===================
-High-precision numerical quadrature rules for computing integrals in the
-physics-informed loss functional.
-
-The PINN loss functional involves domain integrals of the form:
-
-    L_phys = \int_\Omega |r(t,x)|^2  d\Omega
-
-where r(t,x) is the PDE residual.  To evaluate this accurately, we employ:
-
-  1. Gauss-Legendre quadrature in 1D and tensor-product 2D
-  2. Gauss-Kronrod rules for adaptive error estimation
-  3. Padua points for non-tensorial interpolation-based quadrature on the square
-
-These rules are adapted from seed projects 1143_square_exactness and
-629_kronrod_rule.
-"""
 
 import numpy as np
 
 
-# Precomputed Gauss-Legendre nodes and weights on [-1, 1] for orders 1..10
+
 _LEGENDRE_NODES = {
     1: np.array([0.0]),
     2: np.array([-0.5773502691896258, 0.5773502691896258]),
@@ -86,49 +67,19 @@ _LEGENDRE_WEIGHTS = {
 
 
 def gauss_legendre_1d(n, a=-1.0, b=1.0):
-    """
-    Return Gauss-Legendre quadrature nodes x and weights w on [a, b].
-
-    The integral is approximated as:
-        \int_a^b f(x) dx \approx \sum_{i=1}^n w_i f(x_i)
-
-    Parameters
-    ----------
-    n : int
-        Quadrature order (1 <= n <= 10).
-    a, b : float
-        Integration interval.
-
-    Returns
-    -------
-    x, w : ndarray
-        Nodes and weights.
-    """
     if n not in _LEGENDRE_NODES:
         raise ValueError(f"Order n={n} not supported. Use 1 <= n <= 10.")
     x_ref = _LEGENDRE_NODES[n]
     w_ref = _LEGENDRE_WEIGHTS[n]
-    # Affine map from [-1, 1] to [a, b]:
-    #   x = (b-a)/2 * x_ref + (a+b)/2
-    #   w = (b-a)/2 * w_ref
+
+
+
     scale = (b - a) / 2.0
     shift = (a + b) / 2.0
     return scale * x_ref + shift, scale * w_ref
 
 
 def gauss_legendre_2d(nx, ny, ax, bx, ay, by):
-    """
-    Tensor-product 2D Gauss-Legendre quadrature on the rectangle
-    [ax, bx] x [ay, by].
-
-    The 2D integral is:
-        \int_{ay}^{by} \int_{ax}^{bx} f(x,y) dx dy
-        \approx \sum_{i=1}^{nx} \sum_{j=1}^{ny} w_{ij} f(x_i, y_j)
-
-    where w_{ij} = w^x_i * w^y_j.
-
-    Adapted from seed project 1143_square_exactness (legendre_2d_set).
-    """
     x_1d, wx = gauss_legendre_1d(nx, ax, bx)
     y_1d, wy = gauss_legendre_1d(ny, ay, by)
     n = nx * ny
@@ -146,44 +97,20 @@ def gauss_legendre_2d(nx, ny, ax, bx, ay, by):
 
 
 def kronrod_nodes_weights(n):
-    """
-    Return precomputed Gauss-Kronrod (7,15) rule nodes and weights.
-
-    The (2n+1)-point Kronrod rule reuses the n Gauss points and adds
-    n+1 optimally placed Kronrod points.  For adaptive quadrature,
-    the difference between the Gauss and Kronrod estimates provides
-    an error bound.
-
-    Here we provide the classic (7, 15) pair from seed project 629.
-
-    Parameters
-    ----------
-    n : int
-        Order of embedded Gauss rule (must be 7 for precomputed tables).
-
-    Returns
-    -------
-    x : ndarray, shape (15,)
-        Nodes on [-1, 1] in ascending order.
-    w_kronrod : ndarray, shape (15,)
-        Weights for the 15-point Kronrod rule.
-    w_gauss : ndarray, shape (15,)
-        Weights for the embedded 7-point Gauss rule (non-Gauss entries are 0).
-    """
     if n != 7:
         raise ValueError("Only n=7 precomputed Kronrod table is available.")
 
-    # Nonnegative nodes in descending order: a1 > a2 > ... > a7 > 0
+
     x_pos = np.array([
         0.9914553711208126, 0.9491079123427585, 0.8648644233597691,
         0.7415311855993945, 0.5860872354676911, 0.4058451513773972,
         0.2077849550078985, 0.0
     ])
-    a = x_pos[:-1]  # [a1, a2, ..., a7]
-    # Ascending full nodes: [-a1, -a2, ..., -a7, 0, a7, a6, ..., a1]
+    a = x_pos[:-1]
+
     x = np.concatenate([-a, [0.0], a[::-1]])
 
-    # Kronrod weights symmetric about center
+
     w_pos = np.array([
         0.02293532201052922, 0.06309209262997856, 0.1047900103222502,
         0.1406532597155259, 0.1690047266392679, 0.1903505780647854,
@@ -192,7 +119,7 @@ def kronrod_nodes_weights(n):
     w0 = 0.2094821410847278
     w_kronrod = np.concatenate([w_pos, [w0], w_pos[::-1]])
 
-    # Embedded Gauss weights (at a2, a4, a6, 0, a6, a4, a2)
+
     wg_inner = np.array([0.1294849661688697, 0.2797053914892766,
                          0.3818300505051189])
     wg0 = 0.4179591836734694
@@ -205,30 +132,6 @@ def kronrod_nodes_weights(n):
 
 
 def padua_point_set(level):
-    """
-    Return the first-kind Padua points of level L on the square [-1,1]^2.
-
-    Padua points are the first optimal unisolvent set for bivariate
-    polynomial interpolation in the square.  They are also nearly optimal
-    for cubature.  The number of points is N = (L+1)(L+2)/2.
-
-    For level L, the points are defined as:
-        x_i = cos( (i * pi) / L ),   i = 0, ..., L
-        and y generated from Chebyshev-like distribution.
-
-    Here we use the explicit point sets for levels 0..5 from seed project
-    1143_square_exactness for reproducibility.
-
-    Parameters
-    ----------
-    level : int
-        Level L (0 <= L <= 5 for precomputed tables).
-
-    Returns
-    -------
-    x, y : ndarray
-        Padua points.
-    """
     if level == 0:
         return np.array([0.0]), np.array([0.0])
     elif level == 1:
@@ -285,30 +188,11 @@ def padua_point_set(level):
 
 
 def integrate_2d_gauss_legendre(f, nx, ny, ax, bx, ay, by):
-    """
-    Integrate f(x,y) over [ax,bx]x[ay,by] using tensor-product Gauss-Legendre.
-
-    Parameters
-    ----------
-    f : callable
-        Function f(x, y) where x, y are 1D arrays of the same length.
-    nx, ny : int
-        Quadrature orders.
-    ax, bx, ay, by : float
-        Integration bounds.
-
-    Returns
-    -------
-    integral : float
-        Approximate integral value.
-    error_estimate : float
-        Naive error estimate (difference between nx,ny and nx-1,ny-1 rules).
-    """
     x, y, w = gauss_legendre_2d(nx, ny, ax, bx, ay, by)
     fx = f(x, y)
     integral = np.sum(w * fx)
 
-    # Error estimate via lower-order rule
+
     if nx > 1 and ny > 1:
         x2, y2, w2 = gauss_legendre_2d(nx - 1, ny - 1, ax, bx, ay, by)
         fx2 = f(x2, y2)

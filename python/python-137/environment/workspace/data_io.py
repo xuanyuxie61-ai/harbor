@@ -1,34 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-data_io.py
-
-博士级数据输入输出与结构化解析工具
-
-融合原项目算法：
-- 224_cplex_solution_read 的 XML/结构化数据解析思想
-- 1066_set_theory 的整数向量格式化输出
-- 585_image_sample 的坐标向量格式化写入
-
-科学应用场景：
-结晶过程模拟产生大量的时序数据（CSD、浓度、温度、矩量等）。
-本模块提供标准化的数据读写、索引管理和结果格式化功能。
-"""
 
 import numpy as np
 import json
 
 
 def r8vec2_write(filename, x, y, fmt="%.8e"):
-    """
-    将配对实数向量写入格式化文本文件。
-
-    参数：
-        filename : str
-        x, y : ndarray
-            配对的向量
-        fmt : str
-            格式字符串
-    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     n = min(x.size, y.size)
@@ -39,14 +15,6 @@ def r8vec2_write(filename, x, y, fmt="%.8e"):
 
 
 def i4vec_transpose_print(vec, title="", elems_per_line=10):
-    """
-    格式化打印整数向量（转置布局）。
-
-    参数：
-        vec : array-like
-        title : str
-        elems_per_line : int
-    """
     vec = np.asarray(vec, dtype=int)
     n = vec.size
     if title:
@@ -58,11 +26,6 @@ def i4vec_transpose_print(vec, title="", elems_per_line=10):
 
 
 def index_set_to_string(index_set, name="I"):
-    """
-    将整数索引集转换为数学字符串表示。
-
-    例如：{0, 1, 2, 5} → "I = {0, 1, 2, 5}"
-    """
     indices = sorted(set(int(i) for i in index_set))
     if not indices:
         return f"{name} = ∅"
@@ -70,24 +33,6 @@ def index_set_to_string(index_set, name="I"):
 
 
 def parse_solution_vector(text_data, var_prefix="x", clean_tol=1e-6):
-    """
-    从结构化文本中解析解向量。
-
-    模拟 CPLEX 解读取：从文本行中提取变量名和值，
-    例如 "x42 = 3.14159" → x[42] = 3.14159
-
-    参数：
-        text_data : str
-            输入文本
-        var_prefix : str
-            变量前缀
-        clean_tol : float
-            清理容差（将接近整数的值四舍五入）
-
-    返回：
-        values : dict
-            {index: value}
-    """
     values = {}
     prefix_len = len(var_prefix)
     for line in text_data.strip().split('\n'):
@@ -113,16 +58,6 @@ def parse_solution_vector(text_data, var_prefix="x", clean_tol=1e-6):
 
 
 def write_simulation_results(filename, data_dict, metadata=None):
-    """
-    将模拟结果写入结构化的 JSON 格式文件。
-
-    参数：
-        filename : str
-        data_dict : dict
-            键值对，值为 ndarray 或标量
-        metadata : dict, optional
-            模拟元数据
-    """
     output = {}
     if metadata:
         output['metadata'] = metadata
@@ -143,18 +78,11 @@ def write_simulation_results(filename, data_dict, metadata=None):
 
 
 def read_simulation_results(filename):
-    """
-    读取模拟结果文件。
-
-    返回：
-        metadata : dict
-        data : dict
-    """
     with open(filename, 'r', encoding='utf-8') as f:
         content = json.load(f)
     metadata = content.get('metadata', {})
     data = content.get('data', {})
-    # 将列表恢复为 ndarray
+
     for key, val in data.items():
         if isinstance(val, dict) and 'shape' in val and 'values' in val:
             data[key] = np.array(val['values'], dtype=float).reshape(val['shape'])
@@ -162,18 +90,6 @@ def read_simulation_results(filename):
 
 
 def format_moment_vector(moments, names=None):
-    """
-    格式化矩量向量输出。
-
-    参数：
-        moments : array-like
-            矩量值 [μ_0, μ_1, ..., μ_n]
-        names : list of str, optional
-            矩量名称
-
-    返回：
-        formatted : str
-    """
     moments = np.asarray(moments, dtype=float)
     if names is None:
         names = [f"μ_{i}" for i in range(len(moments))]

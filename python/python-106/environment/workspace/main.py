@@ -1,30 +1,8 @@
-"""
-main.py
-=======
-Unified entry point for the nanophotonics plasmonics synthesis project.
-
-Zero-parameter execution performs a full multi-scale computation:
-
-    1. Nanoparticle layout optimization (CVT)
-    2. Single-particle Mie scattering spectrum
-    3. Coupled-dipole collective response
-    4. Spectral analysis via FFT
-    5. Wavelet-based hotspot multiresolution analysis
-    6. Connected-component hotspot detection
-    7. 3D Gauss-Legendre EM energy integration
-    8. Collective resonance identification (bisection)
-    9. Hot-electron random-walk transport
-   10. 1D effective waveguide mode solver
-   11. Domain partitioning for parallel load balance
-   12. Tensor-grid generation with CFL stability check
-
-All parameters are self-contained; no external input required.
-"""
 
 import numpy as np
 import sys
 
-# Import all project modules
+
 from mie_theory import (
     drude_permittivity,
     mie_cross_sections,
@@ -78,32 +56,32 @@ def run_full_simulation():
     print("  Domain: Optical Engineering – Nanophotonics & Plasmonics")
     print("=" * 70)
 
-    # ================================================================
-    # Physical constants and material parameters
-    # ================================================================
-    c = 2.99792458e8          # speed of light (m/s)
-    hbar = 1.054571817e-34    # reduced Planck constant (J·s)
-    eV = 1.602176634e-19      # electron volt (J)
-    eps0 = 8.854187817e-12    # vacuum permittivity (F/m)
 
-    # Gold-like Drude parameters
-    omega_p = 1.37e16         # rad/s (Au bulk plasma frequency)
-    gamma = 4.05e13           # rad/s (Au electron collision rate)
+
+
+    c = 2.99792458e8
+    hbar = 1.054571817e-34
+    eV = 1.602176634e-19
+    eps0 = 8.854187817e-12
+
+
+    omega_p = 1.37e16
+    gamma = 4.05e13
     eps_inf = 9.84
-    eps_medium = 1.0          # air/vacuum background
+    eps_medium = 1.0
 
-    # Nanoparticle geometry
-    a_nm = 30.0               # sphere radius (nm)
-    a = a_nm * 1e-9           # sphere radius (m)
+
+    a_nm = 30.0
+    a = a_nm * 1e-9
     volume = (4.0 / 3.0) * np.pi * a ** 3
 
     print("\n[1] MATERIAL & GEOMETRY PARAMETERS")
     print(f"    Gold Drude: ω_p = {omega_p:.3e} rad/s, γ = {gamma:.3e} rad/s")
     print(f"    Nanosphere radius: {a_nm:.1f} nm")
 
-    # ================================================================
-    # 1. Nanoparticle layout via CVT optimization
-    # ================================================================
+
+
+
     print("\n[2] NANOPARTICLE LAYOUT (CVT OPTIMIZATION)")
     region = (0.0, 200e-9, 0.0, 200e-9)
     positions = place_nanoparticles_2d_cvt(
@@ -113,7 +91,7 @@ def run_full_simulation():
         s_num=2000,
         seed=42
     )
-    # Add small z-offsets to make 3D positions
+
     Np = positions.shape[0]
     z_offsets = np.random.RandomState(42).rand(Np) * 20e-9
     positions_3d = np.column_stack([positions, z_offsets])
@@ -121,9 +99,9 @@ def run_full_simulation():
     print(f"    Simulation domain: {region[0]*1e9:.0f}–{region[1]*1e9:.0f} nm × "
           f"{region[2]*1e9:.0f}–{region[3]*1e9:.0f} nm")
 
-    # ================================================================
-    # 2. Single-particle Mie spectrum
-    # ================================================================
+
+
+
     print("\n[3] MIE SCATTERING SPECTRUM (Single Nanosphere)")
     omega_min = 2.0e15
     omega_max = 8.0e15
@@ -139,18 +117,18 @@ def run_full_simulation():
           f"ω = {omega_peak_single:.3e} rad/s")
     print(f"    Corresponding wavelength: {2*np.pi*c/omega_peak_single*1e9:.1f} nm")
 
-    # ================================================================
-    # 3. Coupled-dipole collective response
-    # ================================================================
+
+
+
     print("\n[4] COUPLED DIPOLE MODEL (Collective Response)")
-    # TODO: Set the probe frequency for the coupled-dipole calculation.
-    # Then compute the metal permittivity at this frequency using the Drude model,
-    # and compute the polarizability for each nanoparticle using Clausius-Mossotti.
-    # The polarizabilities must be passed as a 1D array of length Np.
+
+
+
+
     raise NotImplementedError("Hole 3: Probe-frequency selection and polarizability array construction are missing.")
 
     A = build_coupling_matrix(positions_3d, alphas, omega_probe, eps_medium)
-    E0 = 1.0e5  # V/m incident field
+    E0 = 1.0e5
     kvec = np.array([0.0, 0.0, omega_probe * np.sqrt(eps_medium) / c])
     pol = np.array([1.0, 0.0, 0.0])
     b = incident_plane_wave(positions_3d, E0, kvec, pol)
@@ -161,19 +139,19 @@ def run_full_simulation():
     print(f"    Mean induced dipole magnitude: {np.mean(dipole_magnitudes):.3e} C·m")
     print(f"    Max induced dipole magnitude:  {np.max(dipole_magnitudes):.3e} C·m")
 
-    # Coupling graph
+
     adjacency, arc_list = build_coupling_graph(positions_3d, omega_probe, eps_medium,
                                                 threshold=1.0e25)
     print(f"    Coupling graph arcs: {len(arc_list)}")
 
-    # ================================================================
-    # 4. Spectral analysis (FFT of synthetic time series)
-    # ================================================================
+
+
+
     print("\n[5] SPECTRAL ANALYSIS (FFT)")
-    dt = 1.0e-16  # s
+    dt = 1.0e-16
     N_steps = 512
     t = np.arange(N_steps) * dt
-    # Synthetic dipole moment: damped oscillation at plasmon frequency
+
     decay = np.exp(-gamma * t)
     pz_t = dipole_magnitudes[0] * decay * np.cos(omega_probe * t)
     p_t = np.column_stack([np.zeros(N_steps), np.zeros(N_steps), pz_t])
@@ -182,11 +160,11 @@ def run_full_simulation():
     print(f"    FFT peak frequency: {freqs[idx_max]:.3e} rad/s")
     print(f"    Relative error vs input ω: {abs(freqs[idx_max]-omega_probe)/omega_probe:.3e}")
 
-    # ================================================================
-    # 5. Wavelet multiresolution analysis
-    # ================================================================
+
+
+
     print("\n[6] WAVELET MULTIRESOLUTION ANALYSIS")
-    # Create a synthetic 2D near-field map on a 128×128 grid
+
     nx_f, ny_f = 128, 128
     x_f = np.linspace(region[0], region[1], nx_f)
     y_f = np.linspace(region[2], region[3], ny_f)
@@ -202,9 +180,9 @@ def run_full_simulation():
     print(f"    Detected hotspot scales (pixels): {scales if scales else 'none above threshold'}")
     print(f"    Number of wavelet levels analyzed: {len(coeff_dict)}")
 
-    # ================================================================
-    # 6. Hotspot detection via connected components
-    # ================================================================
+
+
+
     print("\n[7] HOTSPOT DETECTION (Connected Components)")
     intensity_map = np.abs(field_map) ** 2
     threshold = 1.5 * np.mean(intensity_map)
@@ -220,7 +198,7 @@ def run_full_simulation():
     if poly_intensities:
         print(f"    Mean hotspot intensity: {np.mean(poly_intensities):.3e} (V/m)²")
 
-    # Hot-carrier generation rate in a representative hotspot
+
     G_hc = hot_carrier_generation_rate(
         np.sqrt(intensity_map), omega_probe, eps_metal,
         dx=(region[1]-region[0])/nx_f,
@@ -229,15 +207,15 @@ def run_full_simulation():
     )
     print(f"    Total hot-carrier generation rate: {np.sum(G_hc):.3e} s⁻¹")
 
-    # ================================================================
-    # 7. 3D Gauss-Legendre volume integration
-    # ================================================================
+
+
+
     print("\n[8] 3D GAUSS-LEGENDRE VOLUME INTEGRATION")
     a_box = np.array([region[0], region[2], 0.0])
     b_box = np.array([region[1], region[3], 100e-9])
 
     def E2_func(x, y, z):
-        # Synthetic |E|² decaying away from each nanoparticle center
+
         val = np.zeros_like(x)
         for i in range(Np):
             r2 = (x - positions_3d[i, 0]) ** 2 + (y - positions_3d[i, 1]) ** 2 + (z - positions_3d[i, 2]) ** 2
@@ -259,14 +237,14 @@ def run_full_simulation():
     print(f"    Total EM energy in box: {U_em:.3e} J")
     print(f"    Absorbed power:         {P_abs:.3e} W")
 
-    # Exactness test
+
     errors = test_exactness_monomial(a_box, b_box, max_total_degree=3, nx=6, ny=6, nz=6)
     max_err = max(errors)
     print(f"    Quadrature exactness max relative error: {max_err:.3e}")
 
-    # ================================================================
-    # 8. Resonance identification
-    # ================================================================
+
+
+
     print("\n[9] RESONANCE IDENTIFICATION")
     omega_res_single = find_single_sphere_resonance(
         eps_medium, omega_p=omega_p, gamma=gamma, eps_inf=eps_inf
@@ -274,7 +252,7 @@ def run_full_simulation():
     print(f"    Single-sphere LSPR (Drude): {omega_res_single:.3e} rad/s")
     print(f"    Single-sphere wavelength:   {2*np.pi*c/omega_res_single*1e9:.1f} nm")
 
-    # Collective resonance via scan
+
     def pol_func(omg):
         eps = drude_permittivity(omg, omega_p, gamma, eps_inf)
         alpha = polarizability_clausius_mossotti(eps, eps_medium, volume)
@@ -289,13 +267,13 @@ def run_full_simulation():
     shift = (omega_res_coll - omega_res_single) / omega_res_single
     print(f"    Collective shift: {shift*100:.2f} %")
 
-    # ================================================================
-    # 9. Hot-electron transport (random walk)
-    # ================================================================
+
+
+
     print("\n[10] HOT-ELECTRON TRANSPORT (Random Walk)")
     x2_ave, x2_max = random_walk_1d(step_num=1000, walk_num=500, step_length=1e-10)
     r2_ave = random_walk_3d(step_num=1000, walk_num=500, step_length=1e-10)
-    D_eff = r2_ave[-1] / (6.0 * 1000 * 1e-14)  # D = <r²>/(6 t), t = N_step * τ_scatt
+    D_eff = r2_ave[-1] / (6.0 * 1000 * 1e-14)
     print(f"    1D MSD after 1000 steps: {x2_ave[-1]:.3e} m²")
     print(f"    3D MSD after 1000 steps: {r2_ave[-1]:.3e} m²")
     print(f"    Effective diffusion coeff: {D_eff:.3e} m²/s")
@@ -307,9 +285,9 @@ def run_full_simulation():
     )
     print(f"    Monte-Carlo collection efficiency: {eff*100:.2f} %")
 
-    # ================================================================
-    # 10. 1D Effective waveguide mode solver
-    # ================================================================
+
+
+
     print("\n[11] 1D EFFECTIVE WAVEGUIDE MODE SOLVER")
     N_wave = 128
     h_wave = 1e-9
@@ -320,7 +298,7 @@ def run_full_simulation():
         wavelength=2 * np.pi * c / omega_probe
     )
     epsilon_eff_profile = np.full(N_wave, np.real(eps_eff))
-    # Add a dielectric gap in the center
+
     gap_start = N_wave // 2 - 5
     gap_end = N_wave // 2 + 5
     epsilon_eff_profile[gap_start:gap_end] = eps_medium
@@ -333,9 +311,9 @@ def run_full_simulation():
         print(f"    Mode {m}: β = {betas[m]:.3e} m⁻¹, "
               f"n_eff = {betas[m]/k0:.3f}")
 
-    # ================================================================
-    # 11. Domain partitioning
-    # ================================================================
+
+
+
     print("\n[12] DOMAIN PARTITIONING (Load Balance)")
     interaction_radius = 80e-9
     weights = estimate_workload(positions_3d, interaction_radius)
@@ -345,9 +323,9 @@ def run_full_simulation():
         count = np.sum(assignment == p)
         print(f"    Subset {p}: {count} particles, load = {subset_sums[p]:.3e}")
 
-    # ================================================================
-    # 12. Tensor grid generation & CFL check
-    # ================================================================
+
+
+
     print("\n[13] TENSOR GRID & CFL STABILITY")
     Xg, Yg, Zg, dxg, dyg, dzg = uniform_tensor_grid_3d(
         (0.0, 200e-9), (0.0, 200e-9), (0.0, 100e-9),
@@ -358,13 +336,13 @@ def run_full_simulation():
     print(f"    Grid spacing: dx={dxg*1e9:.2f} nm, dy={dyg*1e9:.2f} nm, dz={dzg*1e9:.2f} nm")
     print(f"    CFL-limited Δt: {dt_cfl*1e15:.3f} fs")
 
-    # Sphere mask for one nanoparticle
+
     mask = grid_points_in_sphere(Xg, Yg, Zg, positions_3d[0], a)
     print(f"    Grid points inside nanoparticle 0: {np.sum(mask)}")
 
-    # ================================================================
-    # Summary
-    # ================================================================
+
+
+
     print("\n" + "=" * 70)
     print("  SIMULATION COMPLETE")
     print("=" * 70)

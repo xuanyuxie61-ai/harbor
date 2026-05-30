@@ -1,32 +1,8 @@
-"""
-Special Mathematical Functions for Condensed Matter Physics
-===========================================================
-Provides special functions needed for transport calculations:
-- Trigamma function (project 040, ASA121)
-- Carlson symmetric elliptic integrals (project 332, rd, rf)
-- 2D scattered data interpolation (project 1212)
-
-The trigamma function psi'(x) = d^2 ln(Gamma(x)) / dx^2 appears in:
-- Fermi-Dirac integrals at low temperature
-- Thermal fluctuation correlators
-- Quantum statistical mechanics expansions
-
-The Carlson elliptic integrals R_D and R_F appear in:
-- Ellipsoid Fermi surface area calculations
-- Anisotropic effective mass integrals
-
-The 2D interpolation routines provide scattered data interpolation
-for band structure and potential landscapes.
-"""
 
 import numpy as np
 
 
 class TrigammaFunction:
-    """
-    Trigamma function psi'(x) = d^2 ln(Gamma(x)) / dx^2.
-    Based on ASA121 (project 040).
-    """
 
     def __init__(self):
         self.a = 0.0001
@@ -37,36 +13,22 @@ class TrigammaFunction:
         self.b8 = -0.03333333333
 
     def evaluate(self, x):
-        """
-        Compute trigamma(x) for x > 0.
-
-        Parameters
-        ----------
-        x : float
-
-        Returns
-        -------
-        value : float
-            Trigamma(x).
-        ifault : int
-            0 if no error, 1 if x <= 0.
-        """
         if x <= 0.0:
             return 0.0, 1
 
         z = x
         value = 0.0
 
-        # Small value approximation
+
         if x <= self.a:
             return 1.0 / (x * x), 0
 
-        # Increase argument to (x + i) >= b
+
         while z < self.b:
             value += 1.0 / (z * z)
             z += 1.0
 
-        # Asymptotic formula
+
         y = 1.0 / (z * z)
         value += 0.5 * y + (1.0 + y * (self.b2 + y * (self.b4
                             + y * (self.b6 + y * self.b8)))) / z
@@ -74,38 +36,13 @@ class TrigammaFunction:
         return value, 0
 
     def fermi_dirac_integral_derivative(self, eta, nu=0):
-        """
-        Compute the derivative of the Fermi-Dirac integral F_nu(eta)
-        with respect to eta.
 
-        dF_nu/deta = nu * F_{nu-1}(eta)
-
-        For half-integer nu, F_{1/2} appears in carrier density:
-            n = N_c * F_{1/2}(eta)
-
-        The Sommerfeld expansion uses trigamma:
-            F_nu(eta) ≈ eta^{nu+1} / (nu+1) + (pi^2/6) * nu * eta^{nu-1}
-                        + (7*pi^4/360) * nu*(nu-1)*(nu-2) * eta^{nu-3} + ...
-
-        Parameters
-        ----------
-        eta : float
-            Reduced Fermi energy (E_F / k_B T).
-        nu : float
-            Order of the Fermi-Dirac integral.
-
-        Returns
-        -------
-        dF : float
-            Derivative dF_nu/deta.
-        """
-        # Approximate using Sommerfeld expansion for large eta
         if eta > 5.0 and nu > 0:
             dF = nu * (eta ** (nu - 1.0) / nu
                        + (np.pi ** 2 / 6.0) * (nu - 1.0) * eta ** (nu - 3.0))
             return dF
 
-        # Numerical integration for general eta
+
         t_vals = np.linspace(0.0, 50.0, 5000)
         dt = t_vals[1] - t_vals[0]
         integrand = t_vals ** nu / ((np.exp(t_vals - eta) + 1.0)
@@ -115,13 +52,6 @@ class TrigammaFunction:
 
 
 class CarlsonEllipticIntegrals:
-    """
-    Carlson symmetric elliptic integrals R_D and R_F.
-    Based on rd.m and rf.m from project 332 (ellipsoid).
-
-    R_F(x, y, z) = (1/2) * int_0^inf dt / sqrt((t+x)(t+y)(t+z))
-    R_D(x, y, z) = (3/2) * int_0^inf dt / sqrt((t+x)(t+y)) / (t+z)^{3/2}
-    """
 
     def __init__(self, errtol=1e-6):
         self.errtol = errtol
@@ -129,20 +59,6 @@ class CarlsonEllipticIntegrals:
         self.uplim = 1e48
 
     def rf(self, x, y, z):
-        """
-        Compute Carlson symmetric elliptic integral of the first kind.
-
-        Parameters
-        ----------
-        x, y, z : float
-            Non-negative, not all zero.
-
-        Returns
-        -------
-        value : float
-        ierr : int
-            0 if no error.
-        """
         if (x < 0.0 or y < 0.0 or z < 0.0 or
                 x + y < self.lolim or x + z < self.lolim or y + z < self.lolim or
                 x > self.uplim or y > self.uplim or z > self.uplim):
@@ -185,19 +101,6 @@ class CarlsonEllipticIntegrals:
             zn = (zn + lamda) * 0.25
 
     def rd(self, x, y, z):
-        """
-        Compute Carlson symmetric elliptic integral of the second kind.
-
-        Parameters
-        ----------
-        x, y, z : float
-            x, y >= 0, x+y > 0, z > 0.
-
-        Returns
-        -------
-        value : float
-        ierr : int
-        """
         if (x < 0.0 or y < 0.0 or x + y < self.lolim or z < self.lolim or
                 x > self.uplim or y > self.uplim or z > self.uplim):
             return 0.0, 1
@@ -240,27 +143,8 @@ class CarlsonEllipticIntegrals:
             zn = (zn + lamda) * 0.25
 
     def ellipsoid_surface_area(self, a, b, c):
-        """
-        Compute the surface area of a triaxial ellipsoid.
-
-        Based on ellipsoid_area from project 332.
-
-        S = 2*pi * [c^2 + a*b / sin(phi) * (E(phi,m)*sin^2(phi) + F(phi,m)*cos^2(phi))]
-
-        where phi = arccos(c/a), m = a^2(b^2-c^2) / [b^2(a^2-c^2)].
-
-        Parameters
-        ----------
-        a, b, c : float
-            Semi-axes.
-
-        Returns
-        -------
-        area : float
-            Surface area.
-        """
         a, b, c = abs(a), abs(b), abs(c)
-        # Sort: a >= b >= c
+
         axes = sorted([a, b, c], reverse=True)
         a, b, c = axes[0], axes[1], axes[2]
 
@@ -275,9 +159,9 @@ class CarlsonEllipticIntegrals:
         else:
             m = (a ** 2 * (b ** 2 - c ** 2)) / (b ** 2 * (a ** 2 - c ** 2))
 
-        # Incomplete elliptic integrals using Carlson forms
-        # F(phi, m) = sin(phi) * R_F(cos^2(phi), 1 - m*sin^2(phi), 1)
-        # E(phi, m) = sin(phi) * R_F(...) - (m/3)*sin^3(phi)*R_D(...)
+
+
+
         cp2 = (np.cos(phi)) ** 2
         sp2 = (np.sin(phi)) ** 2
 
@@ -298,20 +182,8 @@ class CarlsonEllipticIntegrals:
 
 
 class Interpolation2D:
-    """
-    2D scattered data interpolation for band structure and potential fields.
-    Based on test_interp_2d (project 1212).
-    """
 
     def __init__(self, points, values):
-        """
-        Parameters
-        ----------
-        points : ndarray
-            Shape (N, 2) array of (x, y) coordinates.
-        values : ndarray
-            Shape (N,) array of function values.
-        """
         self.points = np.asarray(points)
         self.values = np.asarray(values)
         if self.points.shape[0] != self.values.shape[0]:
@@ -320,22 +192,6 @@ class Interpolation2D:
             raise ValueError("points must have shape (N, 2).")
 
     def inverse_distance_weighting(self, x, y, power=2, n_neighbors=8):
-        """
-        Inverse distance weighting interpolation.
-
-        f(x,y) = sum_i w_i * f_i / sum_i w_i
-        w_i = 1 / d_i^p
-
-        Parameters
-        ----------
-        x, y : float or ndarray
-        power : float
-        n_neighbors : int
-
-        Returns
-        -------
-        f_interp : ndarray
-        """
         x = np.atleast_1d(x)
         y = np.atleast_1d(y)
         result = np.zeros_like(x, dtype=float)
@@ -345,13 +201,13 @@ class Interpolation2D:
             dy = self.points[:, 1] - y.flat[j]
             dist = np.sqrt(dx ** 2 + dy ** 2)
 
-            # Handle exact match
+
             exact = dist < 1e-12
             if np.any(exact):
                 result.flat[j] = self.values[np.argmax(exact)]
                 continue
 
-            # Select nearest neighbors
+
             idx = np.argsort(dist)[:n_neighbors]
             w = 1.0 / (dist[idx] ** power)
             result.flat[j] = np.sum(w * self.values[idx]) / np.sum(w)
@@ -359,25 +215,10 @@ class Interpolation2D:
         return result
 
     def radial_basis_function(self, x, y, epsilon=1.0):
-        """
-        Radial basis function interpolation using Gaussian RBF.
-
-        f(x,y) = sum_j c_j * exp(-epsilon^2 * r_j^2)
-
-        Parameters
-        ----------
-        x, y : float or ndarray
-        epsilon : float
-            Shape parameter.
-
-        Returns
-        -------
-        f_interp : ndarray
-        """
         x = np.atleast_1d(x)
         y = np.atleast_1d(y)
 
-        # Solve for coefficients c
+
         N = self.points.shape[0]
         dist_matrix = np.zeros((N, N))
         for i in range(N):
@@ -385,7 +226,7 @@ class Interpolation2D:
                 r = np.linalg.norm(self.points[i] - self.points[j])
                 dist_matrix[i, j] = np.exp(-(epsilon * r) ** 2)
 
-        # Regularization for numerical stability
+
         dist_matrix += 1e-10 * np.eye(N)
         c = np.linalg.solve(dist_matrix, self.values)
 
@@ -400,11 +241,6 @@ class Interpolation2D:
 
 
 def polygamma_identity_check():
-    """
-    Verify the identity:
-        psi'(1/2) = pi^2 / 2
-        psi'(1) = pi^2 / 6
-    """
     tg = TrigammaFunction()
     val_half, _ = tg.evaluate(0.5)
     val_one, _ = tg.evaluate(1.0)

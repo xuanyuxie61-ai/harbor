@@ -1,40 +1,7 @@
-"""
-Dynamic-Programming Multi-Eddy Tracking
-=======================================
-Derived from seed project 444_football_dynamic (dynamic programming
-for combinatorial score enumeration).
-
-In oceanography, tracking multiple mesoscale eddies over time is
-challenging due to merging, splitting, and birth/death events.
-We formulate eddy tracking as a dynamic programming problem on a
-state graph.
-
-State representation:
-    S_t = { eddy_1(t), eddy_2(t), ..., eddy_{N_t}(t) }
-
-Transition cost from eddy i at time t to eddy j at time t+1:
-    C(i→j) = w₁·Δd + w₂·ΔA + w₃·Δζ + w₄·(1 − overlap)
-
-where:
-    Δd    = |x_i(t) − x_j(t+1)|  (centroid displacement)
-    ΔA    = |A_i(t) − A_j(t+1)| / max(A_i, A_j)
-    Δζ    = |ζ_i(t) − ζ_j(t+1)| / max(|ζ_i|, |ζ_j|)
-    overlap = |Area( eddy_i(t) ∩ eddy_j(t+1) )| / min(A_i, A_j)
-
-The optimal assignment is found via dynamic programming (Viterbi-like)
-on the eddy-state lattice.
-
-Mathematically, this is a shortest-path problem on a DAG:
-    V_t(j) = min_i [ V_{t−1}(i) + C(i→j) ]
-with initialization V_0(i) = 0.
-"""
 
 import numpy as np
 
 class EddyTracker:
-    """
-    Track multiple eddies across time steps using dynamic programming.
-    """
 
     def __init__(self, w_pos=1.0, w_area=0.5, w_vort=0.3, w_overlap=2.0):
         self.w_pos = w_pos
@@ -43,11 +10,6 @@ class EddyTracker:
         self.w_overlap = w_overlap
 
     def _transition_cost(self, eddy_t, eddy_tp1):
-        """
-        Compute cost between two eddy states.
-
-        eddy dict keys: 'centroid', 'area', 'mean_vorticity'
-        """
         dx = eddy_t['centroid'][0] - eddy_tp1['centroid'][0]
         dy = eddy_t['centroid'][1] - eddy_tp1['centroid'][1]
         dist = np.sqrt(dx**2 + dy**2)
@@ -60,12 +22,12 @@ class EddyTracker:
         ztp1 = eddy_tp1['mean_vorticity']
         dzeta = abs(zt - ztp1) / max(abs(zt), abs(ztp1), 1e-10)
 
-        # Approximate overlap by Gaussian overlap of circular areas
+
         r_t = np.sqrt(A_t / np.pi)
         r_tp1 = np.sqrt(A_tp1 / np.pi)
         d_centers = dist
         if d_centers < r_t + r_tp1:
-            # Simplified overlap estimate
+
             overlap = 1.0 - d_centers / (r_t + r_tp1)
         else:
             overlap = 0.0
@@ -77,29 +39,16 @@ class EddyTracker:
         return cost
 
     def track(self, eddy_snapshots):
-        """
-        Track eddies across a sequence of time snapshots.
-
-        Parameters
-        ----------
-        eddy_snapshots : list of list of dict
-            eddy_snapshots[t] = list of eddy dicts at time t.
-
-        Returns
-        -------
-        trajectories : list of list
-            Each trajectory is a list of (time, eddy_id) pairs.
-        """
         T = len(eddy_snapshots)
         if T == 0:
             return []
 
-        # Forward pass: compute minimum cost paths
-        # V[t][j] = minimum cost to reach eddy j at time t
+
+
         V = []
         backpointer = []
 
-        # Initialize
+
         N0 = len(eddy_snapshots[0])
         V.append([0.0] * N0)
         backpointer.append([None] * N0)
@@ -126,8 +75,8 @@ class EddyTracker:
             V.append(Vt)
             backpointer.append(Bt)
 
-        # Backward pass: extract trajectories by greedy assignment
-        # Start from each eddy at final time and trace back
+
+
         trajectories = []
         assigned = set()
 
@@ -143,16 +92,13 @@ class EddyTracker:
                 cur_t -= 1
                 cur_j = prev_j
 
-            # Only keep trajectories with length ≥ 2
+
             if len(traj) >= 2:
                 trajectories.append(traj)
 
         return trajectories
 
     def compute_lifetime_statistics(self, trajectories, eddy_snapshots):
-        """
-        Compute mean eddy lifetime, propagation speed, and path length.
-        """
         stats = {
             'n_tracks': len(trajectories),
             'mean_lifetime_steps': 0.0,
@@ -175,7 +121,7 @@ class EddyTracker:
             for k in range(1, len(traj)):
                 t1, i1 = traj[k - 1]
                 t2, i2 = traj[k]
-                dt = 1.0  # normalized time step
+                dt = 1.0
                 c1 = eddy_snapshots[t1][i1]['centroid']
                 c2 = eddy_snapshots[t2][i2]['centroid']
                 d = np.sqrt((c2[0] - c1[0])**2 + (c2[1] - c1[1])**2)

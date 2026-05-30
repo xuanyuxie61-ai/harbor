@@ -1,29 +1,18 @@
-"""
-Geometric discretization for quantum walks.
-Incorporates: image_mesh2d (2D mesh), sphere_cubed_grid (cubed sphere),
-              hexagon_stroud_rule (hexagonal lattice).
-"""
 import numpy as np
 from typing import List, Tuple, Optional
 
 
-# ---------------------------------------------------------------------------
-# 2D mesh triangulation (from image_mesh2d)
-# ---------------------------------------------------------------------------
+
+
+
 def generate_2d_mesh(boundary: np.ndarray, hmax: Optional[float] = None) -> Tuple[np.ndarray, np.ndarray]:
-    """Generate a simple triangular mesh inside a 2D polygon boundary.
-    boundary: (N, 2) array of ordered boundary vertices.
-    Returns (nodes, elements) where elements are triangles as (3,) node indices.
-    Uses a simple fan triangulation from centroid for convex polygons,
-    plus recursive subdivision for refinement.
-    """
     if boundary.shape[0] < 3:
         raise ValueError("Boundary must have at least 3 vertices")
-    # Close polygon
+
     if not np.allclose(boundary[0], boundary[-1]):
         boundary = np.vstack([boundary, boundary[0]])
     n = boundary.shape[0] - 1
-    # Centroid
+
     cx = np.mean(boundary[:n, 0])
     cy = np.mean(boundary[:n, 1])
     centroid = np.array([[cx, cy]])
@@ -35,7 +24,7 @@ def generate_2d_mesh(boundary: np.ndarray, hmax: Optional[float] = None) -> Tupl
         elems.append([i, j, centroid_idx])
     elems = np.array(elems, dtype=int)
 
-    # Refine if hmax specified
+
     if hmax is not None and hmax > 0:
         nodes, elems = refine_mesh(nodes, elems, hmax)
     return nodes, elems
@@ -43,9 +32,8 @@ def generate_2d_mesh(boundary: np.ndarray, hmax: Optional[float] = None) -> Tupl
 
 def refine_mesh(nodes: np.ndarray, elems: np.ndarray, hmax: float,
                 max_levels: int = 5) -> Tuple[np.ndarray, np.ndarray]:
-    """Refine a triangular mesh by edge bisection until all edges < hmax."""
     for _ in range(max_levels):
-        # Find longest edge
+
         max_edge_len = 0.0
         for tri in elems:
             for a, b in [(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])]:
@@ -54,7 +42,7 @@ def refine_mesh(nodes: np.ndarray, elems: np.ndarray, hmax: float,
                     max_edge_len = edge_len
         if max_edge_len <= hmax:
             break
-        # Simple uniform refinement: split each triangle into 4
+
         new_nodes = list(nodes)
         new_elems = []
         edge_midpoint = {}
@@ -82,7 +70,6 @@ def refine_mesh(nodes: np.ndarray, elems: np.ndarray, hmax: float,
 
 
 def mesh_adjacency(nodes: np.ndarray, elems: np.ndarray) -> List[List[int]]:
-    """Build adjacency list from triangular mesh (edge-based neighbors)."""
     n = nodes.shape[0]
     adj = [set() for _ in range(n)]
     for tri in elems:
@@ -93,25 +80,22 @@ def mesh_adjacency(nodes: np.ndarray, elems: np.ndarray) -> List[List[int]]:
     return [list(s) for s in adj]
 
 
-# ---------------------------------------------------------------------------
-# Cubed sphere grid (from sphere_cubed_grid)
-# ---------------------------------------------------------------------------
+
+
+
 def sphere_cubed_grid_point_count(n: int) -> int:
-    """Number of points on cubed sphere surface for subdivision n."""
     if n < 1:
         return 8
     return (n + 1) ** 3 - (n - 1) ** 3
 
 
 def sphere_cubed_grid_line_count(n: int) -> int:
-    """Number of lines/edges on cubed sphere surface."""
     if n < 1:
         return 12
     return 24 + 12 * (n - 2) + 12 * n * (n - 1)
 
 
 def cubed_grid_ijk_to_xyz(i: int, j: int, k: int, n: int) -> np.ndarray:
-    """Map cube indices (i,j,k) in [0,n] to unit sphere point."""
     def coord(idx: int) -> float:
         if idx == 0:
             return -1.0
@@ -129,9 +113,6 @@ def cubed_grid_ijk_to_xyz(i: int, j: int, k: int, n: int) -> np.ndarray:
 
 
 def generate_cubed_sphere_grid(n: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Generate cubed sphere grid points and line connectivity.
-    Returns (points, lines) where lines is (L, 2, 3) array of segment endpoints.
-    """
     points = []
     index_map = {}
 
@@ -145,15 +126,15 @@ def generate_cubed_sphere_grid(n: int) -> Tuple[np.ndarray, np.ndarray]:
 
     lines = []
 
-    # Bottom face (k=0)
+
     for i in range(n + 1):
         for j in range(n + 1):
             add_point(i, j, 0)
-    # Top face (k=n)
+
     for i in range(n + 1):
         for j in range(n + 1):
             add_point(i, j, n)
-    # Side faces
+
     for k in range(1, n):
         for i in range(n + 1):
             add_point(i, 0, k)
@@ -162,27 +143,27 @@ def generate_cubed_sphere_grid(n: int) -> Tuple[np.ndarray, np.ndarray]:
             add_point(0, j, k)
             add_point(n, j, k)
 
-    # Generate lines along grid edges on each face
+
     def add_line(idx1: int, idx2: int):
         p1 = points[idx1]
         p2 = points[idx2]
         lines.append(np.stack([p1, p2]))
 
-    # Bottom face lines
+
     for i in range(n):
         for j in range(n + 1):
             add_line(index_map[(i, j, 0)], index_map[(i + 1, j, 0)])
     for j in range(n):
         for i in range(n + 1):
             add_line(index_map[(i, j, 0)], index_map[(i, j + 1, 0)])
-    # Top face lines
+
     for i in range(n):
         for j in range(n + 1):
             add_line(index_map[(i, j, n)], index_map[(i + 1, j, n)])
     for j in range(n):
         for i in range(n + 1):
             add_line(index_map[(i, j, n)], index_map[(i, j + 1, n)])
-    # Side lines
+
     for k in range(n):
         for i in range(n + 1):
             add_line(index_map[(i, 0, k)], index_map[(i, 0, k + 1)])
@@ -197,11 +178,10 @@ def generate_cubed_sphere_grid(n: int) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def cubed_sphere_adjacency(points: np.ndarray, lines: np.ndarray) -> List[List[int]]:
-    """Build adjacency list from cubed sphere line segments."""
     n = points.shape[0]
     adj = [set() for _ in range(n)]
     for seg in lines:
-        # Find closest point indices
+
         p1, p2 = seg[0], seg[1]
         d1 = np.linalg.norm(points - p1, axis=1)
         d2 = np.linalg.norm(points - p2, axis=1)
@@ -213,26 +193,21 @@ def cubed_sphere_adjacency(points: np.ndarray, lines: np.ndarray) -> List[List[i
     return [list(s) for s in adj]
 
 
-# ---------------------------------------------------------------------------
-# Hexagonal lattice (from hexagon_stroud_rule)
-# ---------------------------------------------------------------------------
+
+
+
 def hexagon_unit_vertices() -> np.ndarray:
-    """Vertices of unit regular hexagon centered at origin."""
     angles = np.linspace(0, 2 * np.pi, 7)[:-1] + np.pi / 6.0
     return np.column_stack([np.cos(angles), np.sin(angles)])
 
 
 def hexagon_area() -> float:
-    """Area of unit regular hexagon."""
     return 3.0 * np.sqrt(3.0) / 2.0
 
 
 def generate_hexagonal_lattice(n_rings: int, spacing: float = 1.0) -> np.ndarray:
-    """Generate a hexagonal lattice with n_rings around center.
-    Returns (N, 2) array of points.
-    """
     points = []
-    # Axial coordinates for hex grid
+
     for q in range(-n_rings, n_rings + 1):
         r1 = max(-n_rings, -q - n_rings)
         r2 = min(n_rings, -q + n_rings)
@@ -245,14 +220,13 @@ def generate_hexagonal_lattice(n_rings: int, spacing: float = 1.0) -> np.ndarray
 
 def hexagonal_adjacency(points: np.ndarray, spacing: float = 1.0,
                         tol: float = 1e-6) -> List[List[int]]:
-    """Build adjacency for hexagonal lattice based on nearest neighbors."""
     n = points.shape[0]
     adj = [set() for _ in range(n)]
     for i in range(n):
         for j in range(i + 1, n):
             d = np.linalg.norm(points[i] - points[j])
             if np.isclose(d, spacing, atol=tol) or np.isclose(d, spacing * np.sqrt(3.0), atol=tol):
-                # Only connect immediate neighbors (distance = spacing)
+
                 if np.isclose(d, spacing, atol=tol):
                     adj[i].add(j)
                     adj[j].add(i)
@@ -260,7 +234,6 @@ def hexagonal_adjacency(points: np.ndarray, spacing: float = 1.0,
 
 
 def hexagon_stroud_rule1() -> Tuple[np.ndarray, np.ndarray]:
-    """1-point Stroud rule for unit hexagon (degree 1)."""
     x = np.array([0.0])
     y = np.array([0.0])
     w = np.array([hexagon_area()])
@@ -268,7 +241,6 @@ def hexagon_stroud_rule1() -> Tuple[np.ndarray, np.ndarray]:
 
 
 def hexagon_stroud_rule2() -> Tuple[np.ndarray, np.ndarray]:
-    """4-point Stroud rule for unit hexagon (degree 3)."""
     r = np.sqrt(3.0) / 3.0
     x = np.array([r, -r, -r, r])
     y = np.array([r, r, -r, -r])
@@ -277,7 +249,6 @@ def hexagon_stroud_rule2() -> Tuple[np.ndarray, np.ndarray]:
 
 
 def hexagon_stroud_rule3() -> Tuple[np.ndarray, np.ndarray]:
-    """7-point Stroud rule for unit hexagon (degree 3)."""
     r = np.sqrt(6.0) / 3.0
     x = np.array([0.0, r, -r / 2.0, -r / 2.0, r / 2.0, r / 2.0, -r])
     y = np.array([0.0, 0.0, r * np.sqrt(3.0) / 2.0, -r * np.sqrt(3.0) / 2.0,
@@ -287,34 +258,29 @@ def hexagon_stroud_rule3() -> Tuple[np.ndarray, np.ndarray]:
 
 
 def hexagon_stroud_rule4() -> Tuple[np.ndarray, np.ndarray]:
-    """7-point Stroud rule for unit hexagon (degree 5)."""
     r1 = np.sqrt(14.0) / 5.0
     r2 = np.sqrt(42.0) / 10.0
     x = np.array([0.0, r1, -r1 / 2.0, -r1 / 2.0, r2, -r2 / 2.0, -r2 / 2.0])
     y = np.array([0.0, 0.0, r1 * np.sqrt(3.0) / 2.0, -r1 * np.sqrt(3.0) / 2.0,
                   0.0, r2 * np.sqrt(3.0) / 2.0, -r2 * np.sqrt(3.0) / 2.0])
     w = np.array([0.5, 0.125, 0.125, 0.125, 0.125, 0.0, 0.0]) * hexagon_area()
-    # Fix last two weights to balance
+
     w[5] = w[6] = (hexagon_area() - w[0] - w[1] - w[2] - w[3] - w[4]) / 2.0
     return np.column_stack([x, y]), w
 
 
 def hexagon_monomial_integral(p: int, q: int) -> float:
-    """Exact integral of x^p * y^q over unit regular hexagon.
-    Uses symmetry: zero if p or q odd.
-    """
     if p < 0 or q < 0:
         return 0.0
     if (p % 2) == 1 or (q % 2) == 1:
         return 0.0
-    # For even exponents, use numerical reference values for low degrees
-    # and a general formula for higher degrees via polygon moment formula.
-    # Here we use a simplified exact formula based on Steger's polygon moment.
+
+
+
     return _hexagon_moment_steger(p, q)
 
 
 def _hexagon_moment_steger(p: int, q: int) -> float:
-    """Steger's polygon moment formula for unit regular hexagon."""
     verts = hexagon_unit_vertices()
     m = verts.shape[0]
     nu = 0.0
@@ -336,7 +302,6 @@ def _hexagon_moment_steger(p: int, q: int) -> float:
 
 
 def comb(n: int, k: int) -> float:
-    """Binomial coefficient with boundary handling."""
     if k < 0 or k > n:
         return 0.0
     if k == 0 or k == n:

@@ -1,49 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-main.py
-中子星crust层核pasta相计算平台
-
-本程序为统一入口,零参数可运行. 完成以下计算流程:
-1. 核物质状态方程计算 (Skyrme能量密度泛函)
-2. 五种核pasta相的几何建模
-3. 有限元库仑势求解
-4. 反应-扩散动力学模拟
-5. 温度演化ODE积分
-6. 相图计算与稳定性分析
-7. CVT结构优化采样
-
-物理背景:
-在中子星crust层(密度约10^11 - 10^14 g/cm^3, 即0.001-0.1 fm^{-3}),
-核物质在强库仑相互作用与表面张力竞争下,自组织成各种非均匀结构,
-即所谓的"核pasta相". 这些结构包括:
-- 球状相(gnocchi): 核物质球嵌入核子气体
-- 柱状相(spaghetti): 核物质柱
-- 片状相(lasagna): 核物质片
-- 管状相(anti-spaghetti): 气体柱嵌入核物质
-- 泡状相(anti-gnocchi): 气体泡嵌入核物质
-
-核心公式体系:
-1. Skyrme能量密度泛函:
-   H = (hbar^2/2m)tau + t0/2[(1+x0/2)rho^2 - (x0+1/2)(rho_n^2+rho_p^2)]
-     + t3/24[(1+x3/2)rho^{alpha+2} - (x3+1/2)rho^alpha(rho_n^2+rho_p^2)]
-
-2. 总能量/核子:
-   E/A = E_bulk/A + E_surf/A + E_Coulomb/A + E_lattice/A
-   E_surf/A = sigma * S/(rho*V)
-   E_Coulomb/A = (3/10)(e^2/R_WS)(rho_p/rho)^2 * f_C(u)
-
-3. Gibbs平衡:
-   mu_n^I = mu_n^II,  mu_p^I = mu_p^II,  P^I = P^II
-
-4. 冷却方程:
-   C_V dT/dt = -epsilon_nu + epsilon_crust
-"""
 
 import numpy as np
 import sys
 import time
 
-# 导入所有模块
+
 from nuclear_eos import nuclear_matter_properties, parameter_uncertainty_t_stat, SKYRME_PARAMS
 from geometry_pasta import create_pasta_phase, pasta_energy_landscape, PastaPhase
 from coulomb_solver import analytical_coulomb, wigner_seitz_coulomb
@@ -58,14 +19,12 @@ from phase_diagram import (
 
 
 def print_section(title):
-    """打印章节标题."""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_eos_calculation():
-    """1. 核物质状态方程计算."""
     print_section("1. 核物质状态方程 (Skyrme能量密度泛函)")
 
     rho_values = np.array([0.03, 0.05, 0.08, 0.10, 0.16])
@@ -82,7 +41,7 @@ def run_eos_calculation():
         except Exception as e:
             print(f"rho={rho:.3f}: 计算失败 ({e})")
 
-    # 参数不确定性分析 (asa243融入)
+
     print("\n  Skyrme参数t0拟合不确定性分析 (非中心t分布):")
     estimates = np.array([-1790, -1810, -1805, -1785, -1800])
     true_val = -1800.0
@@ -93,7 +52,6 @@ def run_eos_calculation():
 
 
 def run_geometry_modeling():
-    """2. 核pasta相几何建模."""
     print_section("2. 核pasta相几何结构")
 
     rho = 0.08
@@ -110,7 +68,7 @@ def run_geometry_modeling():
         print(f"{name:<18} {R_or_t:<14.3f} {phase.surface_to_volume():<12.3f} "
               f"{phase.coulomb_factor():<10.4f}")
 
-    # 能量景观
+
     print("\n  能量景观计算 (不同密度):")
     rho_range = np.linspace(0.03, 0.12, 10)
     landscape = pasta_energy_landscape(rho_range, x_p, n_points=15)
@@ -119,7 +77,6 @@ def run_geometry_modeling():
 
 
 def run_coulomb_solver():
-    """3. 库仑势计算."""
     print_section("3. 库仑势与静电能")
 
     rho = 0.08
@@ -133,7 +90,7 @@ def run_coulomb_solver():
         name = PastaPhase.PHASE_NAMES[pid]
         print(f"{name:<18} {e_c:<20.6f}")
 
-    # 有限元求解 (简化2D)
+
     print("\n  有限元Wigner-Seitz单元求解 (球状相):")
     try:
         e_c_fem = wigner_seitz_coulomb(rho, x_p, 1, n_r=30)
@@ -141,7 +98,7 @@ def run_coulomb_solver():
     except Exception as e:
         print(f"    FEM求解异常 (网格过粗): {e}")
 
-    # 球对称精确解
+
     from bessel_modes import spherical_coulomb_potential
     r_test = np.array([0.0, 0.5, 1.0, 2.0, 5.0])
     R_ws = (3.0 / (4.0 * np.pi * rho)) ** (1.0 / 3.0)
@@ -153,27 +110,26 @@ def run_coulomb_solver():
 
 
 def run_reaction_diffusion():
-    """4. 反应-扩散动力学."""
     print_section("4. 核子反应-扩散动力学")
 
-    T = 1.0  # MeV
+    T = 1.0
     rho_n = 0.05
     rho_p = 0.02
-    mu_e = 50.0  # MeV
+    mu_e = 50.0
 
     lp, lm = beta_decay_rates(T, rho_n, rho_p, mu_e)
     print(f"温度={T} MeV, rho_n={rho_n}, rho_p={rho_p}")
     print(f"  beta+衰变率 (p->n): {lp:.4e} s^-1")
     print(f"  beta-衰变率 (n->p): {lm:.4e} s^-1")
 
-    # 使用演示值避免数值不稳定
+
     D_n = 0.5
     D_p = 0.3
     print(f"\n  扩散系数 (演示值):")
     print(f"    D_n = {D_n:.4e} fm^2/s")
     print(f"    D_p = {D_p:.4e} fm^2/s")
 
-    # 1D有限差分模拟
+
     print("\n  1D有限差分反应扩散模拟:")
     N = 50
     x = np.linspace(0, 10, N)
@@ -197,12 +153,11 @@ def run_reaction_diffusion():
 
 
 def run_ode_integration():
-    """5. 温度演化与ODE积分."""
     print_section("5. 温度演化与ODE系统")
 
-    # 中子星冷却
+
     print("  中子星crust冷却模拟 (100秒):")
-    T0 = 1.0  # MeV
+    T0 = 1.0
     rho = 0.1
     x_p = 0.3
     try:
@@ -216,7 +171,7 @@ def run_ode_integration():
     except Exception as e:
         print(f"    冷却模拟异常: {e}")
 
-    # 不稳定ODE
+
     print("\n  不稳定ODE测试 (mu=0.5):")
     try:
         t, y_exact, y_num = solve_unstable_system([0, 1.0], [1.0, 0.0], mu=0.5)
@@ -227,7 +182,7 @@ def run_ode_integration():
     except Exception as e:
         print(f"    不稳定ODE异常: {e}")
 
-    # 刚性ODE
+
     print("\n  刚性ODE测试:")
     try:
         sol = solve_tough_system([0, 1.0], [1.0, 1.0, 0.0, 1.0])
@@ -239,7 +194,6 @@ def run_ode_integration():
 
 
 def run_bessel_modes():
-    """6. 柱坐标本征模式."""
     print_section("6. 柱坐标本征模式与贝塞尔零点")
 
     print("  贝塞尔函数 J_0 前10个零点:")
@@ -257,10 +211,9 @@ def run_bessel_modes():
 
 
 def run_cvt_sampling():
-    """7. CVT采样与多维积分."""
     print_section("7. CVT结构优化与多维积分")
 
-    # N维高斯积分
+
     print("  N维高斯积分 (蒙特卡洛):")
     for dim in [2, 3, 5]:
         integral, error = monte_carlo_nd_integral(
@@ -271,7 +224,7 @@ def run_cvt_sampling():
         print(f"    dim={dim}: I={integral:.6f} +/- {error:.6f}, "
               f"exact={exact:.6f}, rel_err={rel_err:.4%}")
 
-    # CVT优化
+
     print("\n  2D CVT结构优化 (模拟核团分布):")
     try:
         generators, areas, energy, motion = optimize_pasta_cvt(
@@ -286,7 +239,6 @@ def run_cvt_sampling():
 
 
 def run_phase_diagram():
-    """8. 相图计算与稳定性分析."""
     print_section("8. 相图与稳定性分析")
 
     rho = 0.08
@@ -307,7 +259,7 @@ def run_phase_diagram():
         except Exception as e:
             print(f"Phase {pid}: 计算失败 ({e})")
 
-    # 稳定性分析
+
     print(f"\n  球状相(Gnocchi)稳定性分析:")
     try:
         stab = stability_analysis(rho, x_p, 1, temperature=0.0)
@@ -320,7 +272,7 @@ def run_phase_diagram():
     except Exception as e:
         print(f"    稳定性分析异常: {e}")
 
-    # 相转变密度
+
     print(f"\n  相转变密度:")
     pairs = [(1, 2), (2, 3), (3, 4), (4, 5)]
     for p1, p2 in pairs:
@@ -335,7 +287,7 @@ def run_phase_diagram():
         except Exception as e:
             print(f"    转变密度计算异常: {e}")
 
-    # 简化相图
+
     print(f"\n  简化相图 (T=0, x_p={x_p}):")
     rho_range = np.linspace(0.03, 0.12, 8)
     T_range = np.array([0.0])
@@ -350,7 +302,6 @@ def run_phase_diagram():
 
 
 def main():
-    """主程序入口."""
     print("\n" + "#" * 70)
     print("#  中子星crust层核pasta相计算平台")
     print("#  Neutron Star Crust Nuclear Pasta Phase Computation")

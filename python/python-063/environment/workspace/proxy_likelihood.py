@@ -1,15 +1,3 @@
-"""
-proxy_likelihood.py
-古气候代理数据观测似然模块
-
-基于截断对数正态分布 (Truncated Log-Normal) 的代理观测误差模型，
-融合种子项目 699_log_normal_truncated_ab（截断对数正态分布的 PDF/CDF/采样）。
-
-代理类型:
-    1. tree_ring:   树轮宽度 — 温度敏感，乘性截断对数正态误差
-    2. ice_core:    冰芯氧同位素 — 线性温度关系，加性高斯误差
-    3. lake_sediment: 湖泊沉积物 — 非线性关系，混合误差
-"""
 
 import numpy as np
 
@@ -18,15 +6,11 @@ SQRT2PI = np.sqrt(2.0 * np.pi)
 
 
 def normal_01_cdf(x):
-    """
-    标准正态累积分布函数。
-    使用分段多项式/有理近似（Adams 算法）。
-    """
     x = np.asarray(x, dtype=np.float64)
     result = np.zeros_like(x)
     abs_x = np.abs(x)
 
-    # |x| <= 1.28
+
     mask1 = abs_x <= 1.28
     if np.any(mask1):
         x1 = x[mask1]
@@ -37,7 +21,7 @@ def normal_01_cdf(x):
                + t*(a[6] + a[7]*x1 + t*(a[8] + a[9]*x1)))))
         result[mask1] = poly
 
-    # 1.28 < |x| <= 12.7
+
     mask2 = (abs_x > 1.28) & (abs_x <= 12.7)
     if np.any(mask2):
         x2 = abs_x[mask2]
@@ -53,7 +37,7 @@ def normal_01_cdf(x):
         res[~pos] = q[~pos]
         result[mask2] = res
 
-    # |x| > 12.7
+
     mask3 = abs_x > 12.7
     if np.any(mask3):
         pos = x[mask3] >= 0
@@ -63,10 +47,6 @@ def normal_01_cdf(x):
 
 
 def normal_01_cdf_inv(p):
-    """
-    标准正态分位数函数（逆 CDF），使用 Wichura 算法 AS 241。
-    采用 np.polyval 避免深层括号导致的缩进/语法问题。
-    """
     p = np.asarray(p, dtype=np.float64)
     result = np.zeros_like(p)
     q = p - 0.5
@@ -121,12 +101,6 @@ def normal_01_cdf_inv(p):
 
 
 def log_normal_truncated_ab_pdf(x, mu, sigma, a, b):
-    """
-    截断对数正态分布概率密度函数:
-        f(x) = (1/(x*sigma*sqrt(2*pi)*Z)) * exp(-(ln x - mu)^2 / (2*sigma^2))
-    其中 Z = Phi((ln b - mu)/sigma) - Phi((ln a - mu)/sigma)。
-    当 x 不在 [a, b] 区间时返回 0。
-    """
     x = np.asarray(x, dtype=np.float64)
     x_safe = np.where(x <= 0, 1e-300, x)
     a0 = (np.log(a) - mu) / sigma
@@ -140,7 +114,6 @@ def log_normal_truncated_ab_pdf(x, mu, sigma, a, b):
 
 
 def log_normal_truncated_ab_mean(mu, sigma, a, b):
-    """截断对数正态分布的解析均值。"""
     a0 = (np.log(a) - mu) / sigma
     b0 = (np.log(b) - mu) / sigma
     denom = normal_01_cdf(b0) - normal_01_cdf(a0)
@@ -150,10 +123,6 @@ def log_normal_truncated_ab_mean(mu, sigma, a, b):
 
 
 def log_normal_truncated_ab_sample(mu, sigma, a, b, size=None):
-    """
-    截断对数正态分布采样（逆变换采样）。
-    先生成 U ~ Uniform(0,1)，映射到截断区间 [F(a), F(b)]，再应用逆 CDF。
-    """
     if size is None:
         size = 1
     U = np.random.uniform(size=size)
@@ -168,14 +137,6 @@ def log_normal_truncated_ab_sample(mu, sigma, a, b, size=None):
 
 
 class ProxyObservationModel:
-    """
-    古气候代理观测模型。
-
-    三类代理:
-      - tree_ring:    树轮宽度，乘性截断对数正态噪声
-      - ice_core:     delta18O，加性高斯噪声
-      - lake_sediment: 沉积指数，乘性截断对数正态噪声
-    """
 
     PROXY_TYPES = ['tree_ring', 'ice_core', 'lake_sediment']
 
@@ -202,7 +163,7 @@ class ProxyObservationModel:
                 'intercept': -30.0,
                 'noise_std': 0.5
             }
-        else:  # lake_sediment
+        else:
             return {
                 'sensitivity': 0.1,
                 'nonlinear_exp': 1.5,
@@ -213,9 +174,6 @@ class ProxyObservationModel:
             }
 
     def forward_model(self, T):
-        """
-        观测算子 H: 局地温度 T [K] -> 代理观测期望值。
-        """
         T = np.asarray(T, dtype=np.float64)
         if self.proxy_type == 'tree_ring':
             T_opt = 288.0
@@ -230,7 +188,6 @@ class ProxyObservationModel:
             return self.params['sensitivity'] * (T / T_ref)**self.params['nonlinear_exp']
 
     def sample_observation(self, T):
-        """从代理模型中采样含噪声的观测值。"""
         expected = self.forward_model(T)
         if self.proxy_type == 'tree_ring':
             noise = log_normal_truncated_ab_sample(
@@ -252,7 +209,6 @@ class ProxyObservationModel:
             return expected * noise
 
     def log_likelihood(self, observation, T):
-        """计算 log p(observation | T)。"""
         expected = self.forward_model(T)
         if self.proxy_type == 'tree_ring' or self.proxy_type == 'lake_sediment':
             ratio = observation / np.maximum(expected, 1e-300)

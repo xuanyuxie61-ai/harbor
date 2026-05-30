@@ -1,7 +1,3 @@
-"""
-utils.py
-通用工具函数
-"""
 
 import numpy as np
 from typing import Tuple
@@ -10,9 +6,6 @@ from typing import Tuple
 def check_numerical_stability(values: np.ndarray,
                               name: str = "array",
                               tol: float = 1e10) -> bool:
-    """
-    检查数值稳定性: NaN, Inf, 过大值。
-    """
     has_nan = np.any(np.isnan(values))
     has_inf = np.any(np.isinf(values))
     max_abs = np.max(np.abs(values))
@@ -31,16 +24,10 @@ def check_numerical_stability(values: np.ndarray,
 
 
 def safe_divide(a: np.ndarray, b: np.ndarray, eps: float = 1e-15) -> np.ndarray:
-    """安全除法，避免除以零"""
     return a / np.where(np.abs(b) < eps, np.sign(b + eps) * eps, b)
 
 
 def entropy(p: np.ndarray) -> float:
-    """
-    香农熵。
-
-    H(P) = -sum_i p_i * log(p_i)
-    """
     p = np.array(p)
     p = p[p > 0]
     p = p / np.sum(p)
@@ -48,11 +35,6 @@ def entropy(p: np.ndarray) -> float:
 
 
 def kl_divergence(p: np.ndarray, q: np.ndarray) -> float:
-    """
-    KL散度。
-
-    D_KL(P || Q) = sum_i p_i * log(p_i / q_i)
-    """
     p = np.array(p)
     q = np.array(q)
     mask = (p > 1e-15) & (q > 1e-15)

@@ -1,24 +1,8 @@
-"""
-Main entry point for quantum error correction threshold analysis.
-
-This script performs a complete numerical study of the threshold for
-Kitaev's surface code under correlated non-Markovian Pauli noise.
-
-Pipeline:
-1. Construct surface code stabilizers and analyze parity check conditioning
-2. Sample correlated noise instances (Cholesky, Eigen, FFT methods)
-3. Evolve errors via Lindblad open-system dynamics
-4. Decode syndromes using MWPM / BP / Union-Find decoders
-5. Estimate logical error rates via Monte Carlo
-6. Compute threshold using FEM boundary analysis and edge detection
-7. Validate with Hermite quadrature and sparse grid integration
-8. Perform rare-event importance sampling for tail probabilities
-"""
 import numpy as np
 import os
 import sys
 
-# Ensure deterministic behavior for reproducibility
+
 np.random.seed(42)
 RNG = np.random.default_rng(42)
 
@@ -45,9 +29,9 @@ def main():
     print("  Surface Code under Correlated Non-Markovian Pauli Noise")
     print("=" * 70)
 
-    # =====================================================================
-    # 1. Surface Code Construction
-    # =====================================================================
+
+
+
     print_section("1. Surface Code Construction & Parity Check Analysis")
 
     L_values = [3, 4, 5]
@@ -64,7 +48,7 @@ def main():
         d_metrics = code.box_distance_logical_operators()
         print(f"    box_distance_metrics = {d_metrics}")
 
-        # Parity check condition analysis
+
         Hx_sparse = code.sparse_parity_check("x")
         analyzer = ParityCheckConditionAnalyzer(Hx_sparse.toarray())
         cond_info = analyzer.analyze()
@@ -73,9 +57,9 @@ def main():
         if cond_info['exact_kappa'] is not None:
             print(f"    exact_condition_number = {cond_info['exact_kappa']:.4e}")
 
-    # =====================================================================
-    # 2. Noise Model Construction
-    # =====================================================================
+
+
+
     print_section("2. Correlated Pauli Noise Model")
 
     n_qubits = codes[3].n_qubits
@@ -92,7 +76,7 @@ def main():
     print(f"  Correlation length: {noise.correlation_length}")
     print(f"  Matérn ν: {noise.nu}")
 
-    # Sample rates via different methods
+
     rates_chol = noise.sample_rates_cholesky()
     rates_eig = noise.sample_rates_eigen()
     rates_fft = noise.sample_rates_fft()
@@ -100,23 +84,23 @@ def main():
     print(f"  Sampled rates (Eigen):    mean={np.mean(rates_eig):.4f}, std={np.std(rates_eig):.4f}")
     print(f"  Sampled rates (FFT):      mean={np.mean(rates_fft):.4f}, std={np.std(rates_fft):.4f}")
 
-    # Correlation matrix
+
     corr = noise.covariance_to_correlation()
     print(f"  Correlation matrix condition: {np.linalg.cond(corr):.4e}")
 
-    # Non-Markovian temporal noise
+
     nm_noise = NonMarkovianNoise(n_qubits, base_rate, memory_lambda=0.3, sigma=0.02, rng=RNG)
     temporal_seq = nm_noise.sample_temporal_sequence(n_steps=5)
     print(f"  Non-Markovian temporal sequence shape: {temporal_seq.shape}")
 
-    # =====================================================================
-    # 3. Lindbladian Open-System Dynamics
-    # =====================================================================
+
+
+
     print_section("3. Lindbladian Open-System Dynamics")
 
-    # Single-qubit dissipative dynamics
+
     I, X, Y, Z = pauli_operators()
-    H = 0.5 * Z  # Single-qubit Hamiltonian
+    H = 0.5 * Z
     jump_ops = [np.sqrt(0.01) * X, np.sqrt(0.005) * Z]
     L = lindbladian_superoperator(H, jump_ops, hbar=1.0)
     print(f"\n  Liouvillian shape: {L.shape}")
@@ -128,16 +112,16 @@ def main():
     print(f"  Forward Euler vs Exact error (t=1.0): {err:.4e}")
     print(f"  Von Neumann entropy of steady state: {von_neumann_entropy(rho_exact):.6f}")
 
-    # DG solver for error probability density on 1D chain
+
     dg_solver = DGLindbladSolver(n_elements=10, poly_order=3, domain=(0.0, 1.0))
     u0 = np.zeros((dg_solver.n_elements, dg_solver.Np))
-    u0[:, :] = 0.1  # Initial uniform error density
+    u0[:, :] = 0.1
     u_final = dg_solver.evolve(u0, t_final=0.5, n_steps=100, v=0.5, D=0.01, gamma=0.1)
     print(f"  DG solver final mean density: {np.mean(u_final):.6f}")
 
-    # =====================================================================
-    # 4. Syndrome Decoding
-    # =====================================================================
+
+
+
     print_section("4. Syndrome Decoding Algorithms")
 
     L_test = 3
@@ -146,33 +130,33 @@ def main():
     n = code_test.n_qubits
     m = H_full.shape[0]
 
-    # Use a very small random error for decoder demonstration
+
     e_random = (RNG.integers(0, 2, 2 * n)).astype(int)
     syndrome = code_test.syndrome_of_error(e_random)
     print(f"\n  Decoding demonstration (L={L_test}):")
     print(f"    Random error weight: {np.sum(e_random)}")
 
-    # Belief propagation decoder
+
     decoder_bp = BeliefPropagationDecoder(H_full, max_iter=50)
     recovery_bp = decoder_bp.decode(syndrome)
     syndrome_bp = code_test.syndrome_of_error(recovery_bp)
     print(f"    BP decoder syndrome match: {np.array_equal(syndrome_bp, syndrome)}")
 
-    # Knapsack-like logical decoder
+
     decoder_kp = KnapsackLikeLogicalDecoder(H_full)
     recovery_kp = decoder_kp.decode(syndrome)
     syndrome_kp = code_test.syndrome_of_error(recovery_kp)
     print(f"    Knapsack decoder syndrome match: {np.array_equal(syndrome_kp, syndrome)}")
 
-    # Union-Find decoder
+
     decoder_uf = UnionFindDecoder(L_test, boundary="toric")
     defects = [i for i in range(m) if syndrome[i] == 1]
     recovery_uf = decoder_uf.decode_syndrome(defects)
     print(f"    Union-Find decoder output shape: {recovery_uf.shape}")
 
-    # =====================================================================
-    # 5. Monte Carlo Logical Error Rate Estimation
-    # =====================================================================
+
+
+
     print_section("5. Monte Carlo Logical Error Rate Estimation")
 
     p_values = np.linspace(0.02, 0.20, 5)
@@ -190,17 +174,17 @@ def main():
             print(f"    p={p:.3f} -> P_L={res['P_L']:.4f} ± {res['std_error']:.4f}")
         results_mc[L] = np.array(P_L_vals)
 
-    # =====================================================================
-    # 6. Threshold FEM Boundary & Edge Detection
-    # =====================================================================
+
+
+
     print_section("6. Threshold FEM Boundary Analysis")
 
-    # FEM solve for L=3
+
     fem = ThresholdFEM(p_left=0.0, p_right=0.5, n_elements=80)
     nodes_fem, P_L_fem = fem.assemble_and_solve(code_distance=3)
     print(f"\n  FEM solution range: P_L ∈ [{np.min(P_L_fem):.4f}, {np.max(P_L_fem):.4f}]")
 
-    # Edge detection for threshold
+
     edge_det = EdgeDetectorThreshold(nodes_fem, P_L_fem)
     p_th_deriv = edge_det.derivative_edge_detection(window=5)
     p_th_sigmoid = edge_det.sigmoid_fit_threshold()
@@ -209,27 +193,27 @@ def main():
     print(f"  Threshold (sigmoid fit):      {p_th_sigmoid:.4f}")
     print(f"  Threshold (inflection point): {p_th_inflect:.4f}")
 
-    # Test edge profile functions
+
     profile = edge_det.fx_edge_profile(steepness=15.0)
     phantom = edge_det.fxy_shepp_logan_like(width=0.03)
     print(f"  Edge profile max derivative: {np.max(np.abs(np.diff(profile))):.4f}")
 
-    # =====================================================================
-    # 7. Hermite Quadrature & Sparse Grid Integration
-    # =====================================================================
+
+
+
     print_section("7. Hermite Quadrature & Sparse Grid Integration")
 
     hq = HermiteQuadrature(n_points=20)
-    # Integral of Gaussian function
+
     test_integral = hq.integrate(lambda x: np.exp(-x ** 2 / 2))
     print(f"\n  Hermite quadrature ∫ exp(-x²/2) exp(-x²) dx ≈ {test_integral:.6f}")
     print(f"  Analytical (for comparison): sqrt(pi/2) ≈ {np.sqrt(np.pi / 2):.6f}")
 
-    # Project onto Hermite basis
+
     coeffs = hq.project_onto_basis(lambda x: np.tanh(x), max_n=10)
     print(f"  Hermite coefficients for tanh(x): {chop_array(coeffs[:5])}")
 
-    # Sparse grid for 2D noise correlation integral
+
     sg = TruncatedNormalSparseGrid(dim=2, level=3, bounds=(-2.0, 2.0))
     print(f"  Sparse grid nodes: {sg.nodes.shape[0]}")
 
@@ -241,22 +225,22 @@ def main():
     val_sg = sg.integrate(f2d)
     print(f"  Sparse grid ∫ p1*p2 dμ ≈ {val_sg:.6f}")
 
-    # Quantum noise integral
+
     qni = QuantumNoiseIntegral(n_qubits=10)
     mom = qni.multi_qubit_moment_integral([1, 2], dim=2, level=3)
     print(f"  Multi-qubit moment E[p1^1 * p2^2] ≈ {mom:.6f}")
 
-    # =====================================================================
-    # 8. Rare Event & Importance Sampling
-    # =====================================================================
+
+
+
     print_section("8. Rare Event Importance Sampling")
 
-    # Rejection sampler for tail events
+
     rej_sampler = RejectionSampler(code_distance=3, threshold=0.12, rng=RNG)
     tail_samples = rej_sampler.sample_above_threshold(base_rate=0.05, n_samples=100)
     print(f"\n  Tail samples above threshold: mean={np.mean(tail_samples):.4f}, count={len(tail_samples)}")
 
-    # Caustic degeneracy analysis
+
     caustic = CausticDegeneracyAnalyzer(n_points=500)
     x_c, y_c, lines = caustic.caustic_syndrome_pattern(n_defects=12, multiplier=3)
     print(f"  Caustic pattern nodes: {len(x_c)}")
@@ -269,12 +253,12 @@ def main():
     region = caustic.box_distance_importance_region(p_center=0.15, box_size=0.06)
     print(f"  Importance region: [{region['lower']:.3f}, {region['upper']:.3f}], volume={region['volume']:.4f}")
 
-    # =====================================================================
-    # 9. Finite-Size Scaling Analysis
-    # =====================================================================
+
+
+
     print_section("9. Finite-Size Scaling Analysis")
 
-    # Synthetic scaling data for demonstration
+
     p_fss = np.linspace(0.05, 0.20, 20)
     distances = [3, 4, 5]
     P_L_fss = np.zeros((len(distances), len(p_fss)))
@@ -289,9 +273,9 @@ def main():
     print(f"  Fitted exponent ν = {fss_result['nu']:.4f}")
     print(f"  Collapse quality = {fss_result['quality']:.4e}")
 
-    # =====================================================================
-    # 10. Test Matrix Validation
-    # =====================================================================
+
+
+
     print_section("10. Test Matrix Suite Validation")
 
     test_suite = TestMatrixSuite()
@@ -308,9 +292,9 @@ def main():
         print(f"    Exact κ:         {exact:.4e}")
         print(f"    Relative error:  {abs(hager - exact) / exact:.4e}")
 
-    # =====================================================================
-    # Summary
-    # =====================================================================
+
+
+
     print_section("Summary")
     print("\n  Quantum Error Correction Threshold Analysis completed successfully.")
     print(f"  Surface code distances analyzed: {L_values}")

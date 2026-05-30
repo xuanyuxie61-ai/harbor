@@ -1,31 +1,12 @@
-"""
-quadrature_engine.py
-================================================================================
-高性能计算检查点容错：高精度数值积分引擎
-
-融合原项目：
-  - 665_legendre_rule (Gauss-Legendre 求积)
-  - 641_laguerre_polynomial (Laguerre 多项式与求积)
-  - 1246_tetrahedron_felippa_rule (四面体 Felippa 求积)
-
-科学角色：
-  1) Legendre/Laguerre 高斯求积用于计算检查点截断误差泛函；
-  2) 四面体 Felippa 规则用于 3D 有限元残差与状态恢复时的体积分。
-================================================================================
-"""
 
 import math
 import numpy as np
 
 
-# =============================================================================
-# IMTQLX : 对称三对角矩阵的隐式 QL 算法（Golub-Welsch 核心）
-# =============================================================================
+
+
+
 def imtqlx(n: int, d: np.ndarray, e: np.ndarray, z: np.ndarray):
-    """
-    对对称三对角矩阵 T(diag=d, offdiag=e) 进行对角化，
-    返回特征值 d 与变换后的向量 z = Q^T * z0。
-    """
     d = d.copy()
     e = e.copy()
     z = z.copy()
@@ -76,14 +57,10 @@ def imtqlx(n: int, d: np.ndarray, e: np.ndarray, z: np.ndarray):
     return d, z
 
 
-# =============================================================================
-# Gauss-Legendre 求积规则生成
-# =============================================================================
+
+
+
 def legendre_rule(n: int, a: float = -1.0, b: float = 1.0):
-    """
-    生成 n 点 Gauss-Legendre 求积规则 (x, w) 在区间 [a, b] 上。
-    使用 Jacobi 矩阵 + Golub-Welsch 特征值方法。
-    """
     if n < 1:
         raise ValueError("n must be >= 1")
     d = np.zeros(n)
@@ -98,19 +75,16 @@ def legendre_rule(n: int, a: float = -1.0, b: float = 1.0):
     w = np.zeros(n)
     for i in range(n):
         w[i] = 2.0 * z[i] * z[i]
-    # 线性映射到 [a, b]
+
     x = 0.5 * (b - a) * d + 0.5 * (a + b)
     w = 0.5 * (b - a) * w
     return x, w
 
 
-# =============================================================================
-# Gauss-Laguerre 求积规则生成
-# =============================================================================
+
+
+
 def laguerre_rule(n: int, alpha: float = 0.0):
-    """
-    生成 n 点 Gauss-Laguerre 求积规则 (x, w) 对应权函数 x^alpha * e^{-x}。
-    """
     if n < 1:
         raise ValueError("n must be >= 1")
     if alpha <= -1.0:
@@ -130,20 +104,14 @@ def laguerre_rule(n: int, alpha: float = 0.0):
     return d, w
 
 
-# =============================================================================
-# 四面体 Felippa 求积规则
-# =============================================================================
+
+
+
 def tetrahedron_unit_volume() -> float:
-    """单位四面体 0<=x,y,z, x+y+z<=1 的体积。"""
     return 1.0 / 6.0
 
 
 def tetrahedron_unit_monomial(expon: tuple) -> float:
-    """
-    精确积分单位四面体上的单项式 x^l * y^m * z^n。
-    expon = (l, m, n)。
-    公式: l! * m! * n! / (l + m + n + 3)!。
-    """
     l, m, n = expon
     if l < 0 or m < 0 or n < 0:
         return 0.0
@@ -152,7 +120,6 @@ def tetrahedron_unit_monomial(expon: tuple) -> float:
 
 
 def tetrahedron_unit_o04():
-    """4 点 Felippa 规则，精确到 2 次多项式。"""
     w = np.array([1.0, 1.0, 1.0, 1.0]) / 24.0
     xyz = np.array([
         [0.58541020, 0.13819660, 0.13819660],
@@ -164,7 +131,6 @@ def tetrahedron_unit_o04():
 
 
 def tetrahedron_unit_o14():
-    """14 点 Felippa 规则，精确到 4 次多项式。"""
     a = 0.1005267652252045
     b = 0.314372873493192
     c = 0.8850566000690581
@@ -206,16 +172,12 @@ def tetrahedron_unit_o14():
 
 
 def integrate_tetrahedron(f, order: int = 4):
-    """
-    使用 Felippa 规则在标准四面体上积分函数 f(xyz)。
-    f 接收形状为 (3,) 的 numpy 数组。
-    """
     if order <= 4:
         w, xyz = tetrahedron_unit_o04()
     else:
         w, xyz = tetrahedron_unit_o14()
     vol = tetrahedron_unit_volume()
-    # 归一化权重，使其严格等于体积（硬编码权重可能存在参考元差异）
+
     w = w / np.sum(w) * vol
     total = 0.0
     for i in range(len(w)):

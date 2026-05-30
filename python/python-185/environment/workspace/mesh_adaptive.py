@@ -1,58 +1,9 @@
-"""
-mesh_adaptive.py
-================
-基于三角剖分质量度量的自适应区域分解模块
-
-科学背景：
----------
-在图像重建问题中，不同区域的重建难度不同：
-- 边缘区域：高频信息丰富，需要更精细的采样和基函数
-- 平滑区域：低频主导，可用较粗的网格近似
-
-本模块通过三角剖分质量评估，实现自适应网格划分：
-1. 在图像域生成初始三角网格（T3 网格，三节点三角形）
-2. 计算每个三角形的质量度量
-3. 根据质量指标自适应调整网格密度
-
-三角形质量度量（来自项目 1348_triangulation_quality）：
------------------------------------------------
-1. ALPHA 度量（最小角度量）：
-   alpha = min(theta_A, theta_B, theta_C) / (pi/3)
-   其中 theta_A, theta_B, theta_C 为三角形的三个内角。
-   alpha 在 [0, 1]，理想等边三角形时 alpha = 1。
-
-2. 面积度量：
-   area_ratio = min_i A_i / max_i A_i
-   其中 A_i 为第 i 个三角形的面积。
-
-3. Q 度量（半径比）：
-   Q = 2 * r_in / r_out
-   其中 r_in 为内切圆半径，r_out 为外接圆半径。
-   对于等边三角形，Q = 1。
-
-数学公式：
----------
-三角形面积（行列式公式）：
-    A = 0.5 * |x_A(y_B - y_C) + x_B(y_C - y_A) + x_C(y_A - y_B)|
-
-余弦定理求角：
-    cos A = (b^2 + c^2 - a^2) / (2bc)
-
-内切圆半径：
-    r_in = 2A / (a + b + c)
-
-外接圆半径：
-    r_out = abc / (4A)
-"""
 
 import numpy as np
 from typing import Tuple, List
 
 
 def triangle_area(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> float:
-    """
-    计算三角形的有向面积。
-    """
     x1, y1 = p1
     x2, y2 = p2
     x3, y3 = p3
@@ -60,17 +11,11 @@ def triangle_area(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> float:
 
 
 def arc_cosine_safe(c: float) -> float:
-    """
-    安全的反余弦函数，输入截断到 [-1, 1]。
-    """
     c2 = max(-1.0, min(1.0, float(c)))
     return np.arccos(c2)
 
 
 def alpha_measure_single(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> float:
-    """
-    计算单个三角形的 ALPHA 质量度量。
-    """
     a_len = np.linalg.norm(p2 - p3)
     b_len = np.linalg.norm(p1 - p3)
     c_len = np.linalg.norm(p1 - p2)
@@ -102,9 +47,6 @@ def alpha_measure_single(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> floa
 
 
 def q_measure_single(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> float:
-    """
-    计算单个三角形的 Q 度量（内切圆与外接圆半径比）。
-    """
     a_len = np.linalg.norm(p2 - p3)
     b_len = np.linalg.norm(p1 - p3)
     c_len = np.linalg.norm(p1 - p2)
@@ -124,9 +66,6 @@ def q_measure_single(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> float:
 
 
 def evaluate_triangulation_quality(nodes: np.ndarray, triangles: np.ndarray) -> dict:
-    """
-    评估三角剖分的整体质量。
-    """
     nodes = np.asarray(nodes, dtype=float)
     triangles = np.asarray(triangles, dtype=int)
 
@@ -171,9 +110,6 @@ def evaluate_triangulation_quality(nodes: np.ndarray, triangles: np.ndarray) -> 
 
 def generate_uniform_triangulation(width: float, height: float,
                                    nx: int, ny: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    生成矩形域上的均匀三角剖分。
-    """
     if nx < 2 or ny < 2:
         raise ValueError("nx and ny must be at least 2")
 
@@ -199,9 +135,6 @@ def generate_uniform_triangulation(width: float, height: float,
 def adaptive_refinement_by_gradient(image: np.ndarray, nodes: np.ndarray,
                                     triangles: np.ndarray,
                                     quality_threshold: float = 0.3) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    基于图像梯度自适应细化质量差的三角形区域。
-    """
     image = np.asarray(image, dtype=float)
     H, W = image.shape
 

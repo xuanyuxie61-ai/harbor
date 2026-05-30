@@ -1,53 +1,14 @@
-"""
-不确定性量化模块 (多项式混沌展开)
-==================================
-基于种子项目:
-  - 854_pce_ode_hermite: 多项式混沌展开与Hermite多项式
-  - 1360_truncated_normal: 截断正态分布
-
-科学背景:
-  在结构力学中，材料参数(弹性模量、屈服强度等)往往具有不确定性。
-  多项式混沌展开(Polynomial Chaos Expansion, PCE)通过将随机变量
-  投影到正交多项式基上，将随机问题转化为一组确定性方程。
-
-  对于高斯随机变量 ξ ~ N(0,1)，采用Hermite多项式 {He_n(ξ)} 作为基:
-      He_0(ξ) = 1
-      He_1(ξ) = ξ
-      He_2(ξ) = ξ^2 - 1
-      He_3(ξ) = ξ^3 - 3ξ
-      ...
-
-  随机材料参数展开:
-      μ(ξ) = Σ_{i=0}^{P} μ_i He_i(ξ)
-
-  Galerkin投影将随机有限元方程转化为一组耦合的确定性方程:
-      Σ_j K_{ij} u_j = F_i
-  其中 K_{ij} = E[He_i(ξ) K(ξ) He_j(ξ)] / E[He_i^2]
-
-关键公式:
-  - Hermite多项式递推: He_{n+1}(x) = x He_n(x) - n He_{n-1}(x)
-  - 正交性: E[He_m(ξ) He_n(ξ)] = n! δ_{mn}
-  - 三重积: E[He_i He_j He_k] = i! j! k! / (s! (s-i)! (s-j)! (s-k)!)
-    其中 s = (i+j+k)/2 为整数，否则为0
-  - 截断正态分布逆CDF: F^{-1}(p) = μ + σ Φ^{-1}(Φ(α) + p(Φ(β)-Φ(α)))
-    其中 α=(a-μ)/σ, β=(b-μ)/σ
-"""
 
 import numpy as np
 from typing import Tuple, List, Optional
 from scipy.special import factorial
 
 
-# ========================================================================
-# Hermite 多项式 (概率学家形式 He_n)
-# ========================================================================
+
+
+
 
 def hermite_polynomial(n: int, x: float) -> float:
-    """
-    计算概率学家Hermite多项式 He_n(x)。
-    递推关系: He_0(x) = 1, He_1(x) = x,
-              He_{n+1}(x) = x He_n(x) - n He_{n-1}(x)
-    """
     if n < 0:
         return 0.0
     if n == 0:
@@ -63,10 +24,6 @@ def hermite_polynomial(n: int, x: float) -> float:
 
 
 def hermite_basis_vector(x: float, degree: int) -> np.ndarray:
-    """
-    计算前 degree+1 阶Hermite多项式在 x 处的值。
-    返回: [He_0(x), He_1(x), ..., He_degree(x)]
-    """
     vals = np.zeros(degree + 1, dtype=np.float64)
     vals[0] = 1.0
     if degree >= 1:
@@ -77,21 +34,12 @@ def hermite_basis_vector(x: float, degree: int) -> np.ndarray:
 
 
 def hermite_double_product(i: int, j: int) -> float:
-    """
-    Hermite多项式正交内积: E[He_i(ξ) He_j(ξ)] = i! δ_{ij}
-    """
     if i == j:
         return float(factorial(i))
     return 0.0
 
 
 def hermite_triple_product(i: int, j: int, k: int) -> float:
-    """
-    三重乘积期望 E[He_i He_j He_k]。
-    仅当 i+j+k 为偶数且满足三角不等式时非零。
-    公式: i! j! k! / (s! (s-i)! (s-j)! (s-k)!)
-    其中 s = (i+j+k)/2
-    """
     total = i + j + k
     if total % 2 != 0:
         return 0.0
@@ -103,27 +51,22 @@ def hermite_triple_product(i: int, j: int, k: int) -> float:
     return num / den
 
 
-# ========================================================================
-# 截断正态分布采样 (基于1360_truncated_normal)
-# ========================================================================
+
+
+
 
 def standard_normal_cdf(x: float) -> float:
-    """标准正态分布CDF，基于误差函数。"""
     from math import erf, sqrt
     return 0.5 * (1.0 + erf(x / sqrt(2.0)))
 
 
 def standard_normal_cdf_inv(p: float) -> float:
-    """
-    标准正态分布逆CDF (分位数函数)。
-    使用Wichura AS 241算法的近似实现，精度约 10^{-16}。
-    """
     if p <= 0:
         return -1e12
     if p >= 1:
         return 1e12
     from math import log, sqrt
-    #  rational approximation for lower tail
+
     q = p - 0.5
     if abs(q) <= 0.425:
         r = 0.180625 - q * q
@@ -191,22 +134,6 @@ def truncated_normal_sample(mu_param: float, sigma_param: float,
                              a: float, b: float,
                              n_samples: int = 1,
                              rng: Optional[np.random.Generator] = None) -> np.ndarray:
-    """
-    从截断正态分布 N(μ, σ^2; a, b) 中采样。
-    方法: 逆变换采样。
-      X = μ + σ * Φ^{-1}( Φ(α) + U * (Φ(β) - Φ(α)) )
-    其中 α=(a-μ)/σ, β=(b-μ)/σ, U~Uniform(0,1)。
-
-    参数:
-        mu_param: 均值 μ
-        sigma_param: 标准差 σ
-        a, b: 截断区间 [a, b]
-        n_samples: 采样数
-        rng: 随机数生成器
-
-    返回:
-        samples: (n_samples,) 采样数组
-    """
     if sigma_param <= 0:
         raise ValueError("标准差必须为正")
     if rng is None:
@@ -217,35 +144,23 @@ def truncated_normal_sample(mu_param: float, sigma_param: float,
     Phi_beta = standard_normal_cdf(beta)
     U = rng.random(n_samples)
     Z = Phi_alpha + U * (Phi_beta - Phi_alpha)
-    # 避免边界
+
     Z = np.clip(Z, 1e-12, 1.0 - 1e-12)
     samples = mu_param + sigma_param * np.array([standard_normal_cdf_inv(z) for z in Z])
-    # 再次截断到 [a, b]
+
     samples = np.clip(samples, a, b)
     return samples
 
 
-# ========================================================================
-# PCE 展开与统计矩
-# ========================================================================
+
+
+
 
 def pce_coefficients_from_samples(samples: np.ndarray, degree: int = 3) -> np.ndarray:
-    """
-    从样本数据估计PCE系数 (基于Galerkin投影的非侵入式方法)。
-    使用数值积分近似:
-      c_k = E[y(ξ) He_k(ξ)] / E[He_k^2]
-
-    参数:
-        samples: (n_samples,) 样本值(假设输入为标准高斯变量)
-        degree: PCE阶数
-
-    返回:
-        coeffs: (degree+1,) PCE系数
-    """
     coeffs = np.zeros(degree + 1, dtype=np.float64)
     for k in range(degree + 1):
         basis_vals = np.array([hermite_polynomial(k, xi) for xi in samples])
-        # 蒙特卡洛估计期望
+
         numerator = np.mean(samples * basis_vals)
         denominator = hermite_double_product(k, k)
         coeffs[k] = numerator / denominator
@@ -253,12 +168,10 @@ def pce_coefficients_from_samples(samples: np.ndarray, degree: int = 3) -> np.nd
 
 
 def pce_mean(coeffs: np.ndarray) -> float:
-    """PCE展开均值 = c_0 (因为 E[He_k]=0 for k>0)"""
     return float(coeffs[0])
 
 
 def pce_variance(coeffs: np.ndarray) -> float:
-    """PCE展开方差 = Σ_{k=1}^{P} c_k^2 * k!"""
     var = 0.0
     for k in range(1, len(coeffs)):
         var += coeffs[k] ** 2 * float(factorial(k))
@@ -266,25 +179,16 @@ def pce_variance(coeffs: np.ndarray) -> float:
 
 
 def pce_standard_deviation(coeffs: np.ndarray) -> float:
-    """PCE标准差"""
     return np.sqrt(pce_variance(coeffs))
 
 
 def generate_hermite_quadrature_points(n_points: int = 5) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    生成Gauss-Hermite积分点与权重 (用于标准正态空间)。
-    利用numpy的hermite_e多项式根。
-
-    返回:
-        xi: (n_points,) 积分点
-        w: (n_points,) 权重
-    """
     try:
         from numpy.polynomial.hermite_e import hermegauss
         xi, w = hermegauss(n_points)
         return xi.astype(np.float64), w.astype(np.float64)
     except Exception:
-        # 备选: 使用少量预定义点
+
         if n_points == 3:
             xi = np.array([-1.7320508075688772, 0.0, 1.7320508075688772])
             w = np.array([0.16666666666666666, 0.6666666666666666, 0.16666666666666666])

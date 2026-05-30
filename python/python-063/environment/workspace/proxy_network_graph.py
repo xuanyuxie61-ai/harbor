@@ -1,22 +1,8 @@
-"""
-proxy_network_graph.py
-古气候代理空间关联网络模块
-
-将有向图邻接矩阵理论（融合种子项目 1204_test_digraph_adj）应用于代理数据的空间依赖结构，
-构建代理关联网络，计算 PageRank 重要性，并进行谱聚类分组。
-"""
 
 import numpy as np
 
 
 def build_proxy_network(n_proxies, proxy_locations, vertices, correlation_threshold=0.5):
-    """
-    构建代理数据空间关联网络。
-
-    代理 i -> j 的边权重基于:
-      (1) 高斯核空间距离衰减
-      (2) 大气遥相关（teleconnection）距离尺度 ~3000 km（球面上约 0.47 弧度）
-    """
     adjacency = np.zeros((n_proxies, n_proxies), dtype=np.float64)
 
     for i in range(n_proxies):
@@ -35,7 +21,7 @@ def build_proxy_network(n_proxies, proxy_locations, vertices, correlation_thresh
             if combined > correlation_threshold:
                 adjacency[i, j] = combined
 
-    # 行归一化 + 自环保证遍历性
+
     row_sums = np.sum(adjacency, axis=1)
     row_sums = np.where(row_sums < 1e-10, 1.0, row_sums)
     adjacency = adjacency / row_sums[:, np.newaxis]
@@ -46,10 +32,6 @@ def build_proxy_network(n_proxies, proxy_locations, vertices, correlation_thresh
 
 
 def compute_pagerank(adjacency, damping=0.85, tol=1e-10, max_iter=100):
-    """
-    PageRank 幂迭代:
-        PR = (1-d)/N + d * A^T * PR
-    """
     n = adjacency.shape[0]
     pr = np.ones(n) / n
     for _ in range(max_iter):
@@ -61,9 +43,6 @@ def compute_pagerank(adjacency, damping=0.85, tol=1e-10, max_iter=100):
 
 
 def detect_proxy_clusters(adjacency, n_clusters=3):
-    """
-    基于 Fiedler 向量的递归谱二分聚类。
-    """
     W = 0.5 * (adjacency + adjacency.T)
     D = np.diag(np.sum(W, axis=1))
     L = D - W
@@ -99,7 +78,6 @@ def detect_proxy_clusters(adjacency, n_clusters=3):
 
 
 def network_centrality_metrics(adjacency):
-    """计算度中心性与特征向量中心性。"""
     n = adjacency.shape[0]
     degree = np.sum(adjacency, axis=1)
     try:

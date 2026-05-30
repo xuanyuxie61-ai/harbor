@@ -1,13 +1,3 @@
-"""
-utils_numeric.py
-数值工具模块：边界处理、随机数生成、正交多项式、特殊函数、收敛判断
-
-融合种子项目：
-- 1373_uniform: 均匀伪随机数生成思想
-- 081_besselzero: Bessel函数零点计算
-- 641_laguerre_polynomial: 拉盖尔多项式递推
-- 463_gegenbauer_rule: 正交多项式参数检验
-"""
 
 import numpy as np
 from scipy.special import jv, yv, gamma, gammaln
@@ -16,7 +6,6 @@ import warnings
 
 
 class RandomState:
-    """基于线性同余生成器(LCG)思想的伪随机数状态管理，融合1373_uniform。"""
 
     def __init__(self, seed=None):
         if seed is None:
@@ -31,7 +20,6 @@ class RandomState:
         return self._state
 
     def uniform_ab(self, n, a, b):
-        """生成区间[a,b]上的均匀分布随机数。"""
         if n <= 0:
             return np.array([])
         vals = np.array([self._lcg_next() for _ in range(n)], dtype=np.float64)
@@ -39,8 +27,6 @@ class RandomState:
         return a + (b - a) * vals
 
     def maxwell_boltzmann(self, n, T, m):
-        """Maxwell-Boltzmann速度分布采样：P(v) ~ v^2 exp(-mv^2/2kT)。
-        使用Box-Muller变换生成高斯分布后组合。"""
         if n <= 0 or T <= 0 or m <= 0:
             raise ValueError("n, T, m must be positive for Maxwell-Boltzmann sampling.")
         sigma = np.sqrt(T / m)
@@ -56,20 +42,11 @@ class RandomState:
 
 
 def bessel_zero_newton(n, k, kind=1, tol=1e-14, max_iter=100):
-    """基于Halley-Newton迭代的Bessel函数零点计算，融合081_besselzero。
-    
-    参数:
-        n: Bessel阶数 (实数)
-        k: 第k个正零点
-        kind: 1为J_n, 2为Y_n
-    返回:
-        zero: 零点估计值
-    """
     n = abs(n)
     if k <= 0:
         raise ValueError("k must be positive integer.")
 
-    # 初始猜测：利用渐近公式 + 最小二乘拟合系数
+
     if kind == 1:
         if k == 1:
             x0 = 0.411557 + 0.999987 * n + 0.698029 * (n + 1) ** 0.335300 + 1.069775 * (n + 1) ** 0.339671
@@ -78,7 +55,7 @@ def bessel_zero_newton(n, k, kind=1, tol=1e-14, max_iter=100):
         elif k == 3:
             x0 = 5.407708 + 1.000939 * n + 2.669262 * (n + 1) ** 0.429702 - 0.174926 * (n + 1) ** 0.633480
         else:
-            # 对k>=4，利用间距外推
+
             z2 = bessel_zero_newton(n, 2, kind)
             z3 = bessel_zero_newton(n, 3, kind)
             spacing = z3 - z2
@@ -110,17 +87,6 @@ def bessel_zero_newton(n, k, kind=1, tol=1e-14, max_iter=100):
 
 
 def laguerre_polynomial_alpha(x, n, alpha=0.0):
-    """广义拉盖尔多项式 L_n^{(alpha)}(x) 的递推计算，融合641_laguerre_polynomial和lf_function。
-    
-    递推关系:
-        L_0^{(alpha)}(x) = 1
-        L_1^{(alpha)}(x) = 1 + alpha - x
-        n L_n^{(alpha)} = (2n - 1 + alpha - x) L_{n-1}^{(alpha)} - (n - 1 + alpha) L_{n-2}^{(alpha)}
-    
-    正交性:
-        \int_0^\infty x^{alpha} e^{-x} L_n^{(alpha)}(x) L_m^{(alpha)}(x) dx
-        = \Gamma(n + alpha + 1) / n! \delta_{nm}
-    """
     x = np.atleast_1d(x)
     if alpha <= -1.0:
         raise ValueError("alpha must be > -1 for Laguerre polynomials.")
@@ -141,13 +107,6 @@ def laguerre_polynomial_alpha(x, n, alpha=0.0):
 
 
 def gegenbauer_polynomial(x, n, lambda_):
-    """盖根堡尔多项式 C_n^{(lambda)}(x) 递推计算，融合463_gegenbauer_rule的数学基础。
-    
-    递推:
-        C_0^{(lambda)}(x) = 1
-        C_1^{(lambda)}(x) = 2 lambda x
-        (n+1) C_{n+1}^{(lambda)}(x) = 2(n+lambda) x C_n^{(lambda)}(x) - (n+2lambda-1) C_{n-1}^{(lambda)}(x)
-    """
     x = np.atleast_1d(x)
     if lambda_ <= -0.5:
         raise ValueError("lambda must be > -0.5 for Gegenbauer polynomials.")
@@ -168,7 +127,6 @@ def gegenbauer_polynomial(x, n, lambda_):
 
 
 def check_bounds(x, lower, upper, name="variable"):
-    """边界检查与裁剪，确保数值鲁棒性。"""
     x = np.atleast_1d(x)
     if np.any(x < lower) or np.any(x > upper):
         warnings.warn(f"{name} out of bounds [{lower}, {upper}], clipping applied.")
@@ -177,23 +135,20 @@ def check_bounds(x, lower, upper, name="variable"):
 
 
 def relative_convergence_check(val_new, val_old, rtol=1e-6, atol=1e-12):
-    """相对收敛判据。"""
     diff = np.abs(val_new - val_old)
     scale = 0.5 * (np.abs(val_new) + np.abs(val_old)) + atol
     return np.all(diff < rtol * scale)
 
 
 def safe_sqrt(x, eps=1e-30):
-    """安全开方，避免负值导致NaN。"""
     return np.sqrt(np.maximum(x, eps))
 
 
 def compute_radial_grid(r_min, r_max, n_r, grid_type="legendre"):
-    """构造径向积分网格，支持Legendre和Laguerre映射。"""
     if grid_type == "uniform":
         return np.linspace(r_min, r_max, n_r)
     elif grid_type == "legendre":
-        # 将[-1,1]上的Legendre点映射到[r_min, r_max]
+
         from numpy.polynomial.legendre import leggauss
         xi, wi = leggauss(n_r)
         r = 0.5 * (r_max - r_min) * (xi + 1.0) + r_min

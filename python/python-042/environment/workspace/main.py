@@ -1,32 +1,8 @@
-"""
-main.py
-
-统一入口：地幔对流与板块运动数值模拟 (Mantle Convection & Plate Tectonics Simulation)
-
-本项目基于以下 15 个科研代码项目的核心算法融合构建：
-- 691_lissajous          -> Lissajous 周期强迫参数化
-- 480_gram_schmidt       -> Gram-Schmidt 谱基正交化
-- 1208_test_int_2d       -> Gauss-Legendre 二维数值积分
-- 539_histogram_discrete -> 离散温度分布统计
-- 488_grazing_ode        -> 上/下地幔化学交换耦合 ODE
-- 1394_voronoi_city      -> Voronoi 表面板块划分
-- 1372_unicycle          -> 循环边界节点重编号
-- 890_polygon_triangulate-> 多边形三角剖分（耳切法）
-- 1428_zero_chandrupatla -> Chandrupatla 根查找（临界瑞利数）
-- 635_lagrange_interp_1d -> 一维拉格朗日径向插值
-- 559_hypercube_integrals-> 超立方体蒙特卡洛参数采样
-- 868_pi_spigot          -> 高精度 π 计算（球面几何）
-- 1357_trig_interp_basis -> 三角基函数角向谱展开
-- 1423_xyz_display       -> 三维球面-直角坐标变换
-- 467_gen_laguerre_rule  -> 广义 Gauss-Laguerre 半无限区间积分
-
-运行方式：python main.py（零参数，直接运行）
-"""
 
 import numpy as np
 import sys
 
-# Import project modules
+
 from spherical_geometry import PiSpigot, SphericalGeometry
 from mesh_generator import PolygonTriangulator, VoronoiTessellator, UnicycleIndexer, MantleMesh2D
 from spectral_basis import GramSchmidt, TrigonometricBasis, LagrangeInterpolation, SpectralExpansion
@@ -44,7 +20,6 @@ from diagnostics import (
 
 
 def run_spherical_geometry():
-    """高精度球面几何计算（pi_spigot + xyz_display 坐标处理）"""
     print("=" * 60)
     print("[1] 高精度球面几何模块")
     print("=" * 60)
@@ -59,7 +34,7 @@ def run_spherical_geometry():
     print(f"  地幔体积 V = {geo.shell_volume():.3e} km³")
     print(f"  地幔厚度 D = {geo.shell_thickness():.1f} km")
 
-    # 球坐标 ↔ 直角坐标转换
+
     r_test = np.array([geo.R_surf, geo.R_cmb])
     theta_test = np.array([np.pi / 4, np.pi / 3])
     phi_test = np.array([np.pi / 6, np.pi / 2])
@@ -72,14 +47,13 @@ def run_spherical_geometry():
 
 
 def run_mesh_generation():
-    """网格生成与拓扑处理（polygon_triangulate + voronoi_city + unicycle）"""
     print("=" * 60)
     print("[2] 网格生成与 Voronoi 板块划分模块")
     print("=" * 60)
 
-    # 耳切法三角剖分
+
     triangulator = PolygonTriangulator()
-    # 构造一个简化的俯冲带几何多边形（CCW）
+
     n_vertices = 8
     angles = np.linspace(0, 2 * np.pi, n_vertices, endpoint=False)
     x_poly = 1.0 + 0.3 * np.cos(angles)
@@ -88,13 +62,13 @@ def run_mesh_generation():
     print(f"  多边形三角剖分: {n_vertices} 顶点 → {len(triangles)} 个三角形")
     area_sum = 0.0
     for tri in triangles:
-        i1, i2, i3 = tri - 1  # convert to 0-based
+        i1, i2, i3 = tri - 1
         a = 0.5 * abs((x_poly[i2] - x_poly[i1]) * (y_poly[i3] - y_poly[i1])
                       - (x_poly[i3] - x_poly[i1]) * (y_poly[i2] - y_poly[i1]))
         area_sum += a
     print(f"  剖分三角形总面积 = {area_sum:.6f}")
 
-    # Voronoi 表面板块划分
+
     voronoi = VoronoiTessellator(bounds=(0.0, 10.0, 0.0, 10.0))
     generators = np.array([[3.0, 4.0], [7.0, 8.0], [7.0, 2.0], [5.0, 5.0]])
     labels, areas = voronoi.compute_cells(generators, grid_res=200)
@@ -102,7 +76,7 @@ def run_mesh_generation():
     for i, area in enumerate(areas):
         print(f"    板块 {i+1} 近似面积 = {area:.4f}")
 
-    # Unicycle 循环索引用于边界节点排序
+
     indexer = UnicycleIndexer()
     n = 12
     shift = 3
@@ -112,7 +86,7 @@ def run_mesh_generation():
     print(f"    索引向量: {u_index}")
     print(f"    序列向量: {sequence}")
 
-    # 环形截面结构化网格
+
     mesh = MantleMesh2D(R_inner=0.5, R_outer=1.0)
     nodes, triangs, bnd = mesh.generate_annular_sector_mesh(n_r=6, n_theta=12)
     print(f"  环形截面网格: {len(nodes)} 节点, {len(triangs)} 三角形, {len(bnd)} 边界节点")
@@ -120,12 +94,11 @@ def run_mesh_generation():
 
 
 def run_spectral_basis():
-    """谱基函数构造（gram_schmidt + trig_interp_basis + lagrange_interp_1d）"""
     print("=" * 60)
     print("[3] 谱基与插值模块")
     print("=" * 60)
 
-    # Gram-Schmidt 正交化
+
     A = np.array([[1.0, 1.0, 1.0],
                   [0.0, 1.0, 1.0],
                   [0.0, 0.0, 1.0]], dtype=float)
@@ -133,7 +106,7 @@ def run_spectral_basis():
     print("  Gram-Schmidt 正交化 (经典):")
     print(f"    U^T U = \n{U_classical.T @ U_classical}")
 
-    # 三角基函数
+
     trig = TrigonometricBasis()
     x_test = np.linspace(-1.0, 1.0, 101)
     k_vals = [1, 2, 3, 4]
@@ -142,7 +115,7 @@ def run_spectral_basis():
         val = trig.basis(np.array([0.0]), k)
         print(f"    k={k}: B_k(0) = {val[0]:.6f}")
 
-    # 拉格朗日插值
+
     lagrange = LagrangeInterpolation()
     xd = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
     yd = np.sin(np.pi * xd)
@@ -151,7 +124,7 @@ def run_spectral_basis():
     error = np.max(np.abs(yi - np.sin(np.pi * xi)))
     print(f"  Lagrange 插值 sin(πx) 在 [0,1] 最大误差 = {error:.2e}")
 
-    # 谱展开
+
     expansion = SpectralExpansion(n_radial=6, n_angular=8)
     r_nodes = np.linspace(0.5, 1.0, 6)
     r_eval = np.linspace(0.5, 1.0, 20)
@@ -163,12 +136,11 @@ def run_spectral_basis():
 
 
 def run_quadrature():
-    """数值积分（legendre_dr_compute + gen_laguerre_rule + hypercube_integrals）"""
     print("=" * 60)
     print("[4] 数值积分模块")
     print("=" * 60)
 
-    # Gauss-Legendre
+
     gl = GaussLegendre()
     x, w = gl.compute(8)
     print(f"  Gauss-Legendre (n=8): 节点范围 [{x.min():.6f}, {x.max():.6f}]")
@@ -176,32 +148,31 @@ def run_quadrature():
     exact = np.exp(1.0) - np.exp(-1.0)
     print(f"  ∫_{'{-1}'}^{'{1}'} exp(x) dx ≈ {integral:.10f} (精确值 {exact:.10f}, 误差 {abs(integral - exact):.2e})")
 
-    # Gauss-Laguerre
+
     laguerre = GaussLaguerre()
     xl, wl = laguerre.compute(n=12, alpha=0.0, a=0.0, b=1.0)
     integral_l = laguerre.integrate(lambda t: t ** 2, n=12, alpha=0.0, a=0.0, b=1.0)
-    exact_l = 2.0  # ∫_0^∞ x^2 exp(-x) dx = 2
+    exact_l = 2.0
     print(f"  Gauss-Laguerre ∫_0^∞ x^2 exp(-x) dx ≈ {integral_l:.10f} (精确值 {exact_l:.10f}, 误差 {abs(integral_l - exact_l):.2e})")
 
-    # 2D 矩形积分
+
     quad2d = Quadrature2D()
     f2d = lambda x, y: np.exp(-(x ** 2 + y ** 2))
     val2d = quad2d.integrate_rectangle(f2d, (-1.0, 1.0), (-1.0, 1.0), nx=8, ny=8)
     print(f"  2D Gauss-Legendre 乘积规则 ∫_{'{-1}'}^{'{1}'}∫_{'{-1}'}^{'{1}'} exp(-(x²+y²)) dxdy ≈ {val2d:.8f}")
 
-    # 超立方体蒙特卡洛采样
+
     sampler = HypercubeSampler()
     samples = sampler.sample(m=3, n=1000, seed=42)
     print(f"  超立方体采样 (m=3, n=1000): 样本均值 = {np.mean(samples):.4f}, 样本方差 = {np.var(samples):.4f}")
 
-    # Monte Carlo 积分示例
+
     mc_mean, mc_err = sampler.integrate(lambda x: np.sum(x ** 2, axis=0), m=3, n=5000, seed=42)
     print(f"  Monte Carlo ∫_{'{[0,1]³}'} (x²+y²+z²) dV ≈ {mc_mean:.6f} ± {mc_err:.6f}")
     print()
 
 
 def run_mantle_physics():
-    """地幔物理模型与无量纲数计算"""
     print("=" * 60)
     print("[5] 地幔物理与无量纲数模块")
     print("=" * 60)
@@ -234,12 +205,11 @@ def run_mantle_physics():
 
 
 def run_stokes_and_thermal():
-    """斯托克斯求解与热演化（含 grazing_ode 化学交换）"""
     print("=" * 60)
     print("[6] 斯托克斯流求解与热演化模块")
     print("=" * 60)
 
-    # 构建网格
+
     R_inner = 0.5
     R_outer = 1.0
     nr, ntheta = 25, 40
@@ -247,31 +217,31 @@ def run_stokes_and_thermal():
     theta = np.linspace(0.0, 2.0 * np.pi, ntheta, endpoint=False)
     r_grid, theta_grid = np.meshgrid(r, theta, indexing='ij')
 
-    # 初始温度场
+
     thermal = ThermalSolver()
     T = thermal.initial_temperature(r_grid, theta_grid, mode="perturbation")
     print(f"  初始温度场: 形状 {T.shape}, 均值 {np.mean(T):.2f} K, 范围 [{np.min(T):.1f}, {np.max(T):.1f}] K")
 
-    # Stokes 求解
+
     stokes = StokesSolver(R_inner=R_inner, R_outer=R_outer, n_radial=8, n_angular=12)
     u_r, u_theta = stokes.compute_velocity_from_streamfunction(
         np.zeros((8, 12)), T, r_grid, theta_grid
     )
     print(f"  速度场: u_r 范围 [{np.min(u_r):.3e}, {np.max(u_r):.3e}], u_θ 范围 [{np.min(u_theta):.3e}, {np.max(u_theta):.3e}]")
 
-    # 时间步进
-    dt = 1.0e11  # s (~3 kyr)
+
+    dt = 1.0e11
     n_steps = 20
     for step in range(n_steps):
         T = thermal.step_forward(T, u_r, u_theta, r_grid, theta_grid, dt)
     print(f"  演化 {n_steps} 步 (Δt={dt:.2e} s ≈ {dt/3.15e13:.1f} Myr) 后:")
     print(f"    温度均值 = {np.mean(T):.2f} K, 标准差 = {np.std(T):.2f} K")
 
-    # 表面热流
+
     q_surf = thermal.surface_heat_flux(T, r_grid)
     print(f"    表面热流 (无量纲) = {q_surf:.4f}")
 
-    # 化学交换 ODE (grazing 模型)
+
     chem = GrazingChemicalExchange(a=1.1, c1=1.2, c2=1.5, d1=0.001, d2=0.001,
                                     K=3000.0, r1=0.8)
     t_chem, y_chem = chem.integrate_rk4(y0=np.array([3000.0, 5.0]),
@@ -283,14 +253,13 @@ def run_stokes_and_thermal():
 
 
 def run_diagnostics():
-    """诊断分析（histogram + root_finding + lissajous + hypercube）"""
     print("=" * 60)
     print("[7] 诊断分析与参数不确定性模块")
     print("=" * 60)
 
     diag = MantleDiagnostics(T_min=300.0, T_max=3000.0)
 
-    # 模拟温度场用于统计
+
     np.random.seed(42)
     T_sim = np.random.normal(loc=1600.0, scale=400.0, size=(30, 40))
     T_sim = np.clip(T_sim, 300.0, 3000.0)
@@ -300,16 +269,16 @@ def run_diagnostics():
     print(f"    标准差 = {stats['std']:.2f} K")
     print(f"    熵 = {stats['entropy']:.4f}")
 
-    # 临界瑞利数根查找
+
     def mock_nu(Ra):
-        # Mock Nusselt number: Nu = 1 + 0.5 * tanh(log10(Ra/1e5))
+
         return 1.0 + 0.5 * np.tanh(np.log10(Ra / 1.0e5))
 
     Ra_c, fm, calls = diag.root_finder.find_critical_rayleigh(mock_nu, 1.0e3, 1.0e7)
     print(f"\n  临界瑞利数搜索 (Chandrupatla 算法):")
     print(f"    Ra_c ≈ {Ra_c:.3e}, f(Ra_c) = {fm:.2e}, 函数调用次数 = {calls}")
 
-    # Lissajous 周期强迫
+
     forcing = LissajousForcing(a1=2.0, b1=np.pi / 4.0, a2=3.0, b2=0.0)
     t_forcing = np.linspace(0.0, 4 * np.pi, 100)
     x_liss, y_liss = forcing.evaluate(t_forcing)
@@ -317,10 +286,10 @@ def run_diagnostics():
     print(f"\n  Lissajous 周期强迫:")
     print(f"    热流调制范围: [{min(q_mod):.4f}, {max(q_mod):.4f}]")
 
-    # 参数不确定性传播
+
     sampler = ParameterSampler(seed=123)
     def toy_model(theta):
-        # theta: [Ra, alpha, eta0]
+
         Ra, alpha, eta0 = theta[0], theta[1], theta[2]
         D = 2891e3
         kappa = 1e-6
@@ -334,12 +303,11 @@ def run_diagnostics():
 
 
 def run_full_simulation_summary():
-    """综合模拟结果汇总"""
     print("=" * 60)
     print("[8] 综合模拟结果汇总")
     print("=" * 60)
 
-    # 构建完整模拟流程
+
     R_inner = 0.5
     R_outer = 1.0
     nr, ntheta = 20, 32
@@ -358,7 +326,7 @@ def run_full_simulation_summary():
         T = thermal.step_forward(T, u_r, u_theta, r_grid, theta_grid, dt)
 
     q_surf = thermal.surface_heat_flux(T, r_grid)
-    q_cond = 1.0  # Non-dimensional conductive flux
+    q_cond = 1.0
     Nu = DimensionlessNumbers.nusselt_number(q_surf, q_cond)
     D = MantleConstants.R_surf - MantleConstants.R_cmb
     delta_T = MantleConstants.T_cmb - MantleConstants.T_surf

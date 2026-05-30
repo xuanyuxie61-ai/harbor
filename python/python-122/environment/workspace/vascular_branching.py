@@ -1,37 +1,8 @@
-"""
-脑血流动力学 — 血管分支递归生成模块
-
-基于 collatz_recursive（递归序列）的递归思想，构建脑血管树的递归分支模型。
-每一级血管按 Murray 定律分叉，并赋予随机的生理变异。
-
-科学背景:
-- 脑血管树具有典型的分形结构：从颈内动脉到毛细血管，经历约 15-20 级分支。
-- Murray 定律: r_parent^3 = Σ r_child_i^3
-- 分支角度由最小能耗原理决定，通常满足:
-    cos(θ1) = (r0^4 + r1^4 - r2^4) / (2 r0^2 r1^2)
-- 血管长度与直径比 (L/D) 在生理范围内约为 5-20。
-- 类似于 Collatz 序列的递归规则，血管分支可建模为:
-    若当前血管半径 r > r_capillary: 生成 2 个子分支
-    若 r <= r_capillary: 终止（到达毛细血管）
-"""
 
 import numpy as np
 
 
 def collatz_like_branching_rule(r, r_capillary=4e-3, symmetry_prob=0.7):
-    """
-    类 Collatz 血管分支规则。
-    输入当前血管半径 r [mm]，输出是否继续分支及子血管参数。
-
-    规则:
-        if r > r_capillary:
-            if random() < symmetry_prob:
-                对称二分: r_child = r / 2^(1/3)
-            else:
-                非对称二分: r_child1 = 0.6 * r / 2^(1/3), r_child2 = 0.8 * r / 2^(1/3)
-        else:
-            终止分支（到达毛细血管水平）
-    """
     if r <= r_capillary:
         return None
 
@@ -46,11 +17,6 @@ def collatz_like_branching_rule(r, r_capillary=4e-3, symmetry_prob=0.7):
 
 
 def branch_angle_from_murray(r0, r1, r2):
-    """
-    由 Murray 定律推导分支角度（基于能量最小化）。
-    cos(θ1) = (r0^4 + r1^4 - r2^4) / (2 r0^2 r1^2)
-    cos(θ2) = (r0^4 + r2^4 - r1^4) / (2 r0^2 r2^2)
-    """
     if r0 < 1e-14 or r1 < 1e-14 or r2 < 1e-14:
         return np.pi / 4.0, np.pi / 4.0
     num1 = r0 ** 4 + r1 ** 4 - r2 ** 4
@@ -65,7 +31,6 @@ def branch_angle_from_murray(r0, r1, r2):
 
 
 class VascularBranch:
-    """血管分支节点。"""
     def __init__(self, radius, length, start_point, end_point, parent=None, generation=0):
         self.radius = radius
         self.length = length
@@ -83,21 +48,6 @@ class VascularBranch:
 def generate_vascular_tree_recursive(start_radius=2.5, start_point=(0.0, 0.0, 0.0),
                                       direction=(0.0, 0.0, 1.0), max_generation=15,
                                       r_capillary=4e-3, L_over_D_mean=10.0):
-    """
-    递归生成三维脑血管树。
-
-    参数:
-        start_radius: 起始血管半径 [mm]（如颈内动脉约 2.5 mm）
-        start_point: 起始坐标
-        direction: 初始生长方向
-        max_generation: 最大分支代数
-        r_capillary: 毛细血管半径阈值 [mm]
-        L_over_D_mean: 平均长径比
-
-    返回:
-        root: VascularBranch 根节点
-        branches: 所有分支的列表
-    """
     root = VascularBranch(
         radius=start_radius,
         length=start_radius * L_over_D_mean,
@@ -120,11 +70,11 @@ def generate_vascular_tree_recursive(start_radius=2.5, start_point=(0.0, 0.0, 0.
         (r1, r2) = result[0]
         theta1, theta2 = branch_angle_from_murray(current.radius, r1, r2)
 
-        # 随机扰动生长方向
+
         base_dir = current.end_point - current.start_point
         base_dir = base_dir / (np.linalg.norm(base_dir) + 1e-14)
 
-        # 构造局部坐标系
+
         if abs(base_dir[2]) < 0.9:
             perp = np.cross(base_dir, np.array([0.0, 0.0, 1.0]))
         else:
@@ -133,7 +83,7 @@ def generate_vascular_tree_recursive(start_radius=2.5, start_point=(0.0, 0.0, 0.
         perp2 = np.cross(base_dir, perp)
         perp2 = perp2 / (np.linalg.norm(perp2) + 1e-14)
 
-        # 子分支方向（带随机扭转）
+
         twist1 = np.random.uniform(-0.3, 0.3)
         twist2 = np.random.uniform(-0.3, 0.3)
         dir1 = (np.cos(theta1) * base_dir +
@@ -168,7 +118,6 @@ def generate_vascular_tree_recursive(start_radius=2.5, start_point=(0.0, 0.0, 0.
 
 
 def tree_statistics(branches):
-    """计算血管树的统计信息。"""
     n_branches = len(branches)
     generations = [b.generation for b in branches]
     radii = [b.radius for b in branches]

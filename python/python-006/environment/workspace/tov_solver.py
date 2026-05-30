@@ -1,60 +1,30 @@
-"""
-tov_solver.py
-Tolman-Oppenheimer-Volkoff (TOV) 方程数值求解器
-
-该模块实现中子星静力学结构方程的积分，并通过参数扫描
-获取不同中心密度下的质量-半径关系。
-
-原项目映射:
-- 832_ode_sweep_parfor  -> ODE参数扫描思想，用于扫描中心密度网格
-
-核心物理方程（几何单位 G = c = 1，以 km 为长度单位）:
-    dP/dr = - (ε + P)(m + 4π r^3 P) / (r (r - 2m))
-    dm/dr = 4π r^2 ε
-
-单位转换:
-    1 M_sun = 1.47667 km  (几何质量)
-    1 MeV/fm^3 = 1.3234e-6 km^{-2} (几何能量密度/压强)
-"""
 
 import numpy as np
 import math
 from utils_physics import G_NEWTON, C_LIGHT, M_SUN, safe_divide
 
 
-# =============================================================================
-# 单位转换常量 (以 km 为基准)
-# =============================================================================
-KM = 1.0e3  # m
-# 1 M_sun 对应的几何长度 (km)
-M_SUN_KM = G_NEWTON * M_SUN / C_LIGHT**2 / KM  # ~1.47667 km
 
-# 1 MeV/fm^3 转换为几何单位 km^{-2}
+
+
+KM = 1.0e3
+
+M_SUN_KM = G_NEWTON * M_SUN / C_LIGHT**2 / KM
+
+
 MEV_FM3_TO_GEOM_KM = 1.602176634e32 * (G_NEWTON / C_LIGHT**4) * (KM**2)
 
 
 def tov_equations(r: float, y: np.ndarray, eps_of_P: callable) -> np.ndarray:
-    """
-    TOV 方程右端项（几何单位 G = c = 1，长度单位为 km）。
 
-    y = [P_geom, m_geom]
-    dy/dr = [dP/dr, dm/dr]
-    """
-    # TODO: 修复此处被挖空的 TOV 方程实现
-    # 需要计算:
-    #   1. 由 P_geom 通过 eps_of_P 得到 eps_geom
-    #   2. dm/dr = 4π r^2 ε
-    #   3. dP/dr = - (ε + P)(m + 4π r^3 P) / (r(r - 2m))
+
+
+
+
     raise NotImplementedError("Hole 2: 请补全 TOV 方程右端项的实现")
 
 
 def build_eps_of_P_simplified(Gamma: float = 2.5, eps0_MeV: float = 50.0):
-    """
-    构建简化的物态方程 ε(P) = ε0 + P / (Γ - 1)。
-
-    ε0 对应零压能量密度（ crust-core 边界附近约 50 MeV/fm^3），
-    Γ 为多方指数，控制物态方程的硬度。
-    """
     eps0_geom = eps0_MeV * MEV_FM3_TO_GEOM_KM
 
     def eps_of_P(P_geom: float) -> float:
@@ -66,9 +36,6 @@ def build_eps_of_P_simplified(Gamma: float = 2.5, eps0_MeV: float = 50.0):
 
 
 class TOVIntegrator:
-    """
-    TOV方程数值积分器（几何单位，长度单位为 km）。
-    """
 
     def __init__(self, eps_of_P: callable, max_radius_km: float = 30.0,
                  n_steps: int = 200000, dr_init_km: float = 1.0e-3):
@@ -85,14 +52,6 @@ class TOVIntegrator:
         return y + (h / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
     def integrate(self, Pc_MeV_fm3: float) -> dict:
-        """
-        从中心压强 Pc (MeV/fm^3) 开始积分TOV方程。
-
-        Returns
-        -------
-        dict
-            {'radius_km': R, 'mass_Msun': M, ...}
-        """
         if Pc_MeV_fm3 <= 0.0:
             raise ValueError("Central pressure must be positive.")
 
@@ -112,7 +71,7 @@ class TOVIntegrator:
             if y[0] <= 0.0 or r > self.max_radius:
                 break
 
-            # 自适应步长
+
             P_ratio = y[0] / Pc_geom
             if P_ratio < 1e-5:
                 h = min(h, r * 0.001)
@@ -125,7 +84,7 @@ class TOVIntegrator:
             y_new = self._rk4_step(r, y, h)
             r_new = r + h
 
-            # 检查Schwarzschild半径
+
             if r_new <= 2.0 * y_new[1] and step > 100:
                 break
 
@@ -176,9 +135,6 @@ def compute_mass_radius_relation(
     Pc_max_MeV: float = 1000.0,
     n_points: int = 15
 ) -> dict:
-    """
-    参数扫描计算质量-半径关系。
-    """
     Pc_vals = np.logspace(math.log10(Pc_min_MeV), math.log10(Pc_max_MeV), n_points)
     R_vals = np.zeros(n_points)
     M_vals = np.zeros(n_points)
@@ -210,9 +166,6 @@ def compute_mass_radius_relation(
 
 
 def compute_tidal_deformability(eps_of_P: callable, Pc_MeV: float) -> float:
-    """
-    计算潮汐形变参数 Λ。
-    """
     integrator = TOVIntegrator(eps_of_P)
     result = integrator.integrate(Pc_MeV)
     R_km = result['radius_km']

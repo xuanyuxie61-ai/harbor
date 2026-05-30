@@ -1,40 +1,8 @@
-"""
-field_interp.py — 三角化网格上的标量场插值与分析
-
-融合以下种子项目：
-- 1342_triangulation_order3_contour : 三阶三角化上的等高线/标量场分析
-- 1310_triangle_io : 三角网格数据读取
-
-功能：
-1. 在三角化球面/球壳网格上进行线性插值
-2. 计算标量场的梯度、拉普拉斯
-3. 在网格上计算面积分与体积分
-4. 标量场的极值搜索与临界点检测
-
-核心数学模型：
--------------
-四面体内线性插值：
-  给定四面体顶点 p₀,p₁,p₂,p₃ 和对应值 v₀,v₁,v₂,v₃，
-  对任意点 p = p₀ + ξ(p₁-p₀) + η(p₂-p₀) + ζ(p₃-p₀)，
-  有 v(p) = v₀ + ξ(v₁-v₀) + η(v₂-v₀) + ζ(v₃-v₀)。
-
-重心坐标：通过求解线性方程组
-  [p₁-p₀, p₂-p₀, p₃-p₀] [ξ, η, ζ]^T = p - p₀
-
-体积积分：
-  ∫_Ω f dV ≈ Σ_{单元 e} (f₀+f₁+f₂+f₃)/4 · Vol(e)
-
-面积分（球面上）：
-  ∫_S f dS ≈ Σ_{三角形 t} (f₀+f₁+f₂)/3 · Area(t)
-"""
 
 import numpy as np
 
 
 def barycentric_coordinates_tetrahedron(p, p0, p1, p2, p3):
-    """
-    计算点 p 在四面体 (p0,p1,p2,p3) 中的重心坐标 (λ0,λ1,λ2,λ3)。
-    """
     v0 = p1 - p0
     v1 = p2 - p0
     v2 = p3 - p0
@@ -52,9 +20,6 @@ def barycentric_coordinates_tetrahedron(p, p0, p1, p2, p3):
 
 
 def interpolate_in_tetrahedron(p, p0, p1, p2, p3, v0, v1, v2, v3):
-    """
-    在四面体内进行线性插值。
-    """
     lams = barycentric_coordinates_tetrahedron(p, p0, p1, p2, p3)
     if lams is None:
         return None
@@ -64,11 +29,7 @@ def interpolate_in_tetrahedron(p, p0, p1, p2, p3, v0, v1, v2, v3):
 
 
 def find_containing_tetrahedron(point, nodes, elements, search_radius=0.5):
-    """
-    查找包含给定点的四面体单元索引。
-    采用空间预筛选 + 重心坐标检测。
-    """
-    # 预筛选：只检查与点距离较近的单元中心
+
     candidates = []
     for idx, elem in enumerate(elements):
         pts = nodes[elem]
@@ -83,21 +44,17 @@ def find_containing_tetrahedron(point, nodes, elements, search_radius=0.5):
         if lams is not None and np.all(lams >= -1e-6) and np.all(lams <= 1 + 1e-6):
             return idx, lams
 
-    # 回退：最近单元
+
     if len(candidates) > 0:
         return candidates[0], None
     return None, None
 
 
 def scalar_field_interpolator(nodes, elements, values):
-    """
-    构建标量场插值函数。
-    返回 func(point) -> interpolated_value。
-    """
     def interp(point):
         idx, lams = find_containing_tetrahedron(point, nodes, elements)
         if idx is None:
-            # 回退到最近节点
+
             dists = np.linalg.norm(nodes - point, axis=1)
             nearest = np.argmin(dists)
             return values[nearest]
@@ -118,9 +75,6 @@ def scalar_field_interpolator(nodes, elements, values):
 
 
 def compute_volume_integral(nodes, elements, values):
-    """
-    在四面体网格上计算体积分 ∫ f dV。
-    """
     if elements.size == 0:
         return np.mean(values) * len(nodes) * 0.001
 
@@ -140,10 +94,6 @@ def compute_volume_integral(nodes, elements, values):
 
 
 def compute_surface_integral_sphere(nodes, elements_tri, values, r_target=1.0):
-    """
-    在三角形网格上计算球面积分 ∫ f dS。
-    elements_tri: (M,3) 三角形索引。
-    """
     if elements_tri.size == 0:
         return 0.0, 0.0
 
@@ -160,10 +110,6 @@ def compute_surface_integral_sphere(nodes, elements_tri, values, r_target=1.0):
 
 
 def extract_surface_triangles(elements):
-    """
-    从四面体单元中提取表面三角形（边界面）。
-    采用面频统计法：仅出现一次的四面体表面为外表面。
-    """
     if elements.size == 0:
         return np.array([])
 
@@ -185,10 +131,6 @@ def extract_surface_triangles(elements):
 
 
 def gradient_recovery_superconvergent(nodes, elements, values):
-    """
-    超收敛梯度恢复（Zienkiewicz-Zhu 型）。
-    在每个节点处，用周围单元梯度加权平均得到更光滑的梯度场。
-    """
     n_nodes = len(nodes)
     grad_sum = np.zeros((n_nodes, 3))
     weight_sum = np.zeros(n_nodes)
@@ -200,7 +142,7 @@ def gradient_recovery_superconvergent(nodes, elements, values):
         p0, p1, p2, p3 = nodes[elem[0]], nodes[elem[1]], nodes[elem[2]], nodes[elem[3]]
         vals = values[elem]
 
-        # 四面体内的常梯度
+
         mat = np.column_stack((p1 - p0, p2 - p0, p3 - p0))
         rhs = np.array([vals[1] - vals[0], vals[2] - vals[0], vals[3] - vals[0]])
         try:
@@ -208,7 +150,7 @@ def gradient_recovery_superconvergent(nodes, elements, values):
         except np.linalg.LinAlgError:
             grad_elem = np.zeros(3)
 
-        # 体积权重
+
         vol = abs(np.dot(p1 - p0, np.cross(p2 - p0, p3 - p0))) / 6.0
         for idx in elem:
             grad_sum[idx] += grad_elem * vol
@@ -222,15 +164,11 @@ def gradient_recovery_superconvergent(nodes, elements, values):
 
 
 def find_critical_points(nodes, elements, values):
-    """
-    在三角化网格上搜索标量场的临界点（极大值、极小值、鞍点近似）。
-    返回临界点列表 [(node_index, type, value), ...]。
-    """
     n_nodes = len(nodes)
     critical = []
 
     for i in range(n_nodes):
-        # 寻找相邻节点
+
         neighbors = set()
         if elements.size > 0:
             for elem in elements:
@@ -250,7 +188,7 @@ def find_critical_points(nodes, elements, values):
         elif val_i < min(vals_neighbor):
             critical.append((i, 'minimum', val_i))
         else:
-            # 检查是否为鞍点：比某些邻居大，比另一些邻居小
+
             has_higher = any(val_i > v for v in vals_neighbor)
             has_lower = any(val_i < v for v in vals_neighbor)
             if has_higher and has_lower:

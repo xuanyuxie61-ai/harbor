@@ -1,28 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-main.py
-室内声场射线追踪与模态分析的统一入口
-声学工程：三维封闭空间声场的混合射线-有限元模态分析与贝叶斯参数反演
-
-本程序零参数运行，完成以下完整流程：
-1. 房间几何定义与表面提取
-2. 四面体网格生成与局部加密
-3. 基于 FEM 的 Helmholtz 方程求解（低频声压分布）
-4. 解析模态分析与 Schroeder 频率计算
-5. 蒙特卡洛射线追踪（高频能量衰减与混响时间）
-6. 边缘衍射场计算
-7. 反射转移图构建（基于稀疏图理论）
-8. 贝叶斯吸声系数反演（DREAM MCMC）
-9. 不确定性传播分析
-10. 结果汇总输出
-"""
 
 import numpy as np
 import os
 import sys
 
-# 确保当前目录在路径中
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from room_geometry import (
@@ -76,9 +59,9 @@ def main():
     print("  Indoor Sound Field Ray Tracing & Modal Analysis")
     print("=" * 70)
 
-    # ================================================================
-    # 1. 房间几何定义
-    # ================================================================
+
+
+
     print_section("1. 房间几何定义")
     surfaces = extract_room_surfaces()
     normals = compute_surface_normals(surfaces)
@@ -91,7 +74,7 @@ def main():
     for name, area in surface_areas.items():
         print(f"    {name:20s}: {area:8.3f} m²")
 
-    # 设定吸声系数
+
     absorption = {
         'floor': 0.15,
         'ceiling': 0.25,
@@ -106,11 +89,11 @@ def main():
     print(f"\n  Sabine T60: {T60_sabine:.3f} s")
     print(f"  Eyring T60: {T60_eyring:.3f} s")
 
-    # ================================================================
-    # 2. 四面体网格生成
-    # ================================================================
+
+
+
     print_section("2. 四面体网格生成 (DistMesh 3D)")
-    h0 = 1.2  # 目标网格尺寸
+    h0 = 1.2
     box = [0.0, 10.0, 0.0, 8.0, 0.0, 5.0]
     pfix = np.array([
         [0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 8.0, 0.0], [0.0, 8.0, 0.0],
@@ -126,13 +109,13 @@ def main():
     print(f"  质量范围: [{stats['quality_min']:.4f}, {stats['quality_max']:.4f}]")
     print(f"  平均质量: {stats['quality_mean']:.4f}")
 
-    # ================================================================
-    # 3. 基于 FEM 的 Helmholtz 方程求解
-    # ================================================================
+
+
+
     print_section("3. 有限元 Helmholtz 方程求解")
-    freq_fem = 125.0  # Hz，低频
+    freq_fem = 125.0
     source_pos = np.array([5.0, 4.0, 2.5])
-    # 找最近的节点作为声源
+
     dists = np.linalg.norm(p - source_pos, axis=1)
     source_node = int(np.argmin(dists))
     print(f"  声源频率: {freq_fem} Hz")
@@ -151,9 +134,9 @@ def main():
         p_sol = np.zeros(p.shape[0])
         k_wavenum = 2.0 * np.pi * freq_fem / C_AIR
 
-    # ================================================================
-    # 4. 解析模态分析
-    # ================================================================
+
+
+
     print_section("4. 解析模态分析与 Schroeder 频率")
     modes = rectangular_room_modes(10.0, 8.0, 5.0, max_order=4)
     f_s = schroeder_frequency(room_vol, total_surface_area, avg_alpha)
@@ -162,7 +145,7 @@ def main():
     for i, mode in enumerate(modes[:10]):
         print(f"    ({mode['l']},{mode['m']},{mode['n']})  f = {mode['frequency']:7.3f} Hz")
 
-    # 模态密度与重叠因子
+
     mof_data = modal_overlap_factor(modes[:20], damping_ratio=0.01)
     mof_mean = np.mean([d['mof'] for d in mof_data])
     print(f"  平均模态重叠因子 (MOF): {mof_mean:.3f}")
@@ -171,17 +154,17 @@ def main():
     else:
         print("  -> 声场处于模态控制区")
 
-    # 基于 FEM 矩阵的逆迭代模态分析
+
     print("\n  基于 FEM 的逆迭代模态分析:")
     try:
         A_sparse, K_sparse, M_sparse, F, k_val = assemble_helmholtz_system(
             p, t, freq_fem, source_node=source_node, source_strength=1.0
         )
-        # TODO (Hole 3): 构建 SPD 近似矩阵 A_spd = K + k^2 M，并调用 inverse_iteration
-        # 提示：需要将 K_sparse 和 M_sparse 合并为 A_spd，然后传给 inverse_iteration
-        #   A_spd = K_sparse + k_val^2 * M_sparse
-        freq_mode = 0.0  # FIXME: 需要通过 inverse_iteration 计算
-        lam = 0.0        # FIXME: 需要通过 inverse_iteration 计算
+
+
+
+        freq_mode = 0.0
+        lam = 0.0
         print(f"    基频估算: {freq_mode:.3f} Hz")
         print(f"    Rayleigh 商 λ: {lam:.6f}")
     except Exception as e:
@@ -189,9 +172,9 @@ def main():
         freq_mode = modes[0]['frequency'] if modes else 0.0
         print(f"    使用解析基频: {freq_mode:.3f} Hz")
 
-    # ================================================================
-    # 5. 蒙特卡洛射线追踪
-    # ================================================================
+
+
+
     print_section("5. 蒙特卡洛射线追踪 (Sobol 采样)")
     n_rays = 2000
     source_pos_rt = np.array([5.0, 4.0, 2.5])
@@ -203,20 +186,20 @@ def main():
     print(f"  蒙特卡洛 T60: {T60_mc:.3f} s")
     print(f"  早期衰减时间 EDT: {EDT:.3f} s")
 
-    # 房间响应统计
+
     stats_rt = compute_room_response_stats(surfaces, normals, absorption,
                                             source_pos_rt, n_rays=500,
                                             max_reflections=30)
     print(f"  平均自由程: {stats_rt['mean_free_path']:.3f} m")
     print(f"  平均反射次数: {stats_rt['mean_reflections']:.1f}")
 
-    # 平均自由程理论值
+
     mfp_theory = compute_mean_free_path(room_vol, total_surface_area)
     print(f"  理论平均自由程: {mfp_theory:.3f} m")
 
-    # ================================================================
-    # 6. 边缘衍射场计算
-    # ================================================================
+
+
+
     print_section("6. 边缘衍射场计算 (GTD/UTD)")
     edges = detect_room_edges(surfaces)
     print(f"  检测到 {len(edges)} 条房间边缘")
@@ -228,9 +211,9 @@ def main():
     print(f"  频率: {freq_diffraction} Hz")
     print(f"  总衍射声压幅值: {np.abs(diff_field):.6e}")
 
-    # ================================================================
-    # 7. 反射转移图（稀疏图理论）
-    # ================================================================
+
+
+
     print_section("7. 反射转移图 (稀疏马尔可夫链)")
     trans_prob, surf_names = build_reflection_graph(surfaces, normals, absorption, n_rays=1000)
     print("  表面间转移概率矩阵:")
@@ -242,9 +225,9 @@ def main():
             row_str += f"{trans_prob[i, j]:10.4f}"
         print(row_str)
 
-    # 计算稳态分布（PageRank 思想）
-    # 求解 π^T P = π^T，即 P^T π = π
-    # 使用幂迭代
+
+
+
     P = trans_prob.T
     pi = np.ones(len(surf_names)) / len(surf_names)
     for _ in range(100):
@@ -257,11 +240,11 @@ def main():
     for i, s in enumerate(surf_names):
         print(f"    {s:20s}: {pi[i]:.4f}")
 
-    # ================================================================
-    # 8. 贝叶斯吸声系数反演 (DREAM MCMC)
-    # ================================================================
+
+
+
     print_section("8. 贝叶斯吸声系数反演 (DREAM MCMC)")
-    T60_obs = T60_sabine  # 使用 Sabine 值作为"观测"
+    T60_obs = T60_sabine
     T60_sigma = 0.1 * T60_obs
     cal_result = calibrate_absorption_coefficients(
         T60_obs, T60_sigma, surface_areas, room_vol,
@@ -275,32 +258,32 @@ def main():
     print(f"  预测 T60: {cal_result['predicted_t60']:.3f} s")
     print(f"  Gelman-Rubin R: {cal_result['R_final']}")
 
-    # ================================================================
-    # 9. 不确定性传播
-    # ================================================================
+
+
+
     print_section("9. 不确定性传播分析")
     unc = uncertainty_propagation(cal_result['chains'], surface_areas, room_vol, n_samples=100)
     print(f"  T60 预测均值: {unc['mean']:.3f} s")
     print(f"  T60 预测标准差: {unc['std']:.3f} s")
     print(f"  95% 置信区间: [{unc['ci_95'][0]:.3f}, {unc['ci_95'][1]:.3f}] s")
 
-    # ================================================================
-    # 10. 球面积分验证 (ball_integrals 思想)
-    # ================================================================
+
+
+
     print_section("10. 球面积分验证")
-    # 验证单位球上某些单项式的积分
+
     test_exponents = [(0, 0, 0), (2, 0, 0), (2, 2, 0), (2, 2, 2)]
     for e in test_exponents:
         exact = ball01_monomial_integral(e)
-        # 蒙特卡洛验证
+
         samples = ball01_sample(5000)
         vals = samples[:, 0] ** e[0] * samples[:, 1] ** e[1] * samples[:, 2] ** e[2]
         mc = (4.0 * np.pi / 3.0) * np.mean(vals)
         print(f"  x^{e[0]}y^{e[1]}z^{e[2]}: 精确={exact:.6f}, MC={mc:.6f}")
 
-    # ================================================================
-    # 11. 高阶三角形求积验证
-    # ================================================================
+
+
+
     print_section("11. 三角形求积验证")
     v0 = np.array([0.0, 0.0, 0.0])
     v1 = np.array([1.0, 0.0, 0.0])
@@ -318,9 +301,9 @@ def main():
     print(f"  常数函数积分: {I_const:.6f} (期望: {area_exact:.6f})")
     print(f"  线性函数积分: {I_linear:.6f} (期望: {area_exact / 3.0 * 2.0:.6f})")
 
-    # ================================================================
-    # 结果汇总
-    # ================================================================
+
+
+
     print_section("结果汇总")
     print(f"  房间体积:           {room_vol:.2f} m³")
     print(f"  总表面积:           {total_surface_area:.2f} m²")

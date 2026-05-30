@@ -1,63 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-main.py
-
-================================================================================
-不规则小行星多尺度引力场建模与近距轨道长期稳定性分析系统
-================================================================================
-
-本项目基于 15 个科研代码项目的核心算法，在天体物理领域（小行星/行星
-引力场与轨道力学）进行深度融合，构建面向前沿科学问题的博士级计算系统。
-
-科学问题：
-    针对碎石堆结构小行星（如 Itokawa、Bennu 型）的不规则形状与非均匀
-    密度分布，建立"多面体-球谐耦合"高保真引力场模型，并在此模型基础上
-    分析近表面轨道的长期稳定性、碰撞风险与最优悬停策略。
-
-核心模型与公式：
-1. 球谐引力势展开（Stokes 理论）：
-       U(r,θ,λ) = GM/r [ 1 + Σ_{n=2}^{N_max} Σ_{m=0}^{n} (R_e/r)^n P̄_{nm}(sinθ)
-                   × ( C_{nm} cos(mλ) + S_{nm} sin(mλ) ) ]
-
-2. 多面体引力势（Werner-Scheeres 模型）：
-       U(r) = (Gρ/2) Σ_e r_e·E_e·r_e·L_e − (Gρ/2) Σ_f r_f·F_f·r_f·ω_f
-
-3. 泊松方程（内部引力势有限元）：
-       ∇²φ = 4πGρ(r)
-
-4. 轨道运动方程（含 SRP 与第三体摄动）：
-       d²r/dt² = ∇U(r) + a_SRP + a_3body + σ·ξ(t)
-
-5. 碰撞概率模型：
-       P_collision ≈ Σ_i (A_i/A_total) Φ( (h_safe − d_i) / σ_pos )
-
-6. 轨道品质泛函：
-       J = w1·ln(T_lifetime) − w2·Δv − w3·P_collision
-
-输入科研项目融合：
-- 052_asa245          → special_functions.py (Lanczos Gamma)
-- 062_backtrack_binary_rc → orbit_optimization.py (二进制回溯)
-- 066_ball_distance   → collision_risk.py (蒙特卡洛距离统计)
-- 1074_sierpinski_carpet_chaos → asteroid_geometry.py (IFS 分形表面)
-- 1102_sparse_display → fem_gravity.py (Wathen 稀疏 FEM)
-- 111_box_behnken     → orbit_optimization.py (实验设计)
-- 1171_stochastic_rk  → orbit_integrator.py (随机 RK4)
-- 1328_triangulate    → asteroid_geometry.py (耳切法三角剖分)
-- 1368_tumor_pde      → fem_gravity.py (PDE 系数/通量函数)
-- 1424_xyz_io         → data_io.py (XYZ 数据 I/O)
-- 684_line_ncc_rule   → orbit_integrator.py (Newton-Cotes 积分)
-- 794_neighbor_risk   → collision_risk.py (邻接矩阵连通性)
-- 894_polynomial_conversion → gravity_harmonics.py (Legendre 多项式)
-- 970_r8blt           → fem_gravity.py (带状下三角求解器)
-- 431_filum           → data_io.py (字符串/文件名处理)
-"""
 
 import numpy as np
 import sys
 import time
 
-# 模块导入
+
 from special_functions import (
     lngamma_lanczos,
     gamma_lanczos,
@@ -116,7 +64,6 @@ def print_section(title: str) -> None:
 
 
 def run_special_functions_demo():
-    """测试特殊函数模块"""
     print_section("模块 1: 特殊函数与正交多项式 (asa245 + polynomial_conversion)")
     z_vals = [0.5, 1.0, 2.5, 5.0, 10.0]
     for z in z_vals:
@@ -124,17 +71,16 @@ def run_special_functions_demo():
         lz, _ = lngamma_lanczos(z)
         print(f"  Γ({z:.2f}) = {gz:.12e},  lnΓ = {lz:.12e}")
 
-    # 缔合 Legendre 函数测试
+
     p33 = associated_legendre_normalized(3, 3, 0.5)
     print(f"  P̄_33(0.5) = {p33:.12e}")
 
-    # 阶乘比（球谐归一化系数）
+
     fr = factorial_ratio(10, 5)
     print(f"  10! / 5! = {fr:.6e}")
 
 
 def run_geometry_demo():
-    """测试小行星几何建模"""
     print_section("模块 2: 小行星几何建模 (triangulate + sierpinski_carpet_chaos)")
     poly2d = generate_asteroid_cross_section(
         a=2.0, b=1.5, c=1.0, n_points=64,
@@ -142,11 +88,11 @@ def run_geometry_demo():
     )
     print(f"  二维截面顶点数: {poly2d.shape[0]}")
 
-    # 耳切法三角剖分（二维截面）
+
     triangles_2d = ear_clip_triangulation(poly2d)
     print(f"  二维剖分三角面片数: {triangles_2d.shape[0]}")
 
-    # 旋转生成三维
+
     vertices, faces = revolve_to_3d(poly2d, z_scale=0.8)
     print(f"  三维顶点数: {vertices.shape[0]}, 面片数: {faces.shape[0]}")
 
@@ -160,19 +106,18 @@ def run_geometry_demo():
 
 
 def run_gravity_harmonics_demo(vertices, faces, vol):
-    """测试球谐引力场"""
     print_section("模块 3: 球谐引力场展开 (polynomial_conversion)")
-    density = 2500.0  # kg/m³ → 需要统一单位，这里简化处理
-    # 注意：vertices 单位为 km，需要转换
+    density = 2500.0
+
     vertices_m = vertices * 1e3
-    mass = density * vol * 1e9  # kg (vol in km³ → m³)
-    gm = 6.67430e-11 * mass  # m³/s² → 转为 km³/s²
+    mass = density * vol * 1e9
+    gm = 6.67430e-11 * mass
     gm_km = gm * 1e-9
 
     c_coeff, s_coeff, r_ref = compute_stokes_coefficients_from_shape(
         vertices_m, faces, density, n_max=6
     )
-    # 转回 km 单位系
+
     r_ref_km = r_ref * 1e-3
 
     print(f"  质量 M = {mass:.6e} kg")
@@ -182,7 +127,7 @@ def run_gravity_harmonics_demo(vertices, faces, vol):
 
     sh_model = SphericalHarmonicGravity(gm_km, r_ref_km, c_coeff, s_coeff, n_max=6)
 
-    # 测试几个外部点的势能与加速度
+
     test_points = [
         np.array([5.0, 0.0, 0.0]),
         np.array([0.0, 4.0, 0.0]),
@@ -198,7 +143,6 @@ def run_gravity_harmonics_demo(vertices, faces, vol):
 
 
 def run_polyhedron_gravity_demo(vertices, faces):
-    """测试多面体引力场"""
     print_section("模块 4: 多面体引力场模型 (triangulate 扩展)")
     vertices_m = vertices * 1e3
     density = 2500.0
@@ -215,14 +159,13 @@ def run_polyhedron_gravity_demo(vertices, faces):
 
 
 def run_fem_gravity_demo():
-    """测试有限元内部引力势"""
     print_section("模块 5: 有限元内部引力势 (wathen_ge + tumor_pde + r8blt_sl)")
     phi, x_coords, y_coords = solve_internal_potential_2d(
         nx=32, ny=32, r_max=1000.0
     )
     gx, gy = internal_gravity_from_potential(phi, x_coords, y_coords)
 
-    # 中心点势能与引力
+
     cx, cy = 16, 16
     print(f"  中心点引力势: {phi[cy,cx]:.6e} m²/s²")
     print(f"  中心点引力加速度: [{gx[cy,cx]:.6e}, {gy[cy,cx]:.6e}] m/s²")
@@ -230,10 +173,9 @@ def run_fem_gravity_demo():
 
 
 def run_orbit_integrator_demo(sh_model, gm_km):
-    """测试轨道积分器"""
     print_section("模块 6: 轨道积分器 (line_ncc_rule + stochastic_rk)")
 
-    # 定义引力加速度函数（使用球谐模型）
+
     def grav_accel(pos):
         return sh_model.acceleration(pos)
 
@@ -245,27 +187,27 @@ def run_orbit_integrator_demo(sh_model, gm_km):
         perturbation_std=1e-12
     )
 
-    # 初始条件：近小行星圆轨道近似
-    r0 = np.array([3.0, 0.0, 0.5])  # km
+
+    r0 = np.array([3.0, 0.0, 0.5])
     v_circ = np.sqrt(gm_km / np.linalg.norm(r0))
-    v0 = np.array([0.0, v_circ * 0.9, 0.0])  # 略小于圆轨道速度，椭圆
+    v0 = np.array([0.0, v_circ * 0.9, 0.0])
     state0 = np.concatenate([r0, v0])
 
-    # 确定性 RK4 积分（模拟 10 小时）
+
     t_array, states = dyn.integrate_deterministic(state0, (0.0, 36000.0), n_steps=2000)
     r_final = states[-1, :3]
     v_final = states[-1, 3:]
     print(f"  确定性轨道: 初始 r={r0}, 末态 r={r_final}")
     print(f"  末态速度 |v|={np.linalg.norm(v_final):.6e} km/s")
 
-    # 随机 SRK4 积分
+
     t_array_s, states_s = dyn.integrate_stochastic(
         state0, (0.0, 36000.0), n_steps=2000, q_spectral=1e-14
     )
     r_final_s = states_s[-1, :3]
     print(f"  随机轨道末态 r={r_final_s}")
 
-    # Newton-Cotes 积分验证：计算轨道周期积分
+
     def integrand(t):
         return np.sin(t) ** 2
 
@@ -277,10 +219,9 @@ def run_orbit_integrator_demo(sh_model, gm_km):
 
 
 def run_orbit_optimization_demo():
-    """测试轨道优化"""
     print_section("模块 7: 轨道参数优化 (box_behnken + backtrack_binary_rc)")
 
-    # 模拟的目标函数（基于参数快速估计）
+
     def mock_lifetime(params):
         a, e, i = params[0], params[1], params[2]
         return 86400.0 * (a / 3.0) * (1.0 - e) * np.cos(i)
@@ -299,12 +240,12 @@ def run_orbit_optimization_demo():
             weights=np.array([1.0, -0.5, -10.0])
         )
 
-    # Box-Behnken 敏感性分析
+
     param_names = ["semi_major_axis", "eccentricity", "inclination"]
     ranges = np.array([
-        [2.0, 5.0],    # a (km)
-        [0.0, 0.3],    # e
-        [0.0, 0.5]     # i (rad)
+        [2.0, 5.0],
+        [0.0, 0.3],
+        [0.0, 0.5]
     ])
     analysis = OrbitSensitivityAnalysis(param_names, ranges, objective)
     design, responses, main_effects = analysis.run_analysis()
@@ -315,9 +256,9 @@ def run_orbit_optimization_demo():
     print(f"  最优参数: a={best_params[0]:.4f}, e={best_params[1]:.4f}, i={best_params[2]:.4f}")
     print(f"  最优评分: {best_score:.4f}")
 
-    # 二进制回溯搜索（将参数空间离散化为二进制决策）
+
     def binary_objective(bits):
-        # 将 6 位二进制映射到 3 个参数，每个参数 2 位
+
         a = 2.0 + bits[0] * 1.0 + bits[1] * 2.0
         e = bits[2] * 0.1 + bits[3] * 0.2
         i = bits[4] * 0.2 + bits[5] * 0.3
@@ -328,29 +269,28 @@ def run_orbit_optimization_demo():
 
 
 def run_collision_risk_demo(vertices, faces):
-    """测试碰撞风险评估"""
     print_section("模块 8: 碰撞风险评估 (ball_distance + neighbor_risk)")
 
-    # 单位球距离统计
+
     mu_d, var_d = ball_distance_stats(n_samples=5000, seed=42)
     print(f"  单位球随机点距离统计: mean={mu_d:.6f}, var={var_d:.6e}")
     print(f"  理论均值 36/35 = {36.0/35.0:.6f}")
 
-    # 邻接矩阵
+
     adj = build_surface_adjacency_matrix(faces, vertices.shape[0])
     conn = region_connectivity_analysis(adj)
     print(f"  表面连通分量数: {conn['n_components']}")
     print(f"  各分量大小: {conn['component_sizes'][:10]}...")
     print(f"  图直径估计: {conn['diameter_est']}")
 
-    # 碰撞概率
+
     test_pos = np.array([2.5, 0.0, 0.0])
     p_coll = collision_probability_surface(
         test_pos, vertices, faces, safe_distance=0.5, position_uncertainty=0.1
     )
     print(f"  测试点 {test_pos} 碰撞概率: {p_coll:.6e}")
 
-    # 安全悬停区
+
     safe_points, safe_probs = find_safe_hover_regions(
         vertices, faces, min_altitude=1.0, n_samples=200, seed=42
     )
@@ -360,32 +300,30 @@ def run_collision_risk_demo(vertices, faces):
 
 
 def run_data_io_demo(vertices, faces):
-    """测试数据 I/O"""
     print_section("模块 9: 数据 I/O (xyz_io + filum)")
 
-    # 写入 XYZ 顶点文件
+
     out_dir = "."
     xyz_file = f"{out_dir}/asteroid_vertices.xyz"
     write_xyz_data(xyz_file, vertices, header="Synthetic asteroid vertices")
     print(f"  已写入顶点文件: {xyz_file}")
 
-    # 写入面片索引
+
     face_file = f"{out_dir}/asteroid_faces.txt"
     write_face_indices(face_file, faces, zero_based=True)
     print(f"  已写入面片文件: {face_file}")
 
-    # 合成点云生成
+
     pc = generate_synthetic_asteroid_pointcloud(a=2.0, b=1.5, c=1.0, n_theta=16, n_phi=16)
     print(f"  合成点云点数: {pc.shape[0]}")
 
-    # 字符串工具测试
+
     test_str = "v 1.0 2.0 3.0"
     wc = s_word_count(test_str)
     print(f"  字符串 '{test_str}' 单词数: {wc}")
 
 
 def run_combined_simulation(vertices, faces, sh_model, gm_km, r_ref_km, c_coeff, s_coeff):
-    """运行组合引力模型的综合仿真"""
     print_section("模块 10: 组合引力模型综合仿真")
 
     density = 2500.0
@@ -397,10 +335,10 @@ def run_combined_simulation(vertices, faces, sh_model, gm_km, r_ref_km, c_coeff,
 
     for pos in test_positions:
         r = np.linalg.norm(pos)
-        # TODO: Hole 3 — 调用组合引力模型并输出结果
-        # 需要正确传递位置、顶点、面片、球谐系数等参数，
-        # 并确保传入的 pos 和 vertices 单位与 combined_gravity_model 的预期一致。
-        # 注意：vertices 当前单位为 km，而 polyhedron 方法内部可能使用 m。
+
+
+
+
         raise NotImplementedError("Hole 3: 请实现组合模型的调用与结果输出")
 
 
@@ -415,34 +353,34 @@ def main():
 
     t_start = time.time()
 
-    # 1. 特殊函数
+
     run_special_functions_demo()
 
-    # 2. 几何建模
+
     vertices, faces, vol, com = run_geometry_demo()
 
-    # 3. 球谐引力场
+
     sh_model, gm_km, r_ref_km, c_coeff, s_coeff = run_gravity_harmonics_demo(vertices, faces, vol)
 
-    # 4. 多面体引力场
+
     run_polyhedron_gravity_demo(vertices, faces)
 
-    # 5. 有限元内部势
+
     run_fem_gravity_demo()
 
-    # 6. 轨道积分
+
     dyn = run_orbit_integrator_demo(sh_model, gm_km)
 
-    # 7. 轨道优化
+
     run_orbit_optimization_demo()
 
-    # 8. 碰撞风险
+
     run_collision_risk_demo(vertices, faces)
 
-    # 9. 数据 I/O
+
     run_data_io_demo(vertices, faces)
 
-    # 10. 组合仿真
+
     run_combined_simulation(vertices, faces, sh_model, gm_km, r_ref_km, c_coeff, s_coeff)
 
     t_elapsed = time.time() - t_start
@@ -450,7 +388,7 @@ def main():
     print(f"  全部计算完成，耗时: {t_elapsed:.3f} 秒")
     print("=" * 72)
 
-    # 输出关键科学结论
+
     print("\n【科学结论摘要】")
     print("  1. 通过 IFS 分形扰动与耳切三角剖分，成功构建了不规则小行星三维形状模型。")
     print("  2. 球谐系数由体积积分法从多面体形状自动估算，支持远场引力快速计算。")

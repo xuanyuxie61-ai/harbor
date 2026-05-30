@@ -1,21 +1,10 @@
-"""
-================================================================================
-冰期间冰期旋回轨道驱动数值模拟系统
-Orbital Forcing of Glacial-Interglacial Cycles: Numerical Simulation System
-================================================================================
-
-基于Milankovitch轨道理论的多尺度气候-冰盖耦合数值模拟。
-整合15个种子项目的核心算法，解决前沿博士级气候科学问题。
-
-运行方式:  python main.py  (零参数)
-"""
 
 import numpy as np
 import sys
 
-# ------------------------------------------------------------------------------
-# Import all scientific modules
-# ------------------------------------------------------------------------------
+
+
+
 from milankovitch_orbits import (
     compute_orbital_elements, compute_insolation_map,
     annual_mean_insolation, daily_insolation,
@@ -57,22 +46,16 @@ from utils import (
 
 
 def print_section(title):
-    """Print formatted section header."""
     print("\n" + "=" * 78)
     print(f"  {title}")
     print("=" * 78)
 
 
 def print_subsection(title):
-    """Print formatted subsection header."""
     print(f"\n--- {title} ---")
 
 
 def main():
-    """
-    Main execution pipeline.
-    Solves the coupled orbital-climate-ice sheet problem.
-    """
     print("\n" + "#" * 78)
     print("#  冰期间冰期旋回轨道驱动数值模拟系统")
     print("#  Orbital Forcing of Glacial-Interglacial Cycles")
@@ -81,12 +64,12 @@ def main():
 
     np.random.seed(42)
 
-    # ==========================================================================
-    # Part 1: Orbital Parameter Computation (Berger 1978 Theory)
-    # ==========================================================================
+
+
+
     print_section("PART 1: Milankovitch Orbital Parameter Evolution")
 
-    time_kyr = np.linspace(0, 800, 801)  # 0 to 800 kyr BP, 1 kyr resolution
+    time_kyr = np.linspace(0, 800, 801)
 
     print("Computing orbital elements over past 800 kyr...")
     ecc = np.zeros(len(time_kyr))
@@ -103,32 +86,32 @@ def main():
     print(f"  Obliquity range (deg):  [{np.rad2deg(np.min(obl)):.2f}, {np.rad2deg(np.max(obl)):.2f}]")
     print(f"  Precession range:       [{np.min(prec):.5f}, {np.max(prec):.5f}]")
 
-    # Test interpolation accuracy using Runge function
+
     print_subsection("Numerical Accuracy Validation (Runge Function Test)")
     err_cheb, err_eq = test_interpolation_accuracy()
     print(f"  Chebyshev interpolation max error:    {err_cheb:.6e}")
     print(f"  Equally-spaced interpolation error:   {err_eq:.6e}")
     print(f"  Chebyshev advantage factor:           {err_eq / max(err_cheb, 1e-15):.2f}x")
 
-    # ==========================================================================
-    # Part 2: Insolation and Energy Balance
-    # ==========================================================================
+
+
+
     print_section("PART 2: Solar Insolation and Energy Balance")
 
     latitudes = np.linspace(-90, 90, 37)
     print(f"Computing insolation at {len(latitudes)} latitudes...")
 
-    # Compute annual mean insolation at present day (t=0)
+
     e0, eps0, prec0 = compute_orbital_elements(0.0)
     insol_present = np.array([annual_mean_insolation(lat, e0, eps0, prec0) for lat in latitudes])
     print(f"  Present-day equatorial insolation:    {insol_present[len(latitudes)//2]:.1f} W/m^2")
     print(f"  Present-day polar insolation:         {insol_present[0]:.1f} W/m^2")
 
-    # Compute orbital forcing index
+
     F_orb = np.array([orbital_forcing_index(t) for t in time_kyr])
     print(f"  Orbital forcing range:                [{np.min(F_orb):.3f}, {np.max(F_orb):.3f}]")
 
-    # Zero-dimensional EBM equilibrium
+
     print_subsection("Zero-Dimensional EBM Equilibrium Analysis")
     Q_mean = np.mean(insol_present)
     T_eq = find_equilibrium_temperature_ebm(
@@ -140,23 +123,23 @@ def main():
     print(f"  Mean global insolation:               {Q_mean:.1f} W/m^2")
     print(f"  Equilibrium temperature:              {T_eq:.2f} K ({T_eq - 273.15:.2f} °C)")
 
-    # Residual check
+
     T_test = np.linspace(250, 310, 100)
     residuals = energy_balance_residual(T_test, Q_mean, latitudes, D=0.3)
     print(f"  Max energy residual at equilibrium:   {np.min(np.abs(residuals)):.4f} W/m^2")
 
-    # ==========================================================================
-    # Part 3: 2D Energy Balance Model (FEM Solver)
-    # ==========================================================================
+
+
+
     print_section("PART 3: 2D Energy Balance Model - Finite Element Solver")
 
     nodes, elements = create_spherical_mesh(n_lat=12, n_lon=24)
     print(f"  Mesh: {len(nodes)} nodes, {len(elements)} elements")
 
-    # Generate insolation field on mesh
+
     insol_field = np.zeros(len(nodes))
     for i in range(len(nodes)):
-        # Map back to latitude
+
         sin_lat = nodes[i, 0]
         lat_deg = np.rad2deg(np.arcsin(np.clip(sin_lat, -1, 1)))
         insol_field[i] = annual_mean_insolation(lat_deg, e0, eps0, prec0)
@@ -177,7 +160,7 @@ def main():
     print(f"  Temperature range:                    [{np.min(T_final):.2f}, {np.max(T_final):.2f}] K")
     check_numerical_stability("EBM FEM solution", T_final)
 
-    # Sparse matrix test (from r8sr)
+
     A_dense = np.eye(len(nodes)) * 0.5 + np.diag(np.ones(len(nodes) - 1) * 0.1, 1)
     A_dense += np.diag(np.ones(len(nodes) - 1) * 0.1, -1)
     sr = dense_to_r8sr(A_dense)
@@ -188,14 +171,14 @@ def main():
     sparse_err = np.max(np.abs(b_sparse - b_dense))
     print(f"  Sparse-dense matrix product error:    {sparse_err:.6e}")
 
-    # ==========================================================================
-    # Part 4: Coupled Climate-Ice Sheet Dynamics
-    # ==========================================================================
+
+
+
     print_section("PART 4: Coupled Climate-Ice Sheet Dynamics")
 
-    # Integrate for 200 kyr
+
     t_start = 0.0
-    t_end = 200000.0  # 200 kyr
+    t_end = 200000.0
     dt_years = 100.0
     n_steps = int((t_end - t_start) / dt_years)
 
@@ -205,7 +188,7 @@ def main():
         t_kyr = t / 1000.0
         return orbital_forcing_index(t_kyr)
 
-    # Initial state: [x, y, z, V_ice, T_global, h_bedrock]
+
     y0 = np.array([0.1, 0.0, 0.0, 20e6, 288.0, -500.0])
     t_array, sol = integrate_ice_climate(
         (t_start, t_end), y0, orbital_forcing_func,
@@ -220,20 +203,20 @@ def main():
     print(f"  Global temperature range:             [{np.min(T_global):.2f}, {np.max(T_global):.2f}] K")
     print(f"  Bedrock depression range:             [{np.min(h_bedrock):.1f}, {np.max(h_bedrock):.1f}] m")
 
-    # Ice line position
+
     ice_line = compute_ice_line_latitude(T_global, latitudes)
     print(f"  Current ice line latitude:            {ice_line:.1f}°")
 
     check_numerical_stability("Ice volume", V_ice)
     check_numerical_stability("Global temperature", T_global)
 
-    # ==========================================================================
-    # Part 5: Spectral Analysis (Haar Wavelet + Chebyshev)
-    # ==========================================================================
+
+
+
     print_section("PART 5: Multi-Resolution Spectral Analysis")
 
-    # Use ice volume as paleoclimate proxy signal
-    proxy_signal = V_ice / 1e6  # Scale to millions of km^3
+
+    proxy_signal = V_ice / 1e6
 
     print("Computing Haar wavelet power spectrum...")
     scales, power = haar_power_spectrum(proxy_signal, dt=dt_years/1000.0)
@@ -263,16 +246,16 @@ def main():
         peak_period = 1.0 / max(freqs_mt[peak_idx], 1e-10)
         print(f"  Dominant period (multitaper):         {peak_period:.1f} kyr")
 
-    # Spectral coherence between orbital forcing and climate response
+
     print("\nSpectral coherence (orbital forcing vs ice volume)...")
     _, coherence = spectral_coherence(F_orb[::int(dt_years/1000.0)][:len(proxy_signal)],
                                        proxy_signal, dt=dt_years/1000.0)
     mean_coh = np.mean(coherence)
     print(f"  Mean coherence:                       {mean_coh:.4f}")
 
-    # ==========================================================================
-    # Part 6: Spherical Discretization and Monte Carlo Integration
-    # ==========================================================================
+
+
+
     print_section("PART 6: Spherical Discretization & Monte Carlo Integration")
 
     print("Generating Fibonacci sphere point distribution...")
@@ -285,7 +268,7 @@ def main():
 
     print("Computing global integral via hexagonal patch Monte Carlo...")
     centers, areas = spherical_hex_patches(n_lat=18)
-    # Test function: constant 1 should give 4*pi
+
     def f_const(lat, lon):
         return 1.0
 
@@ -293,28 +276,28 @@ def main():
     print(f"  Integral of 1 over sphere:            {global_int:.4f} (exact: {4*np.pi:.4f})")
     print(f"  Relative error:                       {abs(global_int - 4*np.pi) / (4*np.pi) * 100:.2f}%")
 
-    # Hexagon integration test
+
     def f_hex_test(x, y):
         return x**2 + y**2
 
     hex_int = hexagon_monte_carlo_integrate(f_hex_test, n_samples=5000, radius=1.0)
-    hex_exact = 3.0 * np.sqrt(3.0) / 8.0  # Exact integral of x^2+y^2 over unit hexagon
+    hex_exact = 3.0 * np.sqrt(3.0) / 8.0
     print(f"  Hexagon Monte Carlo test:             {hex_int:.6f} (exact: {hex_exact:.6f})")
 
-    # Ball grid test
+
     from spherical_discretization import ball_grid_points, ball_grid_count
     bg_pts = ball_grid_points(3, 1.0, [0.0, 0.0, 0.0])
     expected_count = ball_grid_count(3)
     print(f"  Ball grid points (n=3, r=1):          {len(bg_pts)} (expected: {expected_count})")
 
-    # ==========================================================================
-    # Part 7: Nonlinear Solvers & Stability Analysis
-    # ==========================================================================
+
+
+
     print_section("PART 7: Nonlinear Solvers & Stability Analysis")
 
     print("Testing Newton-Maehly polynomial root finder...")
-    # Characteristic polynomial for stability analysis
-    # Example: lambda^4 + 3*lambda^3 + 5*lambda^2 + 4*lambda + 2 = 0
+
+
     test_poly = np.array([2.0, 4.0, 5.0, 3.0, 1.0])
     roots_nm = newton_maehly(test_poly, max_iter=200, tol=1e-10)
     print(f"  Found {len(roots_nm)} roots:")
@@ -324,13 +307,13 @@ def main():
         stability = "stable" if real_part < -1e-6 else ("unstable" if real_part > 1e-6 else "marginal")
         print(f"    {real_part:.6f} {imag_part:+.6f}j  ({stability})")
 
-    # Stability analysis of EBM Jacobian
+
     print("\nStability analysis of energy balance model...")
-    # Construct approximate Jacobian at equilibrium
+
     n_test = 5
     J_ebm = np.zeros((n_test, n_test))
     for i in range(n_test):
-        J_ebm[i, i] = -0.5  # Diagonal damping
+        J_ebm[i, i] = -0.5
         if i > 0:
             J_ebm[i, i - 1] = 0.1
         if i < n_test - 1:
@@ -340,10 +323,10 @@ def main():
     print(f"  Max real eigenvalue:                  {np.max(np.real(eigenvalues)):.6f}")
     print(f"  System stability:                     {stability}")
 
-    # Continuation method test
+
     print("\nContinuation method for climate bifurcation...")
     def ebm_residual(x, lam):
-        # Simple S-shaped curve for bifurcation
+
         return np.array([x[0]**3 - lam * x[0] + 0.5])
 
     lambdas, solutions = continuation_solver(
@@ -352,9 +335,9 @@ def main():
     print(f"  Traced {len(lambdas)} points along solution branch")
     print(f"  Parameter range:                      [{lambdas[0]:.3f}, {lambdas[-1]:.3f}]")
 
-    # ==========================================================================
-    # Part 8: Adaptive Mesh Refinement
-    # ==========================================================================
+
+
+
     print_section("PART 8: Adaptive Mesh Refinement (Greedy Algorithm)")
 
     print("Refining EBM mesh based on temperature gradient...")
@@ -366,9 +349,9 @@ def main():
     print(f"  Refined nodes/elements:               {stats['final_nodes']} / {stats['final_elements']}")
     print(f"  Refined elements:                     {stats['refined_elements']}")
 
-    # ==========================================================================
-    # Part 9: Climate Noise and Stochastic Forcing
-    # ==========================================================================
+
+
+
     print_section("PART 9: Stochastic Climate Forcing Analysis")
 
     print("Generating climate noise realizations...")
@@ -387,9 +370,9 @@ def main():
     grf_2d = generate_grf_1d(36 * 72, length_scale=0.05, sigma=1.0)
     print(f"  2D GRF (flattened): mean={np.mean(grf_2d):.3f}, std={np.std(grf_2d):.3f}")
 
-    # ==========================================================================
-    # Part 10: Summary and Validation
-    # ==========================================================================
+
+
+
     print_section("PART 10: Results Summary & Validation")
 
     print("\n  [A] ORBITAL FORCING")

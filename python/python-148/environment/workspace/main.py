@@ -1,24 +1,9 @@
-"""
-main.py — 多尺度神经场脑机接口信号解码系统
-=============================================
-统一入口，零参数运行。
-
-本项目将 15 个种子项目的核心算法融合为面向
-"神经计算：脑机接口信号解码" 的博士级计算系统。
-
-运行后将输出：
-  1. 合成神经信号统计摘要
-  2. E-I 神经质量模型稳定性分析（Jacobian、对数范数、Cauchy 根界）
-  3. 脑连接组拓扑与渗流分析（Fiedler 值、跨越簇检测）
-  4. BCI 解码性能评估（训练-测试框架）
-  5. 电极阵列几何与空间覆盖度
-"""
 
 import sys
 import os
 import numpy as np
 
-# 确保当前目录在路径中
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bci_decoder import BCIPipeline
@@ -52,7 +37,7 @@ def main():
     pipeline = BCIPipeline(random_state=148)
     results = pipeline.run_full_analysis()
 
-    # ===== 信号统计 =====
+
     print_section("1. 合成神经信号统计摘要")
     sig = results['signal_summary']
     print(f"  电极数量      : {sig['n_electrodes']}")
@@ -60,7 +45,7 @@ def main():
     print(f"  LFP 峰值幅度  : {sig['lfp_peak_amplitude']:.4f} mV (归一化)")
     print(f"  神经场峰值幅度: {sig['field_peak_amplitude']:.4f} (归一化)")
 
-    # ===== 稳定性分析 =====
+
     print_section("2. E-I 神经质量模型稳定性分析")
     stab = results['stability_analysis']
     print_subsection("平衡点")
@@ -82,7 +67,7 @@ def main():
     else:
         print("  => 系统存在不稳定模式，需要闭环反馈镇定")
 
-    # ===== 连接组分析 =====
+
     print_section("3. 脑连接组拓扑与渗流分析")
     conn = results['connectome_analysis']
     print(f"  Fiedler 值 (λ_2)     : {conn['fiedler_value']:.6f}")
@@ -92,7 +77,7 @@ def main():
     print(f"  => Fiedler 值反映图的全局连通强度；")
     print(f"     跨越簇的存在标志信息可从感觉皮层传播至运动皮层")
 
-    # ===== 解码性能 =====
+
     print_section("4. BCI 运动意图解码性能")
     perf = results['decoding_performance']
     print(f"  训练样本数      : 15")
@@ -103,7 +88,7 @@ def main():
     print(f"  解码器权重维度  : {perf['decoder_weights_shape']}")
     print(f"  => 解码误差量化了从神经信号恢复 2D 运动速度向量的精度")
 
-    # ===== 电极几何 =====
+
     print_section("5. 电极阵列几何与空间采样")
     geom = results['electrode_geometry']
     print(f"  电极数量        : {geom['n_electrodes']}")
@@ -112,7 +97,7 @@ def main():
     print(f"  => CVT 优化布局最小化 Voronoi 能量泛函，")
     print(f"     实现空间采样最优性")
 
-    # ===== 科学公式摘要 =====
+
     print_section("6. 核心科学公式摘要")
     print("""
   (a) E-I 神经质量模型:

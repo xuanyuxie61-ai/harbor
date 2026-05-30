@@ -1,45 +1,15 @@
-"""
-solute_diffusion.py
-溶质扩散、分凝与浓度场分析模块
-
-融合种子项目：
-- 1069_shallow_water_1d_display: 守恒律离散 → 浓度场守恒方程
-- 638_lagrange_nd: 多维拉格朗日插值 → 浓度场重采样与平滑
-
-溶质守恒方程 (Fick定律):
-    \frac{\partial C}{\partial t} = D \nabla^2 C
-    \frac{\partial C}{\partial t} + \nabla \cdot \mathbf{J} = 0,  \mathbf{J} = -D \nabla C
-
-界面处溶质分凝 (Gibbs-Thomson + 平衡分凝):
-    C_S = k_e C_L  (k_e = C_S / C_L 为平衡分凝系数)
-    v_n (C_L - C_S) = -D_L \left. \frac{\partial C}{\partial n} \right|_L + D_S \left. \frac{\partial C}{\partial n} \right|_S
-
-原子尺度浓度计算采用 Gaussian 涂抹:
-    C(\mathbf{r}) = \sum_i c_i W(\mathbf{r} - \mathbf{r}_i)
-    W(\mathbf{r}) = \frac{1}{(2\pi \sigma^2)^{3/2}} \exp\left( -\frac{r^2}{2\sigma^2} \right)
-"""
 
 import numpy as np
 from utils_numeric import safe_sqrt
 
 
 class SoluteField:
-    """原子尺度的溶质浓度场分析与扩散系数计算。"""
 
     def __init__(self, sigma=1.0, n_grid=(32, 32, 32)):
-        """
-        参数:
-            sigma: Gaussian涂抹宽度 (Angstrom)
-            n_grid: 欧拉网格分辨率
-        """
         self.sigma = float(sigma)
         self.n_grid = tuple(n_grid)
 
     def compute_concentration_on_grid(self, positions, species_idx, box):
-        """
-        将原子溶质分布映射到规则欧拉网格上。
-        species_idx: 0=溶剂, 1=溶质
-        """
         nx, ny, nz = self.n_grid
         C = np.zeros((nx, ny, nz), dtype=np.float64)
         density = np.zeros((nx, ny, nz), dtype=np.float64)
@@ -54,7 +24,7 @@ class SoluteField:
             ix0 = int(x / dx)
             iy0 = int(y / dy)
             iz0 = int(z / dz)
-            # 局部3x3x3卷积窗口
+
             for ix in range(max(0, ix0 - 1), min(nx, ix0 + 2)):
                 for iy in range(max(0, iy0 - 1), min(ny, iy0 + 2)):
                     for iz in range(max(0, iz0 - 1), min(nz, iz0 + 2)):
@@ -75,12 +45,11 @@ class SoluteField:
         return C, density
 
     def compute_concentration_gradient(self, C, box):
-        """在网格上计算浓度梯度 (中心差分)。"""
         nx, ny, nz = C.shape
         dx, dy, dz = box[0] / nx, box[1] / ny, box[2] / nz
         grad = np.zeros((nx, ny, nz, 3), dtype=np.float64)
 
-        # 周期性边界差分
+
         for ix in range(nx):
             ix_p = (ix + 1) % nx
             ix_m = (ix - 1) % nx
@@ -96,7 +65,6 @@ class SoluteField:
         return grad
 
     def compute_laplacian(self, C, box):
-        """计算浓度Laplacian。"""
         nx, ny, nz = C.shape
         dx, dy, dz = box[0] / nx, box[1] / ny, box[2] / nz
         lap = np.zeros_like(C)
@@ -117,10 +85,6 @@ class SoluteField:
         return lap
 
     def compute_segregation_coefficient(self, C, z_interface, box):
-        """
-        计算有效分凝系数 k_eff = <C>_S / <C>_L。
-        使用界面位置将网格分为固相区与液相区。
-        """
         nx, ny, nz = C.shape
         C_solid = []
         C_liquid = []
@@ -137,11 +101,6 @@ class SoluteField:
         return k_eff
 
     def mean_squared_displacement(self, trajectories, species_idx, target_species=1):
-        """
-        计算目标物种的均方位移 (MSD):
-            MSD(t) = \langle |\mathbf{r}_i(t) - \mathbf{r}_i(0)|^2 \rangle_{i \in target}
-        trajectories: list of (N,3) positions at different times.
-        """
         n_frames = len(trajectories)
         if n_frames < 2:
             return np.array([]), np.array([])
@@ -159,10 +118,9 @@ class SoluteField:
         return dt, msd
 
     def fit_diffusion_coefficient(self, dt, msd):
-        """从MSD线性区拟合扩散系数: D = MSD / (6t) (3D)。"""
         if len(dt) < 3:
             return 0.0
-        # 使用后半段数据线性拟合
+
         start = len(dt) // 3
         A = np.vstack([dt[start:], np.ones(len(dt) - start)]).T
         slope, _ = np.linalg.lstsq(A, msd[start:], rcond=None)[0]
@@ -171,13 +129,11 @@ class SoluteField:
 
 
 class LagrangeInterpolator3D:
-    """三维拉格朗日插值器，融合638_lagrange_nd的多维插值思想。"""
 
     def __init__(self, order=3):
         self.order = int(order)
 
     def _lagrange_basis_1d(self, x_target, x_nodes):
-        """一维拉格朗日基函数。"""
         n = len(x_nodes)
         result = np.zeros(n, dtype=np.float64)
         for i in range(n):
@@ -189,16 +145,11 @@ class LagrangeInterpolator3D:
         return result
 
     def interpolate(self, C, box, points):
-        """
-        将网格数据C插值到任意点集points上。
-        points: (M, 3)
-        返回: (M,) 插值结果
-        """
         nx, ny, nz = C.shape
         M = points.shape[0]
         result = np.zeros(M, dtype=np.float64)
 
-        # 简单三线性插值作为多维拉格朗日的低阶实现
+
         for p in range(M):
             x, y, z = points[p]
             ix = int(x / box[0] * nx)

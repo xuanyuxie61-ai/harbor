@@ -1,42 +1,25 @@
-"""
-工具函数模块
-
-通用数学工具和数值稳定性函数
-"""
 
 import numpy as np
 from typing import Tuple, Optional
 
 
 def safe_exp(x: np.ndarray, max_val: float = 700.0) -> np.ndarray:
-    """
-    安全指数函数，防止溢出
-    """
     x_clipped = np.clip(x, -max_val, max_val)
     return np.exp(x_clipped)
 
 
 def safe_log(x: np.ndarray, min_val: float = 1e-300) -> np.ndarray:
-    """
-    安全对数函数，防止负值和零
-    """
     x_safe = np.where(x > min_val, x, min_val)
     return np.log(x_safe)
 
 
 def normalize_array(x: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
-    """
-    数组归一化
-    """
     norm = np.linalg.norm(x, axis=axis, keepdims=True)
     return x / (norm + 1e-30)
 
 
 def finite_difference_gradient(f: callable, x: np.ndarray,
                                 h: float = 1e-6) -> np.ndarray:
-    """
-    中心差分梯度
-    """
     n = len(x)
     grad = np.zeros(n)
     for i in range(n):
@@ -49,19 +32,12 @@ def finite_difference_gradient(f: callable, x: np.ndarray,
 
 
 def relative_error(approx: float, exact: float) -> float:
-    """
-    相对误差
-    """
     if abs(exact) < 1e-30:
         return abs(approx - exact)
     return abs(approx - exact) / abs(exact)
 
 
 def convergence_rate(errors: np.ndarray) -> np.ndarray:
-    """
-    估计收敛率
-    r_k = log(error_{k+1} / error_k) / log(h_{k+1} / h_k)
-    """
     if len(errors) < 2:
         return np.array([])
     rates = np.zeros(len(errors) - 1)
@@ -76,9 +52,6 @@ def convergence_rate(errors: np.ndarray) -> np.ndarray:
 def check_array_bounds(arr: np.ndarray, name: str = "array",
                         min_val: Optional[float] = None,
                         max_val: Optional[float] = None) -> bool:
-    """
-    检查数组是否在指定范围内
-    """
     if np.any(np.isnan(arr)):
         raise ValueError(f"{name} 包含 NaN")
     if np.any(np.isinf(arr)):
@@ -91,11 +64,6 @@ def check_array_bounds(arr: np.ndarray, name: str = "array",
 
 
 def house_transform(v: np.ndarray) -> np.ndarray:
-    """
-    Householder 变换矩阵构造
-    融入 545_house 的核心思想
-    H = I - 2 u u^T / (u^T u)
-    """
     n = len(v)
     x = v.copy()
     alpha = -np.sign(x[0]) * np.linalg.norm(x)
@@ -111,9 +79,6 @@ def house_transform(v: np.ndarray) -> np.ndarray:
 
 
 def print_matrix_summary(A: np.ndarray, name: str = "Matrix"):
-    """
-    打印矩阵摘要信息
-    """
     print(f"\n{name}:")
     print(f"  Shape: {A.shape}")
     print(f"  Min: {np.min(A):.6e}")

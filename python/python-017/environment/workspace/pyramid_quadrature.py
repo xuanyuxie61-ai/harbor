@@ -1,24 +1,10 @@
-"""
-金字塔区域数值积分模块
-融合来源: 934_pyramid_jaskowiec_rule (Jaskowiec-Sukumar 高精度金字塔积分规则)
-
-功能:
-- 提供单位金字塔区域上的高精度对称求积规则
-- 用于多铁性薄膜三维自由能的体积分（厚度方向用金字塔映射处理梯度项）
-- 支持 0~20 阶精度
-
-数学背景:
-单位金字塔 P 定义为:
-    -1 <= x <= 1, -1 <= y <= 1, 0 <= z <= 1 - max(|x|, |y|)
-或等价地通过坐标变换从标准参考单元得到。
-"""
 
 import numpy as np
 from typing import Tuple
 
 
-# 预定义的 Jaskowiec-Sukumar 规则数据 (精度 0~5，用于演示)
-# 更高阶规则在科研中可扩展。这里融入原项目 rule_order 与具体规则的核心数值。
+
+
 
 _RULE_DATA = {
     0: {
@@ -94,30 +80,19 @@ _RULE_DATA = {
 
 
 def pyramid_jaskowiec_rule(p: int) -> Tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    返回单位金字塔区域上精度为 p 的 Jaskowiec-Sukumar 求积规则。
-
-    参数:
-        p: 目标精度，0 <= p <= 5（演示集），可扩展至 20。
-
-    返回:
-        n:  求积点数
-        x, y, z: 求积点坐标
-        w: 求积权重
-    """
     if p < 0:
         raise ValueError("精度 p 不能为负")
     if p > 20:
         raise ValueError("精度 p 超过最大支持值 20")
 
-    # 对于 p > 5，回退到 p=5（演示目的）
+
     effective_p = min(p, 5)
     data = _RULE_DATA[effective_p]
     x = data['x'].copy()
     y = data['y'].copy()
     z = data['z'].copy()
     w = data['w'].copy()
-    # 归一化权重，使其和等于单位金字塔体积 8/3
+
     w_sum = float(np.sum(w))
     target_vol = pyramid_unit_volume()
     if abs(w_sum - target_vol) > 1e-12:
@@ -126,17 +101,10 @@ def pyramid_jaskowiec_rule(p: int) -> Tuple[int, np.ndarray, np.ndarray, np.ndar
 
 
 def pyramid_unit_volume() -> float:
-    """单位金字塔体积 V = 8/3。"""
     return 8.0 / 3.0
 
 
 def integrate_over_pyramid(f, p: int = 4) -> float:
-    """
-    使用 Jaskowiec-Sukumar 规则计算函数 f(x,y,z) 在单位金字塔上的积分。
-
-    数学公式:
-        I ≈ Σ_{k=1}^{n} w_k * f(x_k, y_k, z_k)
-    """
     n, x, y, z, w = pyramid_jaskowiec_rule(p)
     total = 0.0
     for i in range(n):
@@ -149,11 +117,6 @@ def integrate_over_pyramid(f, p: int = 4) -> float:
 def map_pyramid_to_physical(x_ref: float, y_ref: float, z_ref: float,
                             x0: float, y0: float, z0: float,
                             Lx: float, Ly: float, h: float) -> Tuple[float, float, float]:
-    """
-    将参考金字塔坐标映射到物理坐标。
-    这里将单位金字塔 (-1<=x,y<=1, 0<=z<=1-max(|x|,|y|)) 映射到以 (x0,y0,z0)
-    为底面中心、底面尺寸 Lx x Ly、高度 h 的金字塔/截断金字塔区域。
-    """
     x_phys = x0 + x_ref * Lx * 0.5
     y_phys = y0 + y_ref * Ly * 0.5
     z_phys = z0 + z_ref * h

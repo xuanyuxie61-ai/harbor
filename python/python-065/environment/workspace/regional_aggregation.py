@@ -1,47 +1,8 @@
-"""
-regional_aggregation.py
-
-基于 118_brc_naive 核心算法的区域气候统计聚合模块。
-
-原项目 brc_naive 实现了十亿记录挑战的朴素解法，按城市聚合温度统计
-（最小值、平均值、最大值）。
-
-在本气候归因框架中，我们将其改造为按气候区域聚合极端事件统计量：
-- 区域标识与匹配
-- 区域平均异常强度
-- 区域最大异常强度
-- 区域事件频率
-- 区域总面积/体积积分
-
-核心公式：
-- 区域平均：μ_R = (1/N_R) Σ_{i∈R} x_i
-- 区域方差：σ²_R = (1/(N_R-1)) Σ_{i∈R} (x_i - μ_R)^2
-- 区域极值：x_max,R = max_{i∈R} x_i
-- 区域事件频率：f_R = N_extreme,R / N_R
-- 区域总能量：E_R = Σ_{i∈R} |x_i| * A_i
-"""
 
 import numpy as np
 
 
 def region_match(region_id, region_list, region_count):
-    """
-    在区域列表中查找给定区域的索引（基于 118_city_match）。
-
-    Parameters
-    ----------
-    region_id : hashable
-        待查找的区域标识。
-    region_list : list
-        已有区域列表。
-    region_count : int
-        当前区域数量。
-
-    Returns
-    -------
-    int
-        区域索引，若不存在则返回 -1。
-    """
     for i in range(region_count):
         if region_list[i] == region_id:
             return i
@@ -49,23 +10,6 @@ def region_match(region_id, region_list, region_count):
 
 
 def aggregate_regional_statistics(region_ids, values, areas=None):
-    """
-    按区域聚合气候统计量。
-
-    Parameters
-    ----------
-    region_ids : ndarray, shape (N,)
-        每个格点的区域标识。
-    values : ndarray, shape (N,)
-        每个格点的气候异常值。
-    areas : ndarray, shape (N,), optional
-        每个格点的面积权重。
-
-    Returns
-    -------
-    stats : dict
-        {region_id: {"mean", "min", "max", "count", "sum", "var", "area_sum"}}
-    """
     region_ids = np.asarray(region_ids)
     values = np.asarray(values)
     if areas is None:
@@ -108,13 +52,6 @@ def aggregate_regional_statistics(region_ids, values, areas=None):
 
 def compute_regional_extreme_index(stats, weight_mean=0.3, weight_max=0.4,
                                     weight_freq=0.3):
-    """
-    计算综合区域极端事件指数（REI）。
-
-    公式：
-        REI = w_1 * (μ_R / μ_global) + w_2 * (x_max / x_max_global)
-              + w_3 * f_R
-    """
     global_mean = np.mean([s["mean"] for s in stats.values()])
     global_max = np.max([s["max"] for s in stats.values()]) if stats else 1.0
 
@@ -134,9 +71,6 @@ def compute_regional_extreme_index(stats, weight_mean=0.3, weight_max=0.4,
 
 
 def climate_region_summary(grid_regions, grid_anomalies, grid_areas=None):
-    """
-    生成完整的区域气候摘要报告。
-    """
     stats = aggregate_regional_statistics(grid_regions, grid_anomalies, grid_areas)
     rei = compute_regional_extreme_index(stats)
     return {"stats": stats, "rei": rei}

@@ -1,28 +1,9 @@
-"""
-io_config.py — 配置解析与数据输入输出
-
-融合以下种子项目：
-- 1418_xml2struct : XML 配置解析
-- 1062_scip_solution_read : 解文件读取（参数解）
-- 351_fd_to_tec : 有限差分数据格式化输出
-- 1310_triangle_io : Triangle 网格数据读写
-
-功能：
-1. 读取 XML 格式的地核发电机模型配置
-2. 读写数值模拟结果（节点值、单元值、时间序列）
-3. 格式化输出为类 TECPLOT 的 ASCII 数据文件
-4. 参数解的解析与验证
-"""
 
 import numpy as np
 import xml.etree.ElementTree as ET
 
 
 def xml2struct(file_path):
-    """
-    将 XML 文件转换为嵌套字典（源自 1418_xml2struct）。
-    支持属性、文本内容和多层嵌套。
-    """
     def elem_to_dict(elem):
         result = {}
         if elem.attrib:
@@ -45,9 +26,6 @@ def xml2struct(file_path):
 
 
 def struct2xml(data, file_path):
-    """
-    将嵌套字典写回 XML 文件。
-    """
     def dict_to_elem(parent, tag, value):
         if isinstance(value, dict):
             child = ET.SubElement(parent, tag)
@@ -75,9 +53,6 @@ def struct2xml(data, file_path):
 
 
 class DynamoConfig:
-    """
-    地核发电机模型配置管理器。
-    """
 
     def __init__(self, config_dict=None):
         self.params = {
@@ -139,15 +114,11 @@ class DynamoConfig:
 
 
 def read_scip_solution(filename, nx):
-    """
-    读取 SCIP 优化解文件（源自 1062_scip_solution_read）。
-    此处用于读取优化后的边界条件参数。
-    """
     x = np.zeros(nx, dtype=int)
     with open(filename, 'r') as f:
         lines = f.readlines()
 
-    # 跳过前 2 行
+
     for line in lines[2:]:
         stripped = line.strip()
         if not stripped:
@@ -165,16 +136,6 @@ def read_scip_solution(filename, nx):
 
 
 def write_tecplot_ascii(filename, nodes, values_dict, elements=None):
-    """
-    输出类 TECPLOT ASCII 数据文件（源自 351_fd_to_tec）。
-
-    格式：
-      TITLE = "..."
-      VARIABLES = "X", "Y", "Z", "Var1", ...
-      ZONE N=..., E=..., DATAPACKING=POINT, ZONETYPE=FETETRAHEDRON
-      <节点数据>
-      <单元连接>
-    """
     n_nodes = len(nodes)
     var_names = ['X', 'Y', 'Z'] + list(values_dict.keys())
     n_vars = len(var_names)
@@ -190,7 +151,7 @@ def write_tecplot_ascii(filename, nodes, values_dict, elements=None):
         f.write(f'ZONE N={n_nodes}, E={n_elements}, DATAPACKING=POINT, '
                 f'ZONETYPE={zone_type}\n')
 
-        # 节点数据
+
         for i in range(n_nodes):
             line_vals = [nodes[i, 0], nodes[i, 1], nodes[i, 2]]
             for key in values_dict:
@@ -201,17 +162,13 @@ def write_tecplot_ascii(filename, nodes, values_dict, elements=None):
                     line_vals.append(val[i])
             f.write(' '.join([f'{v:.8e}' for v in line_vals]) + '\n')
 
-        # 单元数据
+
         if has_elements:
             for elem in elements:
                 f.write(' '.join([str(int(idx) + 1) for idx in elem]) + '\n')
 
 
 def read_fd_data(filename, n_cols_expected=None):
-    """
-    读取有限差分格式数据文件（源自 351_fd_to_tec）。
-    返回 (n_points, n_cols) 数组。
-    """
     data = []
     with open(filename, 'r') as f:
         for line in f:
@@ -230,9 +187,6 @@ def read_fd_data(filename, n_cols_expected=None):
 
 
 def save_timeseries(filename, times, data_dict):
-    """
-    保存时间序列数据。
-    """
     with open(filename, 'w') as f:
         f.write('# Time ' + ' '.join(data_dict.keys()) + '\n')
         for i, t in enumerate(times):
@@ -247,9 +201,6 @@ def save_timeseries(filename, times, data_dict):
 
 
 def load_timeseries(filename):
-    """
-    加载时间序列数据。
-    """
     with open(filename, 'r') as f:
         header = f.readline().strip()
     names = header.replace('#', '').strip().split()

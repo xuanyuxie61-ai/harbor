@@ -1,40 +1,13 @@
-"""
-etdrk4_solver.py
-Exponential Time Differencing Runge-Kutta 4 (ETDRK4) spectral solver.
-
-Adapted from:
-  - 630_kursiv_pde_etdrk4: ETDRK4 for Kuramoto-Sivashinsky PDE
-
-Role in synthesis:
-  Solves the stiff linear diffusion-advection part of the eco-epidemiological
-  PDE system using Fourier spectral methods with exponential integrators.
-"""
 
 import numpy as np
 
 
 def compute_etdrk4_coefficients(L: np.ndarray, dt: float, M: int = 16) -> dict:
-    """
-    Precompute ETDRK4 coefficients via contour integrals.
-
-    Parameters
-    ----------
-    L : ndarray
-        Linear operator in Fourier space (diagonal).
-    dt : float
-        Time step.
-    M : int
-        Number of roots of unity for contour integral.
-
-    Returns
-    -------
-    coeffs : dict with keys E, E2, Q, f1, f2, f3
-    """
     N = len(L)
     E = np.exp(dt * L)
     E2 = np.exp(dt * L / 2.0)
 
-    # Contour integral for coefficients
+
     Q = np.zeros(N, dtype=complex)
     f1 = np.zeros(N, dtype=complex)
     f2 = np.zeros(N, dtype=complex)
@@ -42,13 +15,13 @@ def compute_etdrk4_coefficients(L: np.ndarray, dt: float, M: int = 16) -> dict:
 
     for i in range(N):
         if abs(L[i]) < 1e-10:
-            # Taylor expansion for small L
+
             Q[i] = dt ** 2 / 2.0 - dt ** 3 * L[i] / 6.0
             f1[i] = dt ** 3 / 3.0 - dt ** 4 * L[i] / 8.0
             f2[i] = dt ** 3 / 6.0 - dt ** 4 * L[i] / 24.0
             f3[i] = dt ** 3 / 6.0 - dt ** 4 * L[i] / 12.0
         else:
-            # Contour integral via roots of unity
+
             r = np.exp(1j * np.pi * (np.arange(M) + 0.5) / M)
             z = dt * L[i] + r
             Q[i] = dt * np.mean((np.exp(z / 2.0) - 1.0) / z)
@@ -67,9 +40,6 @@ def compute_etdrk4_coefficients(L: np.ndarray, dt: float, M: int = 16) -> dict:
 
 
 class ETDRK4Solver:
-    """
-    ETDRK4 solver for systems of reaction-diffusion-advection PDEs on periodic domains.
-    """
 
     def __init__(
         self,
@@ -93,12 +63,12 @@ class ETDRK4Solver:
         self.vx = vx
         self.vy = vy
 
-        # Fourier wave numbers
+
         self.kx = 2.0 * np.pi * np.fft.fftfreq(nx, d=Lx / nx)
         self.ky = 2.0 * np.pi * np.fft.fftfreq(ny, d=Ly / ny)
         self.KX, self.KY = np.meshgrid(self.kx, self.ky, indexing='ij')
 
-        # Linear operators in Fourier space: L = -D*(kx^2 + ky^2) - i*(vx*kx + vy*ky)
+
         self.L = []
         self.coeffs = []
         for i in range(n_fields):
@@ -107,36 +77,21 @@ class ETDRK4Solver:
             self.coeffs.append(compute_etdrk4_coefficients(Li.ravel(), dt))
 
     def step(self, u: np.ndarray, nonlinear_func) -> np.ndarray:
-        """
-        Take one ETDRK4 step.
-
-        Parameters
-        ----------
-        u : ndarray, shape (n_fields, nx, ny)
-            Current state in physical space.
-        nonlinear_func : callable
-            Function N(u) returning nonlinear terms in physical space.
-
-        Returns
-        -------
-        u_new : ndarray
-            Updated state in physical space.
-        """
         n_fields = self.n_fields
         nx, ny = self.nx, self.ny
 
-        # Transform to Fourier space
+
         v = np.zeros((n_fields, nx, ny), dtype=complex)
         for i in range(n_fields):
             v[i] = np.fft.fft2(u[i])
 
-        # Compute nonlinear term in physical space
+
         N_phys = nonlinear_func(u)
         Nv = np.zeros((n_fields, nx, ny), dtype=complex)
         for i in range(n_fields):
             Nv[i] = np.fft.fft2(N_phys[i])
 
-        # ETDRK4 stages
+
         a = np.zeros((n_fields, nx, ny), dtype=complex)
         b = np.zeros((n_fields, nx, ny), dtype=complex)
         c = np.zeros((n_fields, nx, ny), dtype=complex)
@@ -164,7 +119,7 @@ class ETDRK4Solver:
 
             v_new[i] = E * vi + Nvi * f1 + 2.0 * (Na + Nb) * f2 + Nc * f3
 
-        # Transform back to physical space
+
         u_new = np.zeros((n_fields, nx, ny))
         for i in range(n_fields):
             u_new[i] = np.fft.ifft2(v_new[i]).real
@@ -172,18 +127,12 @@ class ETDRK4Solver:
         return u_new
 
     def solve(self, u0: np.ndarray, nonlinear_func, n_steps: int) -> np.ndarray:
-        """
-        Solve for n_steps ETDRK4 steps.
-        """
         u = u0.copy()
         for _ in range(n_steps):
             u = self.step(u, nonlinear_func)
         return u
 
     def solve_with_history(self, u0: np.ndarray, nonlinear_func, n_steps: int, save_every: int = 1) -> np.ndarray:
-        """
-        Solve and return history.
-        """
         u = u0.copy()
         history = [u.copy()]
         for step in range(n_steps):

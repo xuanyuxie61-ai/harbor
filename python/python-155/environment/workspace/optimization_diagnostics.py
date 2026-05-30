@@ -1,29 +1,16 @@
-"""
-Optimization and convergence diagnostics for quantum walk parameters.
-Incorporates: nonlin_newton (Newton-Raphson optimization),
-              levels (random contour sampling),
-              full_deck_simulation (coupon collector / cover time),
-              steinerberger (pathological integration tests).
-"""
 import numpy as np
 from typing import Callable, List, Optional, Tuple
 
 
-# ---------------------------------------------------------------------------
-# Newton-Raphson method (from nonlin_newton)
-# ---------------------------------------------------------------------------
+
+
+
 def newton_raphson(f: Callable[[float], float],
                    df: Callable[[float], float],
                    x0: float,
                    tol: float = 1e-10,
                    max_iter: int = 50,
                    divergence_factor: float = 100.0) -> Tuple[float, bool, int]:
-    """Find root of f(x) = 0 using Newton's method.
-    Returns (root, converged, iterations).
-    Includes robust boundary handling:
-      - Stops if |f'(x)| < 1e-8
-      - Stops if |f(x)| exceeds divergence_factor * |f(x0)|
-    """
     x = x0
     f0 = f(x0)
     for it in range(max_iter):
@@ -43,9 +30,6 @@ def newton_raphson(f: Callable[[float], float],
 def find_optimal_coin_angle(success_prob_func: Callable[[float], float],
                             angle0: float = 0.5,
                             bracket: Tuple[float, float] = (0.0, np.pi / 2.0)) -> dict:
-    """Find optimal coin angle by maximizing success probability.
-    Uses golden-section search combined with local Newton refinement.
-    """
     a, b = bracket
     phi = (1.0 + np.sqrt(5.0)) / 2.0
     resphi = 2.0 - phi
@@ -77,16 +61,13 @@ def find_optimal_coin_angle(success_prob_func: Callable[[float], float],
 
 def find_critical_gamma(gap_func: Callable[[float], float],
                         gamma0: float = 1.0) -> dict:
-    """Find critical gamma that maximizes spectral gap.
-    Uses Newton's method on the derivative of the gap function.
-    """
     def obj(g):
         return -gap_func(g)
 
     def obj_deriv(g, h=1e-6):
         return (-gap_func(g + h) + gap_func(g - h)) / (2.0 * h)
 
-    # Golden section first
+
     a, b = 0.01, 5.0
     phi = (1.0 + np.sqrt(5.0)) / 2.0
     resphi = 2.0 - phi
@@ -107,12 +88,11 @@ def find_critical_gamma(gap_func: Callable[[float], float],
     }
 
 
-# ---------------------------------------------------------------------------
-# Random level sampling for landscape analysis (from levels)
-# ---------------------------------------------------------------------------
+
+
+
 def random_level_sample(values: np.ndarray, num_levels: int,
                         seed: Optional[int] = None) -> np.ndarray:
-    """Sample random contour levels from a probability landscape."""
     if seed is not None:
         np.random.seed(seed)
     if num_levels <= 0 or values.size == 0:
@@ -125,7 +105,6 @@ def random_level_sample(values: np.ndarray, num_levels: int,
 
 def analyze_search_landscape(prob_evolution: np.ndarray,
                              num_levels: int = 20) -> dict:
-    """Analyze the probability landscape using random level sampling."""
     levels = random_level_sample(prob_evolution, num_levels)
     stats = {
         "levels": levels.tolist(),
@@ -140,7 +119,6 @@ def analyze_search_landscape(prob_evolution: np.ndarray,
 
 
 def detect_local_maxima(evolution: np.ndarray) -> List[Tuple[int, float]]:
-    """Detect local maxima in an evolution array."""
     maxima = []
     for i in range(1, len(evolution) - 1):
         if evolution[i] > evolution[i - 1] and evolution[i] > evolution[i + 1]:
@@ -148,14 +126,11 @@ def detect_local_maxima(evolution: np.ndarray) -> List[Tuple[int, float]]:
     return maxima
 
 
-# ---------------------------------------------------------------------------
-# Coupon collector / cover time analysis (from full_deck_simulation)
-# ---------------------------------------------------------------------------
+
+
+
 def coupon_collector_simulation(n_items: int, num_trials: int = 1000,
                                 seed: Optional[int] = None) -> dict:
-    """Simulate the coupon collector problem (cover time).
-    Compares classical random walk cover time with quantum walk expectations.
-    """
     if seed is not None:
         np.random.seed(seed)
     draws = np.zeros(num_trials, dtype=int)
@@ -168,10 +143,10 @@ def coupon_collector_simulation(n_items: int, num_trials: int = 1000,
             count += 1
         draws[t] = count
 
-    # Theoretical exact values
+
     H_n = np.sum(1.0 / np.arange(1, n_items + 1))
     expected_exact = n_items * H_n
-    # Variance exact
+
     var_exact = 0.0
     for i in range(2, n_items + 1):
         var_exact += (i - 1.0) / ((n_items - i + 1.0) ** 2)
@@ -191,10 +166,6 @@ def coupon_collector_simulation(n_items: int, num_trials: int = 1000,
 
 
 def compare_classical_quantum_cover_time(n: int, graph_degree: float = 4.0) -> dict:
-    """Theoretical comparison of classical vs quantum cover times.
-    Classical cover time on regular graph: O(n log n)
-    Quantum search time: O(sqrt(n / degree))
-    """
     classical = n * np.log(max(n, 2))
     quantum = np.sqrt(n / graph_degree)
     return {
@@ -205,22 +176,19 @@ def compare_classical_quantum_cover_time(n: int, graph_degree: float = 4.0) -> d
     }
 
 
-# ---------------------------------------------------------------------------
-# Convergence diagnostics
-# ---------------------------------------------------------------------------
+
+
+
 def convergence_rate_analysis(errors: np.ndarray) -> dict:
-    """Analyze convergence rate from error sequence.
-    Fits log(error) vs iteration to estimate convergence order.
-    """
     if len(errors) < 3:
         return {"order": None, "rate": 0.0}
-    # Exclude zero errors
+
     valid = errors > 1e-15
     if np.sum(valid) < 3:
         return {"order": None, "rate": 0.0}
     iters = np.arange(len(errors))[valid]
     log_err = np.log(errors[valid])
-    # Linear fit: log(e_k) = log(C) + p * log(k)
+
     A = np.vstack([np.log(iters + 1), np.ones(len(iters))]).T
     p, logC = np.linalg.lstsq(A, log_err, rcond=None)[0]
     return {
@@ -232,6 +200,5 @@ def convergence_rate_analysis(errors: np.ndarray) -> dict:
 
 def residual_norm_history(A_mult: Callable, b: np.ndarray,
                           x_history: List[np.ndarray]) -> np.ndarray:
-    """Compute residual norms for a sequence of iterates."""
     residuals = np.array([np.linalg.norm(b - A_mult(x)) for x in x_history])
     return residuals

@@ -1,56 +1,12 @@
-"""
-Structural Reliability Analysis and Optimization Module
-========================================================
-Based on projects:
-  - 834_opt_golden (golden section search)
-  - 052_asa245 (gamma/log-gamma special functions)
-
-Implements First-Order Reliability Method (FORM) and Second-Order
-Reliability Method (SORM) with golden-section optimization for finding
-the design point (most probable point of failure).
-
-Key formulas:
-- Limit state function: g(x) = 0 defines failure surface
-- Standard normal transformation: u = Phi^{-1}(F_X(x))
-- Reliability index: beta = min ||u|| subject to g(x(u)) = 0
-- Failure probability: P_f ≈ Phi(-beta)  (FORM)
-- SORM correction: P_f ≈ Phi(-beta) * prod_i (1 + beta*kappa_i)^{-1/2}
-  where kappa_i are principal curvatures at design point.
-
-- Gamma function for chi-square and gamma distributions:
-  Gamma(z) = integral_0^inf t^{z-1} e^{-t} dt
-  log Gamma via Lanczos approximation for numerical stability.
-"""
 
 import numpy as np
 
 
-# ============================================================================
-# Gamma and Special Functions (Project 052_asa245)
-# ============================================================================
+
+
+
 
 def lngamma(z):
-    """
-    Compute log(Gamma(z)) using Lanczos approximation.
-    
-    For z > 0:
-    log Gamma(z) ≈ (z-0.5)*log(z+6.5) - (z+6.5) + log(C(z))
-    where C(z) = sqrt(2*pi) * [a0 + sum_j a_j / (z + j)]
-    
-    Coefficients from Lanczos (1964) with g=7, n=9.
-    
-    Parameters
-    ----------
-    z : float or ndarray
-        Argument (must be positive).
-    
-    Returns
-    -------
-    value : float or ndarray
-        log(Gamma(z)).
-    ier : int
-        0 if success, 1 if z <= 0.
-    """
     z = np.asarray(z, dtype=float)
     
     a = np.array([
@@ -86,18 +42,6 @@ def lngamma(z):
 
 
 def gamma_function(z):
-    """
-    Compute Gamma(z) = exp(log Gamma(z)).
-    
-    Parameters
-    ----------
-    z : float or ndarray
-        Positive argument.
-    
-    Returns
-    -------
-    value : float or ndarray
-    """
     lg, ier = lngamma(z)
     if ier != 0:
         return np.full_like(np.asarray(z), np.nan)
@@ -105,21 +49,6 @@ def gamma_function(z):
 
 
 def chi2_pdf(x, k):
-    """
-    Chi-square probability density function.
-    
-    f(x; k) = x^{k/2 - 1} * exp(-x/2) / (2^{k/2} * Gamma(k/2))
-    
-    Parameters
-    ----------
-    x : float or ndarray
-    k : int
-        Degrees of freedom.
-    
-    Returns
-    -------
-    pdf : float or ndarray
-    """
     x_arr = np.asarray(x, dtype=float)
     x_safe = np.maximum(x_arr, 0.0)
     half_k = k / 2.0
@@ -136,48 +65,20 @@ def chi2_pdf(x, k):
 
 
 def rayleigh_pdf(x, sigma):
-    """
-    Rayleigh PDF for amplitude of narrow-band Gaussian process.
-    
-    f(x; sigma) = (x / sigma^2) * exp(-x^2 / (2*sigma^2))
-    
-    Parameters
-    ----------
-    x : float or ndarray
-    sigma : float
-        Scale parameter.
-    
-    Returns
-    -------
-    pdf : float or ndarray
-    """
     x = np.asarray(x, dtype=float)
     x = np.maximum(x, 0.0)
     return (x / (sigma ** 2)) * np.exp(-x ** 2 / (2.0 * sigma ** 2))
 
 
 def normal_cdf(x):
-    """
-    Standard normal cumulative distribution function.
-    
-    Phi(x) = 0.5 * [1 + erf(x / sqrt(2))]
-    
-    Parameters
-    ----------
-    x : float or ndarray
-    
-    Returns
-    -------
-    cdf : float or ndarray
-    """
     from math import erf
     x_arr = np.asarray(x, dtype=float)
     
-    # Vectorized erf
+
     try:
         result = 0.5 * (1.0 + np.vectorize(erf)(x_arr / np.sqrt(2.0)))
     except Exception:
-        # Manual approximation for large values
+
         result = np.zeros_like(x_arr)
         for i, val in enumerate(x_arr.flat):
             try:
@@ -187,44 +88,12 @@ def normal_cdf(x):
     return result
 
 
-# ============================================================================
-# Golden Section Optimization (Project 834_opt_golden)
-# ============================================================================
+
+
+
 
 def golden_section_search(f, a, b, n_iter=50, x_tol=1e-8):
-    """
-    Golden section search for minimizer of unimodal function f on [a, b].
-    
-    Golden ratio: phi = (sqrt(5) - 1) / 2 ≈ 0.618
-    
-    Algorithm:
-    1. Set x1 = b - phi*(b-a), x2 = a + phi*(b-a)
-    2. Evaluate f1 = f(x1), f2 = f(x2)
-    3. If f1 < f2: b = x2, x2 = x1, f2 = f1, compute new x1
-       Else:       a = x1, x1 = x2, f1 = f2, compute new x2
-    4. Repeat until |b-a| < tol
-    
-    Parameters
-    ----------
-    f : callable
-        Unimodal function.
-    a, b : float
-        Initial bracket.
-    n_iter : int
-        Maximum iterations.
-    x_tol : float
-        Interval tolerance.
-    
-    Returns
-    -------
-    x_min : float
-        Estimated minimizer.
-    f_min : float
-        Function value at minimum.
-    it : int
-        Number of iterations performed.
-    """
-    phi = (np.sqrt(5.0) - 1.0) / 2.0  # ~0.618
+    phi = (np.sqrt(5.0) - 1.0) / 2.0
     
     x1 = b - phi * (b - a)
     x2 = a + phi * (b - a)
@@ -254,26 +123,6 @@ def golden_section_search(f, a, b, n_iter=50, x_tol=1e-8):
 
 
 def line_search_armijo(f, df, x0, direction, alpha_init=1.0, c=1e-4, rho=0.5):
-    """
-    Backtracking line search satisfying Armijo condition.
-    
-    f(x + alpha*d) <= f(x) + c*alpha*df(x)^T*d
-    
-    Parameters
-    ----------
-    f : callable
-    df : callable
-        Gradient.
-    x0 : ndarray
-    direction : ndarray
-    alpha_init : float
-    c : float
-    rho : float
-    
-    Returns
-    -------
-    alpha : float
-    """
     alpha = alpha_init
     f0 = f(x0)
     df0 = df(x0)
@@ -287,44 +136,11 @@ def line_search_armijo(f, df, x0, direction, alpha_init=1.0, c=1e-4, rho=0.5):
     return alpha
 
 
-# ============================================================================
-# FORM/SORM Reliability Methods
-# ============================================================================
+
+
+
 
 def form_reliability(g_func, dg_du, u0=None, dim=2, max_iter=50, tol=1e-6):
-    """
-    First-Order Reliability Method (FORM).
-    
-    Iteratively find the design point u* minimizing ||u|| subject to g(u)=0.
-    
-    HL-RF (Hasofer-Lind Rackwitz-Fiessler) algorithm:
-    1. Initialize u
-    2. Compute g(u) and grad_g(u)
-    3. Update: u_{k+1} = [grad_g^T u_k - g(u_k)] / ||grad_g||^2 * grad_g
-    4. Converge when ||u_{k+1} - u_k|| < tol
-    
-    Parameters
-    ----------
-    g_func : callable
-        Limit state function g(u).
-    dg_du : callable
-        Gradient of g with respect to u.
-    u0 : ndarray, optional
-        Initial guess.
-    dim : int
-        Dimension of standard normal space.
-    max_iter : int
-    tol : float
-    
-    Returns
-    -------
-    beta : float
-        Reliability index.
-    u_star : ndarray
-        Design point.
-    P_f_form : float
-        FORM failure probability.
-    """
     if u0 is None:
         u = np.zeros(dim)
     else:
@@ -338,7 +154,7 @@ def form_reliability(g_func, dg_du, u0=None, dim=2, max_iter=50, tol=1e-6):
         if grad_norm_sq < 1e-20:
             break
         
-        # HL-RF update
+
         alpha = -grad_g / np.sqrt(grad_norm_sq)
         beta_k = (np.dot(grad_g, u) - g_val) / np.sqrt(grad_norm_sq)
         u_new = beta_k * alpha
@@ -357,30 +173,10 @@ def form_reliability(g_func, dg_du, u0=None, dim=2, max_iter=50, tol=1e-6):
 
 
 def form_with_golden_search(g_func, dim=2, beta_max=5.0, n_directions=36):
-    """
-    Alternative FORM using golden section search along radial directions.
-    
-    For each direction theta, find beta such that g(beta*theta) = 0
-    using golden section search on |g(beta*theta)|.
-    
-    Parameters
-    ----------
-    g_func : callable
-    dim : int
-    beta_max : float
-    n_directions : int
-        Number of angular directions to search.
-    
-    Returns
-    -------
-    beta : float
-    u_star : ndarray
-    P_f : float
-    """
     best_beta = beta_max
     best_u = None
     
-    # Search over angular directions in standard normal space
+
     if dim == 2:
         angles = np.linspace(0, 2 * np.pi, n_directions, endpoint=False)
         for theta in angles:
@@ -399,7 +195,7 @@ def form_with_golden_search(g_func, dim=2, beta_max=5.0, n_directions=36):
             except Exception:
                 continue
     else:
-        # For higher dimensions, use random directions
+
         np.random.seed(42)
         for _ in range(n_directions):
             direction = np.random.randn(dim)
@@ -427,31 +223,6 @@ def form_with_golden_search(g_func, dim=2, beta_max=5.0, n_directions=36):
 
 
 def sorm_reliability(g_func, dg_du, d2g_du2, u_star, beta):
-    """
-    Second-Order Reliability Method (SORM) correction.
-    
-    Breitung's formula:
-    P_f_sorm ≈ Phi(-beta) * prod_{i=1}^{n-1} (1 + beta * kappa_i)^{-1/2}
-    
-    where kappa_i are principal curvatures of the failure surface at u*.
-    
-    Parameters
-    ----------
-    g_func : callable
-    dg_du : callable
-    d2g_du2 : callable
-        Hessian matrix of g.
-    u_star : ndarray
-        Design point.
-    beta : float
-        Reliability index.
-    
-    Returns
-    -------
-    P_f_sorm : float
-    curvatures : ndarray
-        Principal curvatures.
-    """
     grad = dg_du(u_star)
     hess = d2g_du2(u_star)
     grad_norm = np.linalg.norm(grad)
@@ -459,25 +230,25 @@ def sorm_reliability(g_func, dg_du, d2g_du2, u_star, beta):
     if grad_norm < 1e-14 or beta < 1e-10:
         return 1.0 - normal_cdf(beta), np.array([])
     
-    # Normalized gradient (outward normal)
+
     n_vec = grad / grad_norm
     
-    # Projection matrix onto tangent plane
+
     dim = len(u_star)
     P = np.eye(dim) - np.outer(n_vec, n_vec)
     
-    # Scaled Hessian on tangent plane
+
     H_tilde = P @ hess @ P / grad_norm
     
-    # Eigenvalues of H_tilde restricted to tangent plane
-    # (one eigenvalue will be ~0 corresponding to normal direction)
+
+
     eigvals = np.linalg.eigvalsh(H_tilde)
     eigvals = np.sort(eigvals)
     
-    # Principal curvatures (exclude the zero associated with normal)
+
     curvatures = eigvals[1:] if len(eigvals) > 1 else eigvals
     
-    # Breitung correction
+
     correction = 1.0
     for kappa in curvatures:
         factor = 1.0 + beta * kappa

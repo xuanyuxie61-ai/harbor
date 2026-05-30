@@ -1,41 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-mesh_handler.py
-基于 ice_to_medit（NETCDF/MEDIT 网格转换）与 gmsh_to_fem（GMSH 到 FEM 转换），
-实现超表面仿真域的网格 I/O、节点/单元管理与质量评估。
-
-核心科学问题：
-  电磁仿真（FDTD/FEM/BEM）需要高质量的非结构化网格来离散化 Maxwell 方程。
-  对于超表面结构，通常采用四面体或三角形网格剖分介电/金属区域。
-  网格质量直接影响数值色散误差与矩阵条件数。
-
-关键公式：
-  1. 四面体体积（行列式公式）:
-       V = |det( [v1-v0, v2-v0, v3-v0] )| / 6
-  2. 三角形面积:
-       A = | (v1-v0) × (v2-v0) | / 2
-  3. 单元质量指标（aspect ratio）:
-       Q = 6 √6 · V / (Σ l_i²)^{3/2}
-     其中 l_i 为六条边长，Q ∈ [0,1]，1 为正四面体。
-  4. 节点坐标范围检测:
-       dim = 3 if z_max ≠ z_min else 2 if y_max ≠ y_min else 1
-"""
 
 import numpy as np
 
 
 def read_simple_mesh(filename):
-    """
-    读取简化的文本格式网格文件（参考 gmsh_to_fem 的节点/单元读取）。
-    格式：
-      NODES
-      n_nodes
-      x y z [label]
-      ...
-      ELEMENTS
-      n_elements
-      elem_type node1 node2 ... [label]
-    """
     nodes = []
     node_labels = []
     elements = []
@@ -69,7 +37,7 @@ def read_simple_mesh(filename):
                 if len(parts) < 2:
                     continue
                 coords = list(map(float, parts[:3]))
-                # 若只有 2D 坐标，补零
+
                 while len(coords) < 3:
                     coords.append(0.0)
                 nodes.append(coords[:3])
@@ -81,7 +49,7 @@ def read_simple_mesh(filename):
                 parts = line.split()
                 if len(parts) < 2:
                     continue
-                # 第一个整数为单元类型（3=triangle, 4=tetrahedron）
+
                 elem_type = int(parts[0])
                 conn = list(map(int, parts[1:1 + elem_type]))
                 elements.append(conn)
@@ -101,9 +69,6 @@ def read_simple_mesh(filename):
 
 def write_simple_mesh(filename, nodes, elements, elem_types=None,
                       node_labels=None, element_labels=None):
-    """
-    写出简化网格文件（参考 ice_to_medit 的 mesh_write 思想）。
-    """
     nodes = np.asarray(nodes, dtype=float)
     elements = np.asarray(elements, dtype=int)
     n_nodes = nodes.shape[0]
@@ -133,10 +98,6 @@ def write_simple_mesh(filename, nodes, elements, elem_types=None,
 
 
 def detect_dimension(nodes):
-    """
-    检测节点数据的维度（参考 gmsh_size_read 中的维度推断）。
-    若 z 坐标全同则 dim=2，若 y 也全同则 dim=1。
-    """
     nodes = np.asarray(nodes, dtype=float)
     if nodes.shape[0] == 0:
         return 0
@@ -154,10 +115,6 @@ def detect_dimension(nodes):
 
 
 def compute_tetrahedron_volume(nodes, tet):
-    """
-    计算单个四面体体积（参考 ice_to_medit 的 tetrahedron 几何）。
-    V = |det(v1-v0, v2-v0, v3-v0)| / 6
-    """
     v0 = nodes[tet[0]]
     v1 = nodes[tet[1]]
     v2 = nodes[tet[2]]
@@ -168,9 +125,6 @@ def compute_tetrahedron_volume(nodes, tet):
 
 
 def compute_triangle_area(nodes, tri):
-    """
-    计算单个三角形面积。
-    """
     v0 = nodes[tri[0]]
     v1 = nodes[tri[1]]
     v2 = nodes[tri[2]]
@@ -180,12 +134,6 @@ def compute_triangle_area(nodes, tri):
 
 
 def compute_mesh_quality(nodes, elements, elem_types):
-    """
-    计算网格单元质量指标：
-      - 四面体：Q = 6√6 V / (Σ l_i²)^{3/2}
-      - 三角形：Q = 4√3 A / (a² + b² + c²)
-    返回各单元的质量值与平均质量。
-    """
     nodes = np.asarray(nodes, dtype=float)
     elements = np.asarray(elements, dtype=int)
     elem_types = np.asarray(elem_types, dtype=int)
@@ -196,7 +144,7 @@ def compute_mesh_quality(nodes, elements, elem_types):
         etype = elem_types[i]
         elem = elements[i]
         if etype == 3 or len(elem) == 3:
-            # 三角形
+
             v0, v1, v2 = nodes[elem[0]], nodes[elem[1]], nodes[elem[2]]
             a = np.linalg.norm(v1 - v0)
             b = np.linalg.norm(v2 - v1)
@@ -208,7 +156,7 @@ def compute_mesh_quality(nodes, elements, elem_types):
             else:
                 qualities[i] = 0.0
         elif etype == 4 or len(elem) == 4:
-            # 四面体
+
             vol = compute_tetrahedron_volume(nodes, elem)
             edge_sum_sq = 0.0
             edges = [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]
@@ -228,10 +176,6 @@ def compute_mesh_quality(nodes, elements, elem_types):
 
 
 def generate_unit_cube_mesh(nx=5, ny=5, nz=5):
-    """
-    生成单位立方体的简单结构化四面体网格，用于测试。
-    返回 nodes, elements, elem_types。
-    """
     x = np.linspace(0, 1, nx)
     y = np.linspace(0, 1, ny)
     z = np.linspace(0, 1, nz)
@@ -251,7 +195,7 @@ def generate_unit_cube_mesh(nx=5, ny=5, nz=5):
     for k in range(nz - 1):
         for j in range(ny - 1):
             for i in range(nx - 1):
-                # 将一个立方体拆分为 5 或 6 个四面体，这里简化为 6 个
+
                 p0 = idx_map[(i, j, k)]
                 p1 = idx_map[(i + 1, j, k)]
                 p2 = idx_map[(i + 1, j + 1, k)]

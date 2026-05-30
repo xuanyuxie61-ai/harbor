@@ -1,36 +1,8 @@
-"""
-quadrature_rules.py
-================================================================================
-高斯-帕特森求积规则模块 —— 基于种子项目 851_patterson_rule
-
-在 LES 的湍流统计量计算中，需要高精度数值积分来评估：
-- 平均场量：⟨u⟩, ⟨v⟩, ⟨w⟩, ⟨θ⟩
-- 二阶矩：⟨u'u'⟩, ⟨u'w'⟩, ⟨w'θ'⟩ 等
-- 高阶结构函数：S_p(r) = ⟨(u(x+r) - u(x))^p⟩
-
-Gauss-Patterson 规则是嵌套高斯求积规则，具有最优的代数精度。
-
-核心物理公式
---------------------------------------------------------------------------------
-一维积分：
-    ∫_{-1}^{1} f(x) dx ≈ Σ_{i=1}^{n} w_i f(x_i)
-
-对于截断到 [-1,1] 的 Gauss-Patterson 规则，节点数 n 为：
-    n ∈ {1, 3, 7, 15, 31, 63, 127, 255, 511}
-
-三维积分（用于统计量体积平均）：
-    ∫_V f(x,y,z) dV ≈ Σ_{i,j,k} w_i w_j w_k f(x_i, y_j, z_k)  ΔV
-
-能量耗散率的空间平均：
-    ε = 2 ν ⟨s_{ij} s_{ij}⟩
-
-其中 s_{ij} = 1/2 (∂u_i/∂x_j + ∂u_j/∂x_i) 为应变率张量。
-"""
 
 import numpy as np
 
 
-# Gauss-Patterson 节点与权重（预计算到 n=31）
+
 _PATTERSON_TABLE = {
     1: {
         'x': np.array([0.0]),
@@ -90,83 +62,24 @@ _PATTERSON_TABLE = {
 
 
 def get_patterson_rule(n):
-    """
-    获取 Gauss-Patterson 求积规则。
-
-    参数
-    ----------
-    n : int
-        节点数，必须是 1, 3, 7, 15, 31 之一
-
-    返回
-    -------
-    x, w : np.ndarray
-        节点与权重（在 [-1,1] 区间）
-    """
     if n not in _PATTERSON_TABLE:
         raise ValueError(f"get_patterson_rule: 不支持的阶数 {n}，支持 {list(_PATTERSON_TABLE.keys())}")
     return _PATTERSON_TABLE[n]['x'].copy(), _PATTERSON_TABLE[n]['w'].copy()
 
 
 def rescale_rule(x, w, a, b):
-    """
-    将 [-1, 1] 上的求积规则缩放到 [a, b]。
-
-    参数
-    ----------
-    x, w : np.ndarray
-        标准区间上的节点与权重
-    a, b : float
-        目标区间
-
-    返回
-    -------
-    x_new, w_new : np.ndarray
-    """
     scale = (b - a) / 2.0
     shift = (a + b) / 2.0
     return x * scale + shift, w * scale
 
 
 def patterson_integrate_1d(f_func, a, b, order=15):
-    """
-    使用 Gauss-Patterson 规则计算一维积分。
-
-    参数
-    ----------
-    f_func : callable
-        被积函数
-    a, b : float
-        积分上下限
-    order : int
-        求积阶数
-
-    返回
-    -------
-    result : float
-    """
     x_std, w_std = get_patterson_rule(order)
     x, w = rescale_rule(x_std, w_std, a, b)
     return np.sum(w * f_func(x))
 
 
 def patterson_integrate_3d(f_func, xlim, ylim, zlim, order=7):
-    """
-    使用张量积 Gauss-Patterson 规则计算三维积分。
-
-    参数
-    ----------
-    f_func : callable
-        f_func(x, y, z) → scalar or array
-    xlim, ylim, zlim : tuple
-        (min, max) 区间
-    order : int
-        每个维度的求积阶数
-
-    返回
-    -------
-    result : float
-    """
     x_std, w_x = get_patterson_rule(order)
     y_std, w_y = get_patterson_rule(order)
     z_std, w_z = get_patterson_rule(order)
@@ -185,24 +98,7 @@ def patterson_integrate_3d(f_func, xlim, ylim, zlim, order=7):
 
 
 def compute_energy_dissipation_rate(u, v, w, dx, dy, dz, nu):
-    """
-    计算体积平均湍动能耗散率 ε = 2 ν ⟨s_{ij} s_{ij}⟩。
 
-    参数
-    ----------
-    u, v, w : np.ndarray, shape (nx, ny, nz)
-        速度分量
-    dx, dy, dz : float
-        网格间距
-    nu : float
-        运动粘性系数
-
-    返回
-    -------
-    epsilon : float
-        平均耗散率（m²/s³）
-    """
-    # 中心差分计算速度梯度
     def central_diff(f, axis, h):
         df = np.zeros_like(f)
         slc_p = [slice(None)] * 3
@@ -226,7 +122,7 @@ def compute_energy_dissipation_rate(u, v, w, dx, dy, dz, nu):
     dwdy = central_diff(w, 1, dy)
     dwdz = central_diff(w, 2, dz)
 
-    # 应变率张量 s_ij = 0.5 (∂u_i/∂x_j + ∂u_j/∂x_i)
+
     s11 = dudx
     s22 = dvdy
     s33 = dwdz
@@ -234,10 +130,10 @@ def compute_energy_dissipation_rate(u, v, w, dx, dy, dz, nu):
     s13 = 0.5 * (dudz + dwdx)
     s23 = 0.5 * (dvdz + dwdy)
 
-    # 2 s_ij s_ij
+
     s2 = 2.0 * (s11**2 + s22**2 + s33**2 + 2.0 * s12**2 + 2.0 * s13**2 + 2.0 * s23**2)
 
-    # 体积平均（仅内部点）
+
     nx, ny, nz = u.shape
     n_inner = (nx - 2) * (ny - 2) * (nz - 2)
     if n_inner <= 0:

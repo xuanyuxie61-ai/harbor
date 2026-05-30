@@ -1,20 +1,3 @@
-"""
-mesh_generator.py
-================================================================================
-2D unstructured triangular mesh generation for battery cell cross-sections.
-
-Injects core algorithms from:
-  - 757_mesh2d         (quadtree decomposition, constrained Delaunay triangulation,
-                        spring-based smoothing, edge splitting)
-  - 1117_sphere_fibonacci_grid  (quasi-uniform point distribution, adapted for
-                                 2D domain seeding)
-
-Scientific role:
-  Generates a high-quality triangular mesh over the prismatic cell geometry
-  for the 2D thermal FEM solver. Uses quadtree background mesh for size
-  function and iterative Laplacian smoothing with boundary preservation.
-================================================================================
-"""
 
 import numpy as np
 from typing import Tuple, List
@@ -26,19 +9,12 @@ def in_rectangle(x: float, y: float, x1: float, x2: float, y1: float, y2: float)
 
 
 def generate_structured_triangle_mesh(nx: int, ny: int, geometry: BatteryCellGeometry) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Generate a structured triangular mesh over the battery cell geometry.
-    Returns (nodes, elements, region_tags).
-    nodes: shape (N, 2)
-    elements: shape (M, 3) integer connectivity
-    region_tags: shape (M,) string tags for each element centroid
-    """
     tw = geometry.total_width
     th = geometry.total_height
     dx = tw / nx
     dy = th / ny
 
-    # Generate nodes on regular grid
+
     nodes = []
     node_index = {}
     idx = 0
@@ -46,17 +22,17 @@ def generate_structured_triangle_mesh(nx: int, ny: int, geometry: BatteryCellGeo
         for i in range(nx + 1):
             x = i * dx
             y = j * dy
-            # Also include tab regions with extra nodes
+
             nodes.append([x, y])
             node_index[(i, j)] = idx
             idx += 1
 
-    # Add tab nodes if tabs extend beyond main rectangle
+
     tab_extra = []
-    # Simplified: just use main rectangle nodes; tabs handled by classification
+
     nodes = np.array(nodes, dtype=float)
 
-    # Build elements by splitting each rectangle into 2 triangles
+
     elements = []
     region_tags = []
     for j in range(ny):
@@ -65,10 +41,10 @@ def generate_structured_triangle_mesh(nx: int, ny: int, geometry: BatteryCellGeo
             n2 = node_index[(i + 1, j)]
             n3 = node_index[(i + 1, j + 1)]
             n4 = node_index[(i, j + 1)]
-            # Diagonal from bottom-left to top-right
+
             elements.append([n1, n2, n3])
             elements.append([n1, n3, n4])
-            # Classify based on centroid
+
             cx = (i + 0.5) * dx
             cy = (j + 0.5) * dy
             tag = geometry.classify_point(cx, cy)
@@ -82,13 +58,9 @@ def generate_structured_triangle_mesh(nx: int, ny: int, geometry: BatteryCellGeo
 
 def laplacian_smooth_mesh(nodes: np.ndarray, elements: np.ndarray,
                           boundary_mask: np.ndarray, n_iter: int = 10) -> np.ndarray:
-    """
-    Laplacian smoothing with boundary preservation.
-    Maps from mesh2d/smoothmesh.m.
-    """
     new_nodes = nodes.copy()
     n = len(nodes)
-    # Build adjacency
+
     adj = [set() for _ in range(n)]
     for tri in elements:
         for k in range(3):
@@ -110,11 +82,6 @@ def laplacian_smooth_mesh(nodes: np.ndarray, elements: np.ndarray,
 
 
 def compute_element_quality(nodes: np.ndarray, elements: np.ndarray) -> np.ndarray:
-    """
-    Compute triangle quality metric q = 4*sqrt(3)*A / (a^2+b^2+c^2).
-    q=1 for equilateral, q=0 for degenerate.
-    Maps from mesh2d/quality.m.
-    """
     n_elem = len(elements)
     quality = np.zeros(n_elem, dtype=float)
     for e in range(n_elem):
@@ -123,7 +90,7 @@ def compute_element_quality(nodes: np.ndarray, elements: np.ndarray) -> np.ndarr
         a = np.linalg.norm(p2 - p1)
         b = np.linalg.norm(p3 - p2)
         c = np.linalg.norm(p1 - p3)
-        # Area via cross product
+
         area = 0.5 * abs((p2[0] - p1[0]) * (p3[1] - p1[1]) -
                          (p3[0] - p1[0]) * (p2[1] - p1[1]))
         denom = a * a + b * b + c * c
@@ -135,7 +102,6 @@ def compute_element_quality(nodes: np.ndarray, elements: np.ndarray) -> np.ndarr
 
 
 def build_boundary_mask(nodes: np.ndarray, elements: np.ndarray) -> np.ndarray:
-    """Identify boundary nodes as those belonging to only one element edge."""
     n = len(nodes)
     edge_count = {}
     for tri in elements:
@@ -152,10 +118,6 @@ def build_boundary_mask(nodes: np.ndarray, elements: np.ndarray) -> np.ndarray:
 
 
 def fibonacci_seeding_2d(n_points: int, bbox: Tuple[float, float, float, float]) -> np.ndarray:
-    """
-    Adapt Fibonacci spiral idea (from 1117_sphere_fibonacci_grid) to 2D
-    for quasi-uniform seed point generation inside a bounding box.
-    """
     phi = (1.0 + np.sqrt(5.0)) / 2.0
     x_min, x_max, y_min, y_max = bbox
     points = np.zeros((n_points, 2), dtype=float)

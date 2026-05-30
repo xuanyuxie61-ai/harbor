@@ -1,38 +1,8 @@
-"""
-脑血流动力学 — 血流周期性与循环检测模块
-
-基于 cycle_brent（Brent 循环检测算法），检测脑血管网络中的周期性血流振荡、
-心率谐波与病理状态（如脑血管痉挛）引发的异常周期模式。
-
-科学背景:
-- 正常脑血流具有心搏周期性（约 1 Hz），可用迭代映射 x_{n+1} = f(x_n) 建模。
-- 在病理状态（如蛛网膜下腔出血后的血管痉挛）中，血流可能呈现异常周期或
-  准周期振荡。
-- Brent 算法可在 O(μ + λ) 时间内检测迭代序列中的周期，其中 μ 为进入周期
-  前的步数，λ 为周期长度。
-- 脑血管自动调节可建模为离散动力学系统:
-    CBF_{n+1} = f(CBF_n, MAP_n, PaCO2_n)
-  其中 CBF 为脑血流量，MAP 为平均动脉压，PaCO2 为动脉血二氧化碳分压。
-"""
 
 import numpy as np
 
 
 def cycle_brent(f, x0):
-    """
-    Brent 循环检测算法。
-    对于迭代映射 x_{n+1} = f(x_n)，检测首次进入循环的位置 μ 与周期长度 λ。
-
-    算法步骤:
-        1. 初始化: power=1, λ=1, tortoise=x0, hare=f(x0)
-        2. while tortoise != hare:
-               if power == λ: tortoise = hare; power *= 2; λ = 0
-               hare = f(hare); λ += 1
-        3. 寻找 μ: tortoise = x0; hare = x0; 将 hare 前进 λ 步
-        4. 同步前进 tortoise 与 hare，直到相遇
-
-    返回: (lam, mu)
-    """
     power = 1
     lam = 1
     tortoise = x0
@@ -61,23 +31,13 @@ def cycle_brent(f, x0):
 
 
 def cerebrovascular_autoregulation_map(cbf, params):
-    """
-    脑血管自动调节离散映射。
-    建模为:
-        CBF_{n+1} = CBF_n + k1 * (MAP - MAP_ss) / MAP_ss - k2 * (CBF_n - CBF_ss) / CBF_ss
-                  - k3 * sin(2π f_heart n dt)
-
-    参数:
-        cbf: 当前脑血流量 [mL/100g/min]
-        params: 参数字典
-    """
     MAP = params['MAP']
     MAP_ss = params['MAP_ss']
     CBF_ss = params['CBF_ss']
     k1 = params.get('k1', 0.1)
     k2 = params.get('k2', 0.2)
     k3 = params.get('k3', 2.0)
-    f_heart = params.get('f_heart', 1.17)  # Hz (70 bpm)
+    f_heart = params.get('f_heart', 1.17)
     dt = params.get('dt', 0.01)
     n = params.get('step', 0)
 
@@ -88,22 +48,18 @@ def cerebrovascular_autoregulation_map(cbf, params):
 
 
 def detect_hemodynamic_cycles(cbf_series, params):
-    """
-    检测脑血流时间序列中的周期性。
-    将时间序列映射为离散状态后使用 Brent 算法检测循环。
-    """
-    # 将连续 CBF 值离散化为整数状态（保留 2 位小数）
+
     states = np.round(np.asarray(cbf_series, dtype=float) * 100).astype(int)
 
     if len(states) < 2:
         return None, None, []
 
-    # 构建有限状态转移
+
     unique_states = list(sorted(set(states)))
     state_to_idx = {s: i for i, s in enumerate(unique_states)}
     n_unique = len(unique_states)
 
-    # 构建转移函数表
+
     transitions = {}
     for i in range(len(states) - 1):
         s = states[i]
@@ -127,10 +83,6 @@ def detect_hemodynamic_cycles(cbf_series, params):
 
 
 def analyze_frequency_content(signal, dt):
-    """
-    使用 FFT 分析血流信号的频谱成分。
-    返回主要频率与对应幅值。
-    """
     signal = np.asarray(signal, dtype=float)
     n = len(signal)
     if n < 2:
@@ -142,18 +94,12 @@ def analyze_frequency_content(signal, dt):
 
 
 def classify_flow_regime(lam, mu, freqs, amps, dt):
-    """
-    基于周期检测结果与频谱分析对血流状态分类:
-        - normal: 检测到心搏周期 (~1 Hz)
-        - arrhythmic: 无显著周期
-        - pathological: 检测到异常低频或高频振荡
-    """
     if freqs is None or len(freqs) == 0:
         return 'insufficient_data'
 
-    # 寻找主频
+
     if len(amps) > 1:
-        dominant_idx = np.argmax(amps[1:]) + 1  # 忽略直流分量
+        dominant_idx = np.argmax(amps[1:]) + 1
         dominant_freq = freqs[dominant_idx]
         dominant_amp = amps[dominant_idx]
     else:

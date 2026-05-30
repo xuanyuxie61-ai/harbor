@@ -1,35 +1,9 @@
-"""
-mesh_topology.py
-================================================================================
-有限元网格拓扑管理与解析模块
-
-基于种子项目：
-  - 749_medit_to_ice：MEDIT 网格格式解析与 NetCDF 写入
-
-科学背景：
-  地下水溶质运移的数值模拟通常基于有限元（FEM）或有限差分（FDM）方法，
-  需要高质量的计算网格。本模块提供一维线段网格和二维三角形/四边形网格的
-  拓扑数据结构，支持：
-    - 节点、单元、边界的编号管理
-    - 材料分区标记（用于刻画非均质含水层）
-    - 网格质量度量（纵横比、最小角、Jacobian）
-
-  一维网格用于解析解对比和快速概念模型；二维网格用于剖面或平面视图上的
-  溶质羽流模拟。
-================================================================================
-"""
 
 import numpy as np
 from typing import List, Tuple, Optional
 
 
 class Mesh1D:
-    """
-    一维有限元网格：线段单元上的节点分布。
-
-    对于定义在 [x_min, x_max] 上的 1D 对流-弥散方程，
-    网格离散为 n_elements 个单元，共 n_nodes = n_elements + 1 个节点。
-    """
 
     def __init__(self, x_min: float, x_max: float, n_elements: int,
                  zone_labels: Optional[np.ndarray] = None):
@@ -44,7 +18,7 @@ class Mesh1D:
         self.nodes = np.linspace(x_min, x_max, self.n_nodes)
         self.element_length = (x_max - x_min) / n_elements
 
-        # 材料分区标记：每个节点或单元可属于不同水文地质单元
+
         if zone_labels is not None:
             if len(zone_labels) != self.n_nodes:
                 raise ValueError("zone_labels 长度必须等于节点数")
@@ -58,7 +32,6 @@ class Mesh1D:
         return self.nodes[i]
 
     def element_nodes(self, e: int) -> Tuple[int, int]:
-        """返回单元 e 的左、右节点全局编号。"""
         if e < 0 or e >= self.n_elements:
             raise IndexError("单元索引越界")
         return (e, e + 1)
@@ -68,16 +41,14 @@ class Mesh1D:
         return 0.5 * (self.nodes[left] + self.nodes[right])
 
     def refine(self, factor: int = 2) -> "Mesh1D":
-        """均匀细化网格，factor 为每个单元细分的份数。"""
         if factor < 2:
             raise ValueError("细化倍数必须 ≥ 2")
         new_ne = self.n_elements * factor
-        # 简单插值 zone_labels
+
         new_labels = np.repeat(self.zone_labels, factor)[:new_ne + 1]
         return Mesh1D(self.x_min, self.x_max, new_ne, new_labels)
 
     def quality_report(self) -> dict:
-        """返回网格质量指标。"""
         h_min = np.min(np.diff(self.nodes))
         h_max = np.max(np.diff(self.nodes))
         return {
@@ -90,12 +61,6 @@ class Mesh1D:
 
 
 class Mesh2D:
-    """
-    二维有限元网格：简化的结构化矩形/三角形网格。
-
-    对于平面二维溶质运移问题，结构化网格由 (nx, ny) 个单元组成，
-    节点按行优先排列：node_id = i + j * (nx+1)。
-    """
 
     def __init__(self, xlim: Tuple[float, float], ylim: Tuple[float, float],
                  nx: int, ny: int, triangular: bool = False):
@@ -111,16 +76,16 @@ class Mesh2D:
         self.n_nodes = self.n_nodes_x * self.n_nodes_y
         self.n_elements = nx * ny * (2 if triangular else 1)
 
-        # 生成节点坐标
+
         x = np.linspace(xlim[0], xlim[1], self.n_nodes_x)
         y = np.linspace(ylim[0], ylim[1], self.n_nodes_y)
         xv, yv = np.meshgrid(x, y, indexing='xy')
         self.node_coords = np.column_stack([xv.ravel(), yv.ravel()])
 
-        # 生成单元连通性
+
         self.elements = self._build_elements()
 
-        # 边界节点标记：0=内部, 1=左, 2=右, 4=下, 8=上
+
         self.boundary_markers = np.zeros(self.n_nodes, dtype=int)
         for j in range(self.n_nodes_y):
             for i in range(self.n_nodes_x):
@@ -150,18 +115,17 @@ class Mesh2D:
         return elems
 
     def element_area(self, e: int) -> float:
-        """计算单元面积（三角形或四边形）。"""
         if e < 0 or e >= len(self.elements):
             raise IndexError("单元索引越界")
         conn = self.elements[e]
         coords = self.node_coords[conn, :]
         if len(conn) == 3:
-            # 三角形面积 = 0.5 * |cross|
+
             v1 = coords[1] - coords[0]
             v2 = coords[2] - coords[0]
             return 0.5 * abs(np.cross(v1, v2))
         elif len(conn) == 4:
-            # 四边形拆分为两个三角形
+
             v1 = coords[1] - coords[0]
             v2 = coords[3] - coords[0]
             a1 = 0.5 * abs(np.cross(v1, v2))
@@ -173,7 +137,6 @@ class Mesh2D:
             raise ValueError("Unsupported element type")
 
     def get_boundary_nodes(self, marker_mask: int) -> np.ndarray:
-        """返回具有指定边界标记的节点索引。"""
         return np.where((self.boundary_markers & marker_mask) != 0)[0]
 
     def quality_report(self) -> dict:
@@ -188,14 +151,6 @@ class Mesh2D:
 
 
 def parse_well_locations(data_lines: List[str]) -> List[dict]:
-    """
-    解析 ASCII 格式的监测井坐标数据。
-
-    输入格式示例：
-        # well_id  x  y  depth
-        MW-01  100.0  200.0  45.0
-        MW-02  150.0  220.0  50.0
-    """
     wells = []
     for line in data_lines:
         line = line.strip()

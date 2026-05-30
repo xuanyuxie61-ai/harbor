@@ -1,19 +1,9 @@
-"""
-量子行走搜索算法：博士级科研代码合成项目
-================================================
-统一入口文件，零参数可运行。
-
-本程序围绕"量子计算：量子行走搜索算法"展开，
-融合15个种子项目的核心算法，在多种图结构（1D链、2D网格、
-六边形晶格、三角剖分区域、超立方体、球面立方网格）上
-实现并分析离散时间与连续时间量子行走搜索算法。
-"""
 import numpy as np
 import sys
 
-# ---------------------------------------------------------------------------
-# 导入所有模块
-# ---------------------------------------------------------------------------
+
+
+
 from utils import (
     normalize_vector, hadamard_matrix, grover_coin, safe_divide,
     discrete_laplacian_1d, clamp, chebyshev_nodes
@@ -69,7 +59,6 @@ def print_section(title: str):
 
 
 def run_experiment_1d_tridiagonal_solver():
-    """实验1: 1D量子行走 + 三对角矩阵求解器 (r83, r8to)"""
     print_section("实验1: 1D量子行走与三对角/Toeplitz求解器")
 
     n = 64
@@ -82,7 +71,7 @@ def run_experiment_1d_tridiagonal_solver():
     print(f"  状态范数守恒: {norm:.12f} (应 ≈ 1.0)")
     print(f"  50步后概率分布均值: {np.mean(prob):.6f}, 标准差: {np.std(prob):.6f}")
 
-    # 用三对角求解器求1D离散Laplacian的稳态
+
     L = discrete_laplacian_1d(n, periodic=False)
     a = np.zeros((3, n))
     a[0, :-1] = np.diag(L, 1)
@@ -90,14 +79,14 @@ def run_experiment_1d_tridiagonal_solver():
     a[2, 1:] = np.diag(L, -1)
     b = np.ones(n)
 
-    # CG
+
     x_cg = r83_cg(n, a, b)
-    # Cyclic reduction
+
     a_cr = r83_cr_fa(n, a)
     x_cr = r83_cr_sl(n, a_cr, b)
-    # Jacobi
+
     x_jac = r83_jac_sl(n, a, b, max_iter=5000)
-    # Gauss-Seidel
+
     x_gs = r83_gs_sl(n, a, b, max_iter=5000)
 
     print(f"  CG残差:        {np.linalg.norm(L @ x_cg - b):.2e}")
@@ -105,25 +94,24 @@ def run_experiment_1d_tridiagonal_solver():
     print(f"  Jacobi残差:    {np.linalg.norm(L @ x_jac - b):.2e}")
     print(f"  Gauss-Seidel残差: {np.linalg.norm(L @ x_gs - b):.2e}")
 
-    # Toeplitz求解器: 量子行走平移算子的Toeplitz结构
+
     a_toep = np.zeros(2 * n - 1)
     a_toep[0] = 2.0
     a_toep[1] = -1.0
-    a_toep[n] = -1.0  # first column below diagonal: T[1,0]
+    a_toep[n] = -1.0
     x_toep = r8to_sl(n, a_toep, b)
     print(f"  Toeplitz求解器残差: {np.linalg.norm(L @ x_toep - b):.2e}")
 
 
 def run_experiment_vandermonde_reconstruction():
-    """实验2: Vandermonde矩阵求解用于量子态谱重构 (r8vm)"""
     print_section("实验2: Vandermonde谱重构")
 
     n = 12
-    # 模拟从n个能量本征值重构量子态振幅
+
     x_nodes = chebyshev_nodes(n, a=-1.0, b=1.0)
-    # 真实振幅系数
+
     true_coeffs = np.exp(-np.arange(n) ** 2 / 10.0)
-    # 使用Vandermonde矩阵-vector乘法生成右端项: b = A @ true_coeffs
+
     from matrix_solvers import r8vm_mv
     b = r8vm_mv(n, n, x_nodes, true_coeffs)
     recovered = r8vm_sl(n, x_nodes, b)
@@ -133,7 +121,6 @@ def run_experiment_vandermonde_reconstruction():
 
 
 def run_experiment_2d_spatial_search():
-    """实验3: 2D网格空间搜索 + 2D网格剖分 (image_mesh2d, cc_display)"""
     print_section("实验3: 2D网格空间搜索")
 
     nx, ny = 16, 16
@@ -144,7 +131,7 @@ def run_experiment_2d_spatial_search():
     print(f"  最优步数: {result['optimal_steps']}")
     print(f"  最大成功概率: {result['max_success_probability']:.6f}")
 
-    # 2D区域三角剖分搜索
+
     boundary = np.array([
         [0.0, 0.0], [1.0, 0.0], [1.2, 0.5], [1.0, 1.0],
         [0.5, 1.2], [0.0, 1.0], [-0.2, 0.5]
@@ -158,7 +145,6 @@ def run_experiment_2d_spatial_search():
 
 
 def run_experiment_hexagonal_search():
-    """实验4: 六边形晶格量子行走搜索 + 六边形数值积分 (hexagon_stroud_rule)"""
     print_section("实验4: 六边形晶格搜索与六边形积分")
 
     n_rings = 3
@@ -168,23 +154,22 @@ def run_experiment_hexagonal_search():
     print(f"  最优步数: {result['optimal_steps']}")
     print(f"  最大成功概率: {result['max_success_probability']:.6f}")
 
-    # 六边形数值积分: 计算量子观测量的空间积分
+
     def gaussian_bump(x, y):
         return np.exp(-(x ** 2 + y ** 2) / 0.5)
 
     val = integrate_hexagon(gaussian_bump, rule=4)
-    exact_ref = 1.71265450069  # 数值参考值
+    exact_ref = 1.71265450069
     print(f"  六边形高斯积分 (Stroud rule 4): {val:.8f}")
     print(f"  与参考值误差: {abs(val - exact_ref):.2e}")
 
-    # 单式积分精确值测试
+
     for p, q in [(0, 0), (2, 0), (0, 2), (2, 2)]:
         exact = hexagon_monomial_integral(p, q)
         print(f"    x^{p} y^{q} 精确积分: {exact:.8f}")
 
 
 def run_experiment_cubed_sphere():
-    """实验5: 球面立方网格上的量子行走 (sphere_cubed_grid)"""
     print_section("实验5: 球面立方网格量子行走")
 
     n = 4
@@ -195,7 +180,7 @@ def run_experiment_cubed_sphere():
     print(f"  球面网格点数: {num_pts} (理论: {sphere_cubed_grid_point_count(n)})")
     print(f"  球面网格边数: {num_lines} (理论: {sphere_cubed_grid_line_count(n)})")
 
-    # CTQW on sphere grid
+
     ctqw = ContinuousTimeQuantumWalk(adj, gamma=1.0)
     ctqw.set_initial_state(0)
     ctqw.evolve(t=5.0)
@@ -204,7 +189,7 @@ def run_experiment_cubed_sphere():
     print(f"  最大概率位置: {int(np.argmax(prob))}")
     print(f"  概率熵: {-np.sum(prob * np.log(prob + 1e-16)):.4f}")
 
-    # 谱分析
+
     L = graph_laplacian(adj)
     eigs = np.linalg.eigvalsh(L)
     print(f"  Laplacian谱隙: {eigs[1] - eigs[0]:.6f}")
@@ -212,7 +197,6 @@ def run_experiment_cubed_sphere():
 
 
 def run_experiment_hypercube_search():
-    """实验6: 超立方体高维搜索 + Diophantine约束状态枚举 (diophantine_nd)"""
     print_section("实验6: 超立方体搜索与高维约束状态空间")
 
     dim = 6
@@ -225,7 +209,7 @@ def run_experiment_hypercube_search():
     print(f"  理论最优估计: {result['theoretical_optimal']}")
     print(f"  最大成功概率: {result['max_success_probability']:.6f}")
 
-    # Diophantine约束: 枚举满足守恒律的高维状态
+
     a = np.array([1, 2, 3, 4, 5])
     b = 20
     bounds = np.array([5, 5, 4, 3, 2])
@@ -234,13 +218,12 @@ def run_experiment_hypercube_search():
     print(f"  Diophantine a·x={b}, 有界解数量: {len(sols_bounded)}")
     print(f"  Diophantine a·x={b}, 无界解数量: {len(sols_free)}")
 
-    # 超立方体顶点坐标
+
     verts = build_hypercube_states(n, dim)
     print(f"  超立方体顶点坐标维度: {verts.shape}")
 
 
 def run_experiment_cc_sparse_grid_params():
-    """实验7: Clenshaw-Curtis稀疏网格参数优化 (cc_display, levels)"""
     print_section("实验7: 稀疏网格参数采样与优化")
 
     dim = 3
@@ -248,14 +231,14 @@ def run_experiment_cc_sparse_grid_params():
     grid = generate_cc_sparse_grid(dim, max_level)
     print(f"  稀疏网格点数 (dim={dim}, level<={max_level}): {grid.shape[0]}")
 
-    # 加权约束网格
+
     weights = np.array([1.0, 2.0, 1.5])
     grid_w = constrained_parameter_grid(dim, max_level, weights)
     print(f"  加权约束网格点数: {grid_w.shape[0]}")
 
-    # 用稀疏网格采样评估搜索成功概率 landscape
+
     def dummy_success_prob(params):
-        # 模拟成功概率随两个参数变化
+
         p1, p2 = params[0], params[1]
         return np.exp(-(p1 - 0.3) ** 2 / 0.1 - (p2 + 0.1) ** 2 / 0.2)
 
@@ -267,10 +250,9 @@ def run_experiment_cc_sparse_grid_params():
 
 
 def run_experiment_newton_optimization():
-    """实验8: Newton法优化量子行走参数 (nonlin_newton)"""
     print_section("实验8: Newton法参数优化")
 
-    # 寻找使 sin(x) - 0.5 = 0 的根（模拟最优相位条件）
+
     def f(x):
         return np.sin(x) - 0.5
 
@@ -282,18 +264,18 @@ def run_experiment_newton_optimization():
     print(f"  收敛: {converged}, 迭代次数: {iters}, 根: {root:.10f}")
     print(f"  验证 f(根) = {f(root):.2e}")
 
-    # 最优硬币角度搜索
+
     def success_prob(angle):
-        # 模拟：成功概率在某个角度达到峰值
+
         return np.sin(2.0 * angle) ** 2 * np.exp(-(angle - 0.6) ** 2 / 0.05) + 0.01
 
     opt = find_optimal_coin_angle(success_prob, angle0=0.5)
     print(f"  最优硬币角度: {opt['optimal_angle']:.6f} rad")
     print(f"  对应成功概率: {opt['success_probability']:.6f}")
 
-    # 关键 gamma 搜索
+
     def gap_func(g):
-        # 模拟谱隙随 gamma 变化
+
         return g * np.exp(-g ** 2) + 0.1
 
     gamma_opt = find_critical_gamma(gap_func, gamma0=1.0)
@@ -302,7 +284,6 @@ def run_experiment_newton_optimization():
 
 
 def run_experiment_coupon_collector():
-    """实验9: 优惠券收集问题与量子/经典覆盖时间对比 (full_deck_simulation)"""
     print_section("实验9: 覆盖时间分析 (Coupon Collector)")
 
     n_items = 52
@@ -321,7 +302,6 @@ def run_experiment_coupon_collector():
 
 
 def run_experiment_steinerberger_quadrature():
-    """实验10: Steinerberger病态函数验证数值积分 (steinerberger)"""
     print_section("实验10: Steinerberger病态函数积分测试")
 
     result = test_quadrature_accuracy(integrate_simpson, n_max=8)
@@ -330,7 +310,7 @@ def run_experiment_steinerberger_quadrature():
               f"近似={test['approximate']:.8f}, "
               f"相对误差={test['relative_error']:.2e}")
 
-    # 用梯形法则计算量子概率积分
+
     times = np.linspace(0.0, 10.0, 501)
     prob = np.sin(times) ** 2 * np.exp(-times / 5.0)
     avg_prob = integrate_quantum_probability(prob, times) / (times[-1] - times[0])
@@ -338,18 +318,17 @@ def run_experiment_steinerberger_quadrature():
 
 
 def run_experiment_reverse_communication_cg():
-    """实验11: 反向通信CG求解大规模稀疏系统 (cg_rc + Wathen矩阵)"""
     print_section("实验11: 反向通信CG与Wathen矩阵")
 
     nx, ny = 4, 4
     n = wathen_order(nx, ny)
     A = wathen(nx, ny)
-    # 正则化: Wathen一致质量矩阵有零空间(常数向量),添加小量使其正定
+
     A_reg = A + 1e-6 * np.eye(n)
     b = np.ones(n)
     x0 = np.zeros(n)
 
-    # 使用反向通信CG
+
     def A_mult(v):
         return A_reg @ v
 
@@ -359,7 +338,7 @@ def run_experiment_reverse_communication_cg():
     print(f"  反向通信CG残差: {residual:.2e}")
     print(f"  解范数: {np.linalg.norm(x_cg):.4f}")
 
-    # 比较几种三对角求解器在扩散问题上的表现
+
     n_small = 128
     L = discrete_laplacian_1d(n_small, periodic=False)
     a_r83 = np.zeros((3, n_small))
@@ -378,10 +357,9 @@ def run_experiment_reverse_communication_cg():
 
 
 def run_experiment_spectral_analysis():
-    """实验12: 谱分析与搜索复杂度估计"""
     print_section("实验12: 谱分析与搜索复杂度")
 
-    # 2D网格谱分析
+
     nx, ny = 8, 8
     adj = []
     for y in range(ny):
@@ -406,7 +384,6 @@ def run_experiment_spectral_analysis():
 
 
 def run_experiment_multidimensional_walk():
-    """实验13: 多维量子行走在高维格子"""
     print_section("实验13: 多维格子量子行走")
 
     dims = (4, 4, 4)
@@ -421,17 +398,16 @@ def run_experiment_multidimensional_walk():
 
 
 def run_experiment_piecewise_constant_potential():
-    """实验14: 分段常数势场下的量子演化 (pwc_plot_2d)"""
     print_section("实验14: 分段常数势场")
 
     from quantum_operators import piecewise_constant_1d, ctqw_hamiltonian
 
     xc = np.linspace(-1.0, 1.0, 5)
-    # 构造一个分段常数的1D势场 (4 cells for 5 breakpoints)
+
     values = np.array([0.0, 0.5, 1.0, 0.5])
     V = piecewise_constant_1d(xc, values)
 
-    # 简单1D链上采样势场
+
     n = 20
     adj = [[(i + 1) % n, (i - 1) % n] for i in range(n)]
     positions = np.linspace(-1.0, 1.0, n)

@@ -1,15 +1,8 @@
 # -*- coding: utf-8 -*-
-"""
-main.py
-分数量子霍尔效应Laughlin态的多体数值模拟平台
-
-统一入口，零参数可运行。
-执行从单粒子基函数构建到多体关联分析、拓扑不变量计算的完整流程。
-"""
 import sys
 import numpy as np
 
-# 导入所有模块
+
 from utils import (
     magnetic_length, cyclotron_frequency, landau_level_energy,
     filling_factor, fermi_dirac, gram_schmidt_qr, condition_number,
@@ -66,9 +59,6 @@ def print_header(title):
 
 
 def run_landau_level_analysis(B, m_star, N_electrons, A_sample):
-    """
-    模块1: Landau能级分析与态密度计算
-    """
     print_header("模块1: Landau能级与单粒子基函数分析")
 
     lB = magnetic_length(B, m_star)
@@ -91,14 +81,14 @@ def run_landau_level_analysis(B, m_star, N_electrons, A_sample):
         En = landau_level_energy(n, B, m_star)
         print(f"  n={n}: E_n/ħω_c = {En / (H_BAR * omega_c):.4f}")
 
-    # 态密度
+
     E_range = np.linspace(0.0, 6.0 * H_BAR * omega_c, 200)
     dos = density_of_states_landau(E_range, B, m_star, gamma=0.05)
     print(f"\n态密度特征:")
     print(f"  最大态密度: {np.max(dos):.4f}")
     print(f"  平均态密度: {np.mean(dos):.4f}")
 
-    # 谱FEM刚度矩阵
+
     print(f"\n谱有限元刚度矩阵条件数:")
     for N in [4, 8, 12]:
         K = build_spectral_stiffness_matrix(N, domain=(0.0, 1.0))
@@ -109,12 +99,9 @@ def run_landau_level_analysis(B, m_star, N_electrons, A_sample):
 
 
 def run_laughlin_wavefunction_analysis(N_electrons, m, lB, B):
-    """
-    模块2: Laughlin波函数与准粒子激发
-    """
     print_header("模块2: Laughlin多体波函数与准粒子激发")
 
-    # 生成初始电子构型（在圆盘内准均匀分布）
+
     np.random.seed(42)
     R_max = np.sqrt(2.0 * m * N_electrons) * lB * 0.6
     theta = np.random.uniform(0.0, 2.0 * np.pi, N_electrons)
@@ -127,21 +114,21 @@ def run_laughlin_wavefunction_analysis(N_electrons, m, lB, B):
     print(f"  系统半径 R ≈ {R_max:.4f}")
     print(f"  ln|Ψ|² = {log_psi.real:.4f}")
 
-    # 准空穴
+
     z0 = 0.5 * lB + 0.3j * lB
     log_psi_qh = quasihole_wavefunction(z, z0, m, lB, return_log=True)
     print(f"\n准空穴激发 (z0 = {z0:.3f}):")
     print(f"  ln|Ψ_qh|² = {log_psi_qh.real:.4f}")
     print(f"  准空穴携带分数电荷 e* = e/{m} = {1.0/m:.6f}")
 
-    # 配对关联函数
+
     r_edges, g_r, r_centers = pair_correlation_function(z, m, lB, r_bins=40)
     print(f"\n配对关联函数 g^(2)(r) 统计:")
     print(f"  r 范围: [{r_centers[0]:.4f}, {r_centers[-1]:.4f}]")
     print(f"  g(r) 最大值: {np.max(g_r):.4f}")
     print(f"  g(r) 最小值: {np.min(g_r):.4f}")
 
-    # 结构因子
+
     q_vals, S_q = structure_factor_s_q(z, m, lB, q_bins=25)
     print(f"\n结构因子 S(q):")
     print(f"  q 范围: [{q_vals[0]:.4f}, {q_vals[-1]:.4f}]")
@@ -151,12 +138,9 @@ def run_laughlin_wavefunction_analysis(N_electrons, m, lB, B):
 
 
 def run_monte_carlo_analysis(N_electrons, m, lB):
-    """
-    模块3: 准蒙特卡洛采样
-    """
     print_header("模块3: 准蒙特卡洛采样与积分")
 
-    # Hammersley序列生成
+
     n_samples = 500
     h_points = hammersley_sequence(0, n_samples - 1, 2)
     z_samples = map_hammersley_to_disk(h_points, radius=np.sqrt(2.0 * m * N_electrons) * lB * 0.5)
@@ -164,7 +148,7 @@ def run_monte_carlo_analysis(N_electrons, m, lB):
     print(f"  采样点数: {n_samples}")
     print(f"  映射到圆盘半径: {np.max(np.abs(z_samples)):.4f}")
 
-    # QMC积分测试
+
     def f_integrand(pt):
         x, y = pt[0], pt[1]
         return x ** 2 + y ** 2
@@ -177,9 +161,6 @@ def run_monte_carlo_analysis(N_electrons, m, lB):
 
 
 def run_hartree_fock_analysis(B, lB, grid_res=12):
-    """
-    模块4: Hartree-Fock自洽场
-    """
     print_header("模块4: Hartree-Fock自洽场分析")
 
     x = np.linspace(-2.0 * lB, 2.0 * lB, grid_res)
@@ -198,7 +179,7 @@ def run_hartree_fock_analysis(B, lB, grid_res=12):
     print(f"  最大电子密度: {np.max(density):.6f}")
     print(f"  总电子数（格点积分）: {np.sum(density) * (x[1]-x[0]) * (y[1]-y[0]):.4f}")
 
-    # CGNE测试
+
     A_test = np.array([[2.0, 1.0], [1.0, 3.0], [1.0, 1.0]])
     b_test = np.array([4.0, 5.0, 3.0])
     x_cg, conv_cg, res_cg = cg_ne_solve(A_test, b_test, tol=1e-10)
@@ -206,7 +187,7 @@ def run_hartree_fock_analysis(B, lB, grid_res=12):
     print(f"  解: {x_cg}")
     print(f"  残差: {res_cg:.2e}")
 
-    # Newton迭代测试
+
     def F_newton(x):
         return np.array([x[0] ** 2 - 2.0])
     def J_newton(x):
@@ -220,12 +201,9 @@ def run_hartree_fock_analysis(B, lB, grid_res=12):
 
 
 def run_edge_state_analysis(B, m_star):
-    """
-    模块5: 边缘态与手性Luttinger液体
-    """
     print_header("模块5: 边缘态BVP求解与手性Luttinger液体")
 
-    # 打靶法测试
+
     def harmonic_ode(r, y):
         u, up = y
         return np.array([up, -u])
@@ -239,7 +217,7 @@ def run_edge_state_analysis(B, m_star):
     print(f"  收敛: {conv_shoot}, 迭代: {nit_shoot}")
     print(f"  与sin(r)最大误差: {err_shoot:.2e}")
 
-    # 边缘态径向方程
+
     ode_rhs = edge_state_radial_ode(B, m_star, angular_m=1, E=5.0)
     r_edge, u_edge, conv_edge, nit_edge = shooting_method_bvp(
         ode_rhs, a=1e-3, b=3.0, ya=0.0, yb_target=0.0,
@@ -249,7 +227,7 @@ def run_edge_state_analysis(B, m_star):
     print(f"  收敛: {conv_edge}, 迭代: {nit_edge}")
     print(f"  解范数: {np.linalg.norm(u_edge):.4f}")
 
-    # 手性Luttinger色散
+
     k_vals = np.linspace(0.1, 5.0, 20)
     v_F = 1.0
     eps = chiral_luttinger_dispersion(k_vals, v_F, g_factor=0.5)
@@ -261,12 +239,9 @@ def run_edge_state_analysis(B, m_star):
 
 
 def run_density_evolution():
-    """
-    模块6: 密度演化与Fisher-KPP方程
-    """
     print_header("模块6: 密度演化动力学")
 
-    # Fisher-KPP数值解
+
     u_fisher = fisher_kpp_fd_solve(
         60, -8.0, 8.0, 150, 0.0, 4.0,
         D=1.0, r=1.0, K=1.0
@@ -277,7 +252,7 @@ def run_density_evolution():
     print(f"  最终峰值: {np.max(u_fisher[-1,:]):.4f}")
     print(f"  总密度守恒: init={np.sum(u_fisher[0,:]):.2f}, final={np.sum(u_fisher[-1,:]):.2f}")
 
-    # 波动方程
+
     def u_x1(t): return 0.0
     def u_x2(t): return 0.0
     def u_t1(x): return np.sin(np.pi * x)
@@ -288,7 +263,7 @@ def run_density_evolution():
     print(f"  t=0 最大振幅: {np.max(np.abs(u_wave[0,:])):.4f}")
     print(f"  t=2 最大振幅: {np.max(np.abs(u_wave[-1,:])):.4f}")
 
-    # Lindblad演化
+
     H = np.array([[1.0, 0.3], [0.3, -0.5]], dtype=complex)
     rho0 = np.array([[1.0, 0.0], [0.0, 0.0]], dtype=complex)
     L = np.array([[0.0, 0.05], [0.0, 0.0]], dtype=complex)
@@ -302,12 +277,9 @@ def run_density_evolution():
 
 
 def run_correlation_analysis(z_samples, lB, m):
-    """
-    模块7: 关联函数与最近邻分析
-    """
     print_header("模块7: 关联函数与最近邻分析")
 
-    # 最近邻
+
     m_dim, nr, ns = 2, 5, 3
     R_pts = np.array([[0.0, 1.0, 2.0, 3.0, 4.0],
                       [0.0, 0.0, 0.0, 0.0, 0.0]])
@@ -318,19 +290,19 @@ def run_correlation_analysis(z_samples, lB, m):
     print(f"  查询点索引: {idx_nn}")
     print(f"  最小距离: {dists_nn}")
 
-    # 超球距离统计
+
     print(f"\n超球距离统计:")
     for dim in [2, 3]:
         mu, var, _ = hyperball_distance_stats(dim, 200)
         print(f"  dim={dim}: μ={mu:.4f}, σ²={var:.6f}")
 
-    # 量子霍尔关联函数
+
     r_edges, g2, r_centers = two_point_correlation(z_samples, lB, r_bins=30)
     print(f"\n两点关联函数:")
     print(f"  g2 前3个值: {g2[:3]}")
     print(f"  g2 最大值: {np.max(g2):.4f}")
 
-    # 密度关联（Fourier）
+
     n_grid = np.random.rand(24, 24)
     q_vals, S_q = density_correlation_function(n_grid, dx=0.1, dy=0.1)
     print(f"\n密度结构因子 S(q):")
@@ -340,24 +312,21 @@ def run_correlation_analysis(z_samples, lB, m):
 
 
 def run_quadrature_analysis():
-    """
-    模块8: 高维积分与精确性验证
-    """
     print_header("模块8: 高维数值积分与精确性验证")
 
-    # 楔形体积分
+
     print(f"\n楔形体精确积分:")
     for e in [[0,0,0], [1,0,0], [0,1,0], [1,1,0], [0,0,2]]:
         val = wedge01_integral(e)
         print(f"  I{e} = {val:.6f}")
 
-    # 多维Gauss积分
+
     def f2(x, y): return x**2 * y**2
     val2d = multidimensional_gauss_legendre(f2, 2, 4, [(0.0,1.0),(0.0,1.0)])
     print(f"\n二维Gauss积分 (x²y² over [0,1]²):")
     print(f"  数值: {val2d:.8f}, 精确: {1.0/9.0:.8f}")
 
-    # 楔形体精确性检验
+
     n_pts = 10
     x_pts = np.random.rand(3, n_pts)
     x_pts[1,:] *= (1.0 - x_pts[0,:])
@@ -367,7 +336,7 @@ def run_quadrature_analysis():
     max_err = max([r[4] for r in results])
     print(f"\n楔形体求积精确性 (degree≤2): max_err = {max_err:.4f}")
 
-    # 库仑积分
+
     val_coul, exact_coul = integrate_coulomb_2d_gauss(8, 16, epsilon_r=12.0, R_max=1.5)
     print(f"\n二维库仑势积分:")
     print(f"  数值: {val_coul:.6f}, 精确: {exact_coul:.6f}")
@@ -376,12 +345,9 @@ def run_quadrature_analysis():
 
 
 def run_topological_analysis():
-    """
-    模块9: 拓扑不变量计算
-    """
     print_header("模块9: 拓扑不变量与Chern数")
 
-    # Berry曲率与Chern数
+
     Nk = 30
     kx = np.linspace(-np.pi, np.pi, Nk)
     ky = np.linspace(-np.pi, np.pi, Nk)
@@ -416,14 +382,14 @@ def run_topological_analysis():
     print(f"  Chern数 C = {C:.4f}")
     print(f"  霍尔电导 σ_xy = (e²/h) · {C:.4f}")
 
-    # 磁通量子化
+
     print(f"\n磁通量子化Berry相位:")
     for n_phi in [3, 6, 9]:
         n_e = n_phi // 3
         phase, charge = flux_quantization_phase(n_phi, n_e, m_laughlin=3)
         print(f"  n_Φ={n_phi}, n_e={n_e}: phase={phase:.4f}, charge={charge:.6f}")
 
-    # 轨道参数演化
+
     tau, theta, x2, y2, z2 = orbital_evolution_parameters(
         ecc=0.01671, lon_deg=77.0, obliq_deg=23.44, n_points=50
     )
@@ -435,9 +401,6 @@ def run_topological_analysis():
 
 
 def main():
-    """
-    主函数：零参数运行，执行完整的FQHE数值模拟流程。
-    """
     print("\n" + "=" * 70)
     print("  分数量子霍尔效应：Laughlin态的多体数值模拟平台")
     print("  Fractional Quantum Hall Effect: Laughlin State Numerical Platform")
@@ -447,14 +410,14 @@ def main():
     print("到多体Laughlin波函数、自洽场、边缘态、拓扑不变量的")
     print("完整数值模拟链路。\n")
 
-    # 全局物理参数
-    B = 10.0          # 磁场强度 (T)
-    m_star = 1.0      # 有效质量
-    N_electrons = 8   # 电子数
-    A_sample = 50.0   # 样品面积
-    m_Laughlin = 3    # Laughlin指数 (ν = 1/3)
 
-    # 执行各模块
+    B = 10.0
+    m_star = 1.0
+    N_electrons = 8
+    A_sample = 50.0
+    m_Laughlin = 3
+
+
     lB, omega_c, N_phi, nu = run_landau_level_analysis(B, m_star, N_electrons, A_sample)
     z, log_psi, g_r, r_centers = run_laughlin_wavefunction_analysis(N_electrons, m_Laughlin, lB, B)
     z_samples = run_monte_carlo_analysis(N_electrons, m_Laughlin, lB)
@@ -465,7 +428,7 @@ def main():
     val2d = run_quadrature_analysis()
     C = run_topological_analysis()
 
-    # 总结
+
     print("\n" + "=" * 70)
     print("  模拟结果总结")
     print("=" * 70)

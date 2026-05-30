@@ -1,63 +1,14 @@
-"""
-monte_carlo_uq.py
-=================
-Monte Carlo uncertainty quantification for the geothermal reservoir THM model.
-
-Incorporates algorithms from:
-  - 941_quad_monte_carlo: Monte Carlo integration via random sampling
-
-Mathematical formulation:
-For an integral over a domain D:
-  I = \int_D f(\mathbf{x}) d\mathbf{x}
-
-Monte Carlo estimate using N random samples:
-  \hat{I}_N = \frac{|D|}{N} \sum_{i=1}^{N} f(\mathbf{x}_i)
-
-The standard error of the estimate:
-  \sigma_{\hat{I}} = \frac{|D|}{\sqrt{N}} \sqrt{\frac{1}{N-1} \sum_i (f_i - \bar{f})^2}
-
-For expected value of a random variable Y = g(X):
-  E[Y] \approx \frac{1}{N} \sum_{i=1}^{N} g(X_i)
-
-Variance:
-  \text{Var}(Y) \approx \frac{1}{N-1} \sum_{i=1}^{N} (g(X_i) - \bar{g})^2
-
-Confidence interval (95%):
-  \bar{g} \pm 1.96 \frac{s}{\sqrt{N}}
-"""
 
 import numpy as np
 
 
 class MonteCarloIntegrator:
-    """
-    Monte Carlo integration over hyper-rectangular domains.
-    """
 
     def __init__(self, seed=None):
         if seed is not None:
             np.random.seed(int(seed))
 
     def integrate(self, f_func, a, b, n=10000):
-        """
-        Estimate integral of f over [a,b]^d.
-
-        Parameters
-        ----------
-        f_func : callable
-            Function f(x) where x is np.ndarray of shape (d,).
-        a : np.ndarray
-            Lower bounds.
-        b : np.ndarray
-            Upper bounds.
-        n : int
-            Number of samples.
-
-        Returns
-        -------
-        estimate : float
-        std_err : float
-        """
         a = np.asarray(a, dtype=np.float64)
         b = np.asarray(b, dtype=np.float64)
         d = a.size
@@ -78,9 +29,6 @@ class MonteCarloIntegrator:
         return estimate, std_err
 
     def integrate_batch(self, f_func, a, b, n=10000):
-        """
-        Same as integrate but f_func accepts array of shape (n, d).
-        """
         a = np.asarray(a, dtype=np.float64)
         b = np.asarray(b, dtype=np.float64)
         d = a.size
@@ -96,19 +44,8 @@ class MonteCarloIntegrator:
 
 
 class MonteCarloUQ:
-    """
-    Monte Carlo uncertainty quantification for THM parameters.
-    """
 
     def __init__(self, params, n_samples=500):
-        """
-        Parameters
-        ----------
-        params : THMParameters
-            Base parameter set.
-        n_samples : int
-            Number of Monte Carlo samples.
-        """
         from thm_model import THMParameters
         if not isinstance(params, THMParameters):
             raise TypeError("params must be THMParameters.")
@@ -116,13 +53,6 @@ class MonteCarloUQ:
         self.n_samples = int(n_samples)
 
     def sample_parameters(self):
-        """
-        Generate random parameter samples with uncertainties.
-
-        Returns
-        -------
-        samples : list of dict
-        """
         samples = []
         for _ in range(self.n_samples):
             s = {
@@ -140,26 +70,11 @@ class MonteCarloUQ:
         return samples
 
     def estimate_heat_extraction(self, temperature_field_func):
-        """
-        Estimate expected heat extraction with uncertainty.
-
-        Parameters
-        ----------
-        temperature_field_func : callable
-            Function that takes a parameter dict and returns temperature field.
-
-        Returns
-        -------
-        mean_extraction : float
-        std_extraction : float
-        ci_lower, ci_upper : float
-            95% confidence interval.
-        """
         samples = self.sample_parameters()
         extractions = []
         for s in samples:
             T_field = temperature_field_func(s)
-            # Heat extraction proportional to temperature difference
+
             extraction = np.mean(self.params.T_initial - T_field)
             extractions.append(extraction)
 
@@ -172,9 +87,6 @@ class MonteCarloUQ:
         return mean_ext, std_ext, ci_lower, ci_upper
 
     def estimate_effective_permeability(self, fracture_aperture_samples):
-        """
-        Estimate effective permeability distribution from fracture aperture samples.
-        """
         from risk_fracture import effective_permeability_from_fracture_network
         k_effs = []
         for a_samples in fracture_aperture_samples:
@@ -189,11 +101,6 @@ class MonteCarloUQ:
 
 def mc_integral_thermal_energy(n_samples=5000, T_mean=400.0, T_std=20.0,
                                 rho_eff=2500.0, cp_eff=1000.0, volume=1.0e7):
-    """
-    Monte Carlo estimate of total thermal energy in reservoir.
-    E = \rho_{eff} c_{eff} V \bar{T}
-    with T ~ Normal(T_mean, T_std^2).
-    """
     T_samples = np.random.normal(T_mean, T_std, n_samples)
     T_samples = np.clip(T_samples, 273.15, 1273.15)
     energies = rho_eff * cp_eff * volume * T_samples

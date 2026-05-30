@@ -1,30 +1,8 @@
-"""
-main.py
-酶催化反应过渡态搜索统一入口
-
-分子动力学：酶催化反应过渡态搜索
-==========================================
-
-本项目基于 15 个种子项目的核心算法，融合构建了一个面向酶催化反应过渡态搜索的
-博士级科学计算框架。主要流程：
-
-1. 分子拓扑构建（XYZ 解析 + 图论分析）
-2. 活性位点静电势计算（2D Poisson-Boltzmann）
-3. 势能面 RBF 插值（稀疏从头算数据）
-4. 弦方法 / NEB 反应路径优化
-5. 过渡态定位与 Hessian 验证
-6. 热力学积分与速率常数计算
-7. 动力学验证（RKF45 积分）
-
-运行方式：
-    python main.py
-（零参数运行，所有数据内嵌生成）
-"""
 
 import numpy as np
 import sys
 
-# 导入所有模块
+
 from special_math import clausen_function, periodic_torsion_potential, angular_partition_function
 from sparse_operations import CRSMatrix, build_molecular_hessian_crs, lanczos_eigenvalue_solver
 from electrostatics import Poisson2DSolver, pic_charge_density, poisson_2d_exact_solution, electrostatic_stabilization_energy
@@ -44,7 +22,6 @@ def print_section(title):
 
 
 def demo_molecular_topology():
-    """模块 1: 分子拓扑分析（基于 1423_xyz_display + 796_neighbors_to_metis_graph）"""
     print_section("模块 1: 分子拓扑与图结构分析")
 
     xyz_data = XYZParser.generate_demo_xyz()
@@ -60,7 +37,7 @@ def demo_molecular_topology():
     if results['triads']:
         print(f"  第一个三联体距离: {results['triads'][0][3]:.3f} Å")
 
-    # METIS 图输出（前 3 行）
+
     metis_lines = results['metis_graph'].split('\n')[:4]
     print(f"  METIS 图格式（前 4 行）:")
     for line in metis_lines:
@@ -70,24 +47,23 @@ def demo_molecular_topology():
 
 
 def demo_electrostatics():
-    """模块 2: 静电势计算（基于 869_pic + 878_poisson_2d_exact）"""
     print_section("模块 2: 酶活性位点静电势（2D Poisson-Boltzmann）")
 
     nx, ny = 16, 10
-    dh = 1.0  # Å
+    dh = 1.0
 
-    # 蛋白板障碍物
+
     boundary_box = [[5, 7], [0, 4]]
     solver = Poisson2DSolver(nx, ny, dh, boundary_box)
 
-    # 生成测试电荷密度（使用无量纲化参数避免数值过大）
+
     np.random.seed(42)
     part_x = np.random.rand(50, 2) * np.array([nx - 2, ny - 2]) * dh
     part_v = np.random.randn(50, 2) * 100.0
-    # 使用缩放后的参数：eps0=1, qe=1 表示原子单位制
+
     den = pic_charge_density(nx, ny, dh, part_x, part_v, 50, 1.0, 1.0)
 
-    # 原子单位制参数（避免 SI 单位导致的数值溢出）
+
     eps0_au = 1.0
     qe_au = 1.0
     phi0 = 0.0
@@ -103,12 +79,12 @@ def demo_electrostatics():
     print(f"  电势范围: [{phi.min():.4f}, {phi.max():.4f}] (原子单位)")
     print(f"  电场最大值: {np.sqrt(efx**2 + efy**2).max():.4e} (原子单位)")
 
-    # 验证：精确解对比
+
     x_test = np.array([0.5, 0.5])
     u_exact, ux, uy, uxx, uxy, uyy = poisson_2d_exact_solution(x_test[0], x_test[1])
     print(f"  Poisson 精确解验证 u(0.5,0.5) = {u_exact:.6f}")
 
-    # 静电稳定化能（使用归一化密度避免数值过大）
+
     den_norm = den / (np.max(np.abs(den)) + 1e-10)
     estab = electrostatic_stabilization_energy(phi, den_norm, dh, dh)
     print(f"  静电稳定化能（归一化）: {estab:.4e}")
@@ -118,23 +94,22 @@ def demo_electrostatics():
 
 
 def demo_pes_interpolation():
-    """模块 3: 势能面 RBF 插值（基于 1015_rbf_interp_nd）"""
     print_section("模块 3: 势能面 RBF 插值")
 
-    # 构造二维模型势能面（双阱势能，模拟酶催化的反应物/产物盆地）
-    # 两个盆地 + 一个鞍点，形式简单且数值可控
+
+
     def true_potential(x):
         x = np.asarray(x)
         if x.ndim == 1:
             x1, x2 = x[0], x[1]
         else:
             x1, x2 = x[0, 0], x[1, 0]
-        # 双阱势能: V = (x^2 - 1)^2 + 0.5*y^2 + 0.3*x*y
-        # 极小值在 ~(±1, 0)，鞍点在 ~(0, 0)
+
+
         V = (x1 ** 2 - 1.0) ** 2 + 0.5 * x2 ** 2 + 0.3 * x1 * x2
         return V
 
-    # 稀疏采样点
+
     np.random.seed(123)
     nd = 60
     xd = np.random.rand(2, nd) * 4.0 - 2.0
@@ -144,7 +119,7 @@ def demo_pes_interpolation():
     interp = PESInterpolator(2, nd, xd, r0, kernel_name='gaussian')
     interp.compute_weights(fd)
 
-    # 测试插值精度
+
     np.random.seed(456)
     test_points = np.random.rand(2, 20) * 3.0 - 1.5
     true_vals = np.array([true_potential(test_points[:, i]) for i in range(20)])
@@ -155,7 +130,7 @@ def demo_pes_interpolation():
     print(f"  RBF 形状参数 r0: {r0:.4f}")
     print(f"  插值 RMSE: {rmse:.6f}")
 
-    # 梯度测试
+
     grad = interp.gradient(np.array([0.5, 0.5]))
     print(f"  在 (0.5, 0.5) 处梯度: [{grad[0, 0]:.4f}, {grad[1, 0]:.4f}]")
 
@@ -163,10 +138,9 @@ def demo_pes_interpolation():
 
 
 def demo_dynamics_ode():
-    """模块 4: 动力学与 ODE 积分（基于 1038_rkf45 + 472_glycolysis_ode）"""
     print_section("模块 4: 反应动力学 ODE 积分")
 
-    # 糖酵解模型积分
+
     times, states = integrate_glycolysis(t0=0.0, tstop=50.0)
     print(f"  糖酵解模型积分完成")
     print(f"  积分步数: {len(times)}")
@@ -176,13 +150,13 @@ def demo_dynamics_ode():
     equi = model.equilibrium()
     print(f"  理论平衡解 u*: {equi[0]:.6f}, v*: {equi[1]:.6f}")
 
-    # Jacobian 特征值分析
+
     J = model.jacobian(states[-1])
     eigvals = np.linalg.eigvals(J)
     print(f"  Jacobian 特征值: {eigvals[0].real:.4f}{eigvals[0].imag:+.4f}j, "
           f"{eigvals[1].real:.4f}{eigvals[1].imag:+.4f}j")
 
-    # 反应坐标动力学
+
     def dummy_free_energy(xi):
         return 10.0 * (xi - 0.5) ** 2
 
@@ -195,18 +169,17 @@ def demo_dynamics_ode():
 
 
 def demo_thermodynamic_quadrature():
-    """模块 5: 热力学积分（基于 467_gen_laguerre_rule + 886_polygon_integrals + 527_hexagon_integrals）"""
     print_section("模块 5: 热力学积分与矩计算")
 
-    # Gauss-Laguerre 正交
+
     glq = GaussLaguerreQuadrature(order=32, alpha_param=0.5, a=0.0, b=1.0)
-    # 积分 exp(-x) 应接近 1
+
     test_integral = glq.integrate(lambda x: np.exp(-x))
-    # 对于 α=0.5, 权重为 x^0.5 exp(-x), ∫ x^0.5 exp(-2x) dx = Γ(1.5)/2^1.5 ≈ 0.3133
+
     theoretical = 0.313329
     print(f"  Gauss-Laguerre 正交 (32点): ∫x^0.5 exp(-2x)dx ≈ {test_integral:.8f} (理论值: {theoretical:.6f})")
 
-    # 正六边形矩
+
     hex_mom = HexagonMoments()
     I_20 = hex_mom.integral_monomial(2, 0)
     I_02 = hex_mom.integral_monomial(0, 2)
@@ -215,8 +188,8 @@ def demo_thermodynamic_quadrature():
     print(f"    I_20 = {I_20:.8f}, I_02 = {I_02:.8f}")
     print(f"    I_40 = {I_40:.8f}")
 
-    # 多边形矩（反应盆地近似）
-    # 三角形反应盆地
+
+
     tri_x = np.array([0.0, 2.0, 1.0])
     tri_y = np.array([0.0, 0.0, 1.5])
     area = PolygonMoments.moment_unnormalized(3, tri_x, tri_y, 0, 0)
@@ -226,10 +199,10 @@ def demo_thermodynamic_quadrature():
     print(f"    面积 = {area:.6f}")
     print(f"    中心矩 μ_20 = {mu_20:.6f}, μ_02 = {mu_02:.6f}")
 
-    # 热力学积分
+
     ti = ThermodynamicIntegration(n_lambda=20, temperature=300.0)
     xi = np.linspace(0, 1, 50)
-    # 构造模型能量剖面
+
     energy_profile = 20.0 * (xi - 0.5) ** 2 + 15.0 * np.exp(-50.0 * (xi - 0.5) ** 2)
     free_energy, dG, dG_rev = ti.free_energy_barrier(energy_profile, xi)
     print(f"  活化自由能 ΔG‡ = {dG:.4f} kcal/mol")
@@ -239,13 +212,12 @@ def demo_thermodynamic_quadrature():
 
 
 def demo_configuration_tiling():
-    """模块 6: 构型空间铺砌（基于 864_pentominoes）"""
     print_section("模块 6: 构型空间铺砌与采样")
 
     shapes = PentominoShapes.all_shapes()
     print(f"  Pentomino 形状数: {len(shapes)}")
 
-    # 构型空间采样
+
     def model_energy_2d(xi, eta):
         return 5.0 * (xi ** 2 + eta ** 2) + 10.0 * np.exp(-10.0 * ((xi - 0.5) ** 2 + (eta - 0.3) ** 2))
 
@@ -254,7 +226,7 @@ def demo_configuration_tiling():
     print(f"  构型空间覆盖率: {coverage:.4f}")
     print(f"  T-拼板采样点数: {len(samples)}")
 
-    # Metropolis 采样
+
     sampler = ConfigurationSpaceSampler(n_atoms=5, temperature=300.0)
 
     def energy_1d(x):
@@ -264,7 +236,7 @@ def demo_configuration_tiling():
     print(f"  Metropolis MC 接受率: {acc_ratio:.4f}")
     print(f"  MC 平均能量: {np.mean(energies_mc):.4f} kcal/mol")
 
-    # 反应路径采样
+
     path, path_energies, lambdas = sampler.reaction_path_sampling(energy_1d, [-1.0], [1.0], n_images=10)
     print(f"  线性反应路径图像数: {len(path)}")
 
@@ -272,21 +244,20 @@ def demo_configuration_tiling():
 
 
 def demo_string_method(pes_interp):
-    """模块 7: 弦方法与路径优化（基于 214_contour_sequence4 + 1193_t_puzzle）"""
     print_section("模块 7: 弦方法反应路径优化")
 
-    # 使用 RBF 插值势能
+
     def energy_func(x):
         return float(pes_interp.interpolate(np.array(x).reshape(2, 1)))
 
     def gradient_func(x):
         return pes_interp.gradient(np.array(x).reshape(2, 1)).flatten()
 
-    # 初始猜测路径（选取双阱势能的极小值附近）
+
     x_reactant = np.array([-1.0, 0.0])
     x_product = np.array([1.0, 0.0])
 
-    # 标准 NEB
+
     neb = NEBOptimizer(energy_func, gradient_func, n_images=15,
                        spring_k=0.5, dt=0.05, max_iter=300, tol=1e-3)
     path_neb, energies_neb, _ = neb.optimize(x_reactant, x_product)
@@ -297,7 +268,7 @@ def demo_string_method(pes_interp):
     print(f"  逆反应活化能 Ea_rev = {ea_r:.4f} kcal/mol")
     print(f"  过渡态图像索引: {ts_idx_neb}")
 
-    # 弦方法
+
     sm = StringMethod(energy_func, gradient_func, n_images=15,
                       spring_const=0.5, dt=0.05, max_iter=200, tol=1e-3)
     path_str, energies_str, history_str, _ = sm.evolve_string(
@@ -308,7 +279,7 @@ def demo_string_method(pes_interp):
     print(f"  弦方法优化完成")
     print(f"  正反应活化能 Ea = {ea_f_s:.4f} kcal/mol")
 
-    # 对称性操作（将 2D PES 点扩展为 3D 坐标进行演示）
+
     coords_2d = path_str[ts_idx_s]
     coords_3d = np.zeros((3, 3))
     coords_3d[0, :2] = coords_2d
@@ -317,7 +288,7 @@ def demo_string_method(pes_interp):
     configs_sym = SymmetryOperations.apply_c2v_symmetry(coords_3d)
     print(f"  C2v 对称等价构型数: {len(configs_sym)}")
 
-    # 序列管理
+
     seq_names = SequenceManager.generate_sequence("path_frame", len(path_str))
     print(f"  序列文件名示例: {seq_names[0]}, {seq_names[1]}, ...")
 
@@ -325,7 +296,6 @@ def demo_string_method(pes_interp):
 
 
 def demo_transition_state(path_str, energies_str, ts_idx_s, pes_interp):
-    """模块 8: 过渡态搜索与验证（综合模块）"""
     print_section("模块 8: 过渡态定位与验证")
 
     x_ts = path_str[ts_idx_s]
@@ -350,13 +320,13 @@ def demo_transition_state(path_str, energies_str, ts_idx_s, pes_interp):
         kappa = verifier.wigner_correction(verification['imaginary_frequency'], temperature=300.0)
         print(f"  Wigner 隧道校正因子 κ: {kappa:.4f}")
 
-        # TODO(Hole_3): 完成过渡态热力学分析
-        # 1. 调用 ThermodynamicIntegration.free_energy_barrier 计算活化自由能 ΔG‡
-        # 2. 将 ΔG‡ 和 κ 传入 rate_constant_tst 计算 TST 速率常数
-        # 注意能量剖面 energies_str 与反应坐标 xi 的对应关系
+
+
+
+
         raise NotImplementedError("Hole_3: 请完成 demo_transition_state 中的热力学分析调用逻辑")
 
-    # 稀疏 Hessian 分析（模拟大体系）
+
     print(f"\n  稀疏 Hessian 分析（模拟 10 原子体系）:")
     np.random.seed(99)
     coords_10 = np.random.randn(10, 3) * 2.0
@@ -365,7 +335,7 @@ def demo_transition_state(path_str, energies_str, ts_idx_s, pes_interp):
     print(f"    非零元数: {crs_hess.nz}")
     print(f"    稀疏度: {crs_hess.nz / (crs_hess.n ** 2) * 100:.4f}%")
 
-    # Lanczos 计算特征值
+
     try:
         ritz_vals = lanczos_eigenvalue_solver(crs_hess, max_iter=30)
         print(f"    Lanczos Ritz 值范围: [{ritz_vals[0]:.4f}, {ritz_vals[-1]:.4f}]")
@@ -378,17 +348,16 @@ def demo_transition_state(path_str, energies_str, ts_idx_s, pes_interp):
 
 
 def demo_special_functions():
-    """模块 9: 特殊函数（基于 187_clausen）"""
     print_section("模块 9: Clausen 特殊函数与扭转势")
 
-    # Clausen 函数测试
+
     test_angles = [0.0, np.pi / 6, np.pi / 3, np.pi / 2, np.pi]
     print(f"  Clausen 函数值:")
     for ang in test_angles:
         val = clausen_function(ang)
         print(f"    Cl2({ang:.4f}) = {val:.8f}")
 
-    # 扭转势
+
     phi_test = np.pi / 4
     v_torsion = periodic_torsion_potential(phi_test, n_terms=4)
     print(f"\n  二面角 φ=π/4 扭转势: {v_torsion:.4f} kcal/mol")
@@ -403,7 +372,7 @@ def main():
     print("  Molecular Dynamics: Enzyme Catalysis Transition State Search")
     print("=" * 70)
 
-    # 执行所有模块
+
     atoms, coords, graph = demo_molecular_topology()
     phi, efx, efy = demo_electrostatics()
     pes_interp, true_pot = demo_pes_interpolation()
@@ -414,7 +383,7 @@ def main():
     verification = demo_transition_state(path_str, energies_str, ts_idx_s, pes_interp)
     demo_special_functions()
 
-    # 综合报告
+
     print_section("综合计算报告")
     print(f"  分子体系: {len(atoms)} 原子")
     print(f"  静电势求解: 完成")

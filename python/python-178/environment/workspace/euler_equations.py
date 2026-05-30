@@ -1,24 +1,3 @@
-"""
-euler_equations.py
-==================
-Compressible Euler equations of gas dynamics in conservative form.
-Core physical model for the DG conservation law solver.
-
-The 3D Euler equations:
-    dU/dt + dF/dx + dG/dy + dH/dz = 0
-
-where
-    U = [rho, rho*u, rho*v, rho*w, E]^T
-    F = [rho*u, rho*u^2+p, rho*u*v, rho*u*w, (E+p)*u]^T
-    G = [rho*v, rho*u*v, rho*v^2+p, rho*v*w, (E+p)*v]^T
-    H = [rho*w, rho*u*w, rho*v*w, rho*w^2+p, (E+p)*w]^T
-
-with equation of state:
-    p = (gamma - 1) * (E - 0.5*rho*(u^2+v^2+w^2))
-
-and speed of sound:
-    c = sqrt(gamma * p / rho)
-"""
 
 import numpy as np
 from typing import Tuple
@@ -27,7 +6,6 @@ GAMMA = 1.4
 
 
 def primitive_to_conservative(rho: float, u: float, v: float, w: float, p: float) -> np.ndarray:
-    """Convert primitive variables to conservative vector."""
     rho = max(float(rho), 1e-14)
     p = max(float(p), 1e-14)
     E = p / (GAMMA - 1.0) + 0.5 * rho * (u * u + v * v + w * w)
@@ -35,7 +13,6 @@ def primitive_to_conservative(rho: float, u: float, v: float, w: float, p: float
 
 
 def conservative_to_primitive(U: np.ndarray) -> Tuple[float, float, float, float, float]:
-    """Convert conservative vector to primitive variables with robust clipping."""
     U = np.asarray(U, dtype=np.float64)
     rho = float(U[0])
     if rho < 1e-14 or not np.isfinite(rho):
@@ -54,19 +31,16 @@ def conservative_to_primitive(U: np.ndarray) -> Tuple[float, float, float, float
 
 
 def pressure(U: np.ndarray) -> float:
-    """Compute pressure from conservative variables."""
     rho, u, v, w, p = conservative_to_primitive(U)
     return p
 
 
 def speed_of_sound(U: np.ndarray) -> float:
-    """Compute speed of sound."""
     rho, u, v, w, p = conservative_to_primitive(U)
     return np.sqrt(GAMMA * p / max(rho, 1e-14))
 
 
 def flux_x(U: np.ndarray) -> np.ndarray:
-    """Flux in x-direction."""
     rho, u, v, w, p = conservative_to_primitive(U)
     return np.array([
         rho * u,
@@ -78,7 +52,6 @@ def flux_x(U: np.ndarray) -> np.ndarray:
 
 
 def flux_y(U: np.ndarray) -> np.ndarray:
-    """Flux in y-direction."""
     rho, u, v, w, p = conservative_to_primitive(U)
     return np.array([
         rho * v,
@@ -90,7 +63,6 @@ def flux_y(U: np.ndarray) -> np.ndarray:
 
 
 def flux_z(U: np.ndarray) -> np.ndarray:
-    """Flux in z-direction."""
     rho, u, v, w, p = conservative_to_primitive(U)
     return np.array([
         rho * w,
@@ -102,14 +74,10 @@ def flux_z(U: np.ndarray) -> np.ndarray:
 
 
 def flux_dot_n(U: np.ndarray, nx: float, ny: float, nz: float) -> np.ndarray:
-    """Normal flux F·n = Fx*nx + Fy*ny + Fz*nz."""
     return nx * flux_x(U) + ny * flux_y(U) + nz * flux_z(U)
 
 
 def roe_average(Ul: np.ndarray, Ur: np.ndarray) -> Tuple[float, float, float, float, float]:
-    """
-    Compute Roe-averaged quantities between left and right states.
-    """
     rhol, ul, vl, wl, pl = conservative_to_primitive(Ul)
     rhor, ur, vr, wr, pr = conservative_to_primitive(Ur)
     sqrt_rhol = np.sqrt(max(rhol, 1e-14))
@@ -132,10 +100,6 @@ def roe_average(Ul: np.ndarray, Ur: np.ndarray) -> Tuple[float, float, float, fl
 
 def roe_flux(Ul: np.ndarray, Ur: np.ndarray,
              nx: float, ny: float, nz: float) -> np.ndarray:
-    """
-    Roe approximate Riemann solver.
-    F_hat = 0.5*(F(Ul)+F(Ur)) - 0.5*|A_roe|*(Ur - Ul)
-    """
     Fl = flux_dot_n(Ul, nx, ny, nz)
     Fr = flux_dot_n(Ur, nx, ny, nz)
     rho_roe, u_roe, v_roe, w_roe, c_roe = roe_average(Ul, Ur)
@@ -150,29 +114,17 @@ def roe_flux(Ul: np.ndarray, Ur: np.ndarray,
 
 def rusanov_flux(Ul: np.ndarray, Ur: np.ndarray,
                  nx: float, ny: float, nz: float) -> np.ndarray:
-    """
-    Rusanov (local Lax-Friedrichs) numerical flux.
-    F_hat = 0.5*(F(Ul)+F(Ur)) - 0.5*S_max*(Ur - Ul)
-    where S_max = max(|un - c|, |un + c|) over left and right states.
-    """
-    # TODO: Implement Rusanov numerical flux for 3D Euler equations.
-    # Hint: compute left/right physical fluxes, estimate maximum wave speed,
-    # then combine using the Lax-Friedrichs formula.
+
+
+
     raise NotImplementedError("Hole 1: rusanov_flux is not implemented.")
 
 
-# ---------------------------------------------------------------------------
-# Manufactured solutions for verification
-# ---------------------------------------------------------------------------
+
+
+
 
 def manufactured_solution_3d(x: float, y: float, z: float, t: float) -> np.ndarray:
-    """
-    Smooth manufactured solution for convergence testing.
-    Small-amplitude perturbation around constant state to ensure positivity.
-    rho = 1 + 0.05*sin(pi*(x+y+z - 2*t))
-    u = 0.2, v = 0.2, w = 0.2
-    p = 1 + 0.05*sin(pi*(x+y+z - 2*t))
-    """
     s = np.sin(np.pi * (x + y + z - 2.0 * t))
     rho = 1.0 + 0.05 * s
     u = 0.2
@@ -183,11 +135,6 @@ def manufactured_solution_3d(x: float, y: float, z: float, t: float) -> np.ndarr
 
 
 def manufactured_source_3d(x: float, y: float, z: float, t: float) -> np.ndarray:
-    """
-    Exact source term for manufactured solution via analytic differentiation.
-    For rho = 1 + a*sin(k*(x+y+z - vt)), u=v=w=const, p = 1 + a*sin(...)
-    U_t + div(F) = S,  so S = U_t + div(F)
-    """
     a = 0.05
     k = np.pi
     v_wave = 2.0
@@ -206,13 +153,12 @@ def manufactured_source_3d(x: float, y: float, z: float, t: float) -> np.ndarray
     return np.array([S0, S1, S2, S3, S4], dtype=np.float64)
 
 
-# ---------------------------------------------------------------------------
-# Scalar advection test (for simple validation)
-# ---------------------------------------------------------------------------
+
+
+
 
 def scalar_advection_solution_3d(x: float, y: float, z: float, t: float,
                                   ax: float = 1.0, ay: float = 0.5, az: float = 0.25) -> float:
-    """Smooth Gaussian pulse for scalar advection."""
     x0 = 0.5 - ax * t
     y0 = 0.5 - ay * t
     z0 = 0.5 - az * t

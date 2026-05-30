@@ -1,44 +1,10 @@
-"""
-蛋白质折叠自由能景观的多尺度数值分析系统
-================================================
-
-统一入口文件，零参数可运行。
-
-本系统基于15个科研代码项目的核心算法，融合构建一个面向
-"分子动力学：蛋白质折叠自由能景观"的博士级科研计算框架。
-
-科学问题:
-    对一个简化的粗粒化蛋白质模型（10残基链），从以下多尺度角度
-    分析其折叠自由能景观：
-    
-    1. 反应坐标计算与网格生成 (mesh2d_write)
-    2. Chebyshev 谱插值势能面 (chebyshev)
-    3. p-version FEM 求解扩散方程 (fem1d_pmethod + fem1d_pack)
-    4. Feynman-Kac 路径积分验证 (feynman_kac_1d)
-    5. 球面积分溶剂效应 (sphere_quad)
-    6. 3D构象空间配分函数积分 (cube_felippa_rule)
-    7. 四面体网格边界提取 (tet_mesh_boundary)
-    8. 距离函数网格生成 (distmesh)
-    9. 稀疏 Hessian / 弹性网络分析 (hb_to_msm + r8ss)
-    10. 多项式结式临界分析 (polynomial_resultant)
-    11. Sigmoid 平滑截断 (sigmoid)
-    12. 不完全 Gamma 停留时间统计 (asa147)
-    13. 贪心划分结构域 (partition_greedy)
-
-运行方式:
-    python main.py
-    
-输出:
-    - 控制台报告
-    - 数据文件到 output/ 目录
-"""
 
 import os
 import sys
 import numpy as np
 import time
 
-# 确保模块路径正确
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reaction_coordinates import (
@@ -88,44 +54,19 @@ from partition_optimizer import (
 
 
 def log(msg: str) -> None:
-    """打印带时间戳的日志。"""
     print(f"[{time.strftime('%H:%M:%S')}] {msg}")
 
 
 def setup_output_dir() -> str:
-    """创建输出目录。"""
     out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
 
 
 def build_coarse_grained_protein(n_residues: int = 12, seed: int = 42) -> tuple:
-    """
-    构建一个简化的粗粒化蛋白质模型。
-    
-    模型说明:
-        - 每个残基用一个珠子表示，位于 C_alpha 位置
-        - 天然态：折叠成紧密球状构象（三维螺旋近似）
-        - 未折叠态：伸展链构象
-        - 势能：天然接触势 (Go-like) + 谐波键合势 + 排除体积
-    
-    Parameters
-    ----------
-    n_residues : int
-        残基数。
-    seed : int
-        随机种子。
-    
-    Returns
-    -------
-    native_coords : np.ndarray, shape (N, 3)
-        天然态坐标。
-    unfolded_coords : np.ndarray, shape (N, 3)
-        未折叠态坐标。
-    """
     rng = np.random.default_rng(seed)
     
-    # 天然态：紧凑螺旋状构象 (半径0.5, 螺距0.3，使残基间有更多短程接触)
+
     t = np.linspace(0, 4 * np.pi, n_residues)
     radius = 0.5
     pitch = 0.3
@@ -133,10 +74,10 @@ def build_coarse_grained_protein(n_residues: int = 12, seed: int = 42) -> tuple:
     native_coords[:, 0] = radius * np.cos(t)
     native_coords[:, 1] = radius * np.sin(t)
     native_coords[:, 2] = pitch * t
-    # 添加微小扰动避免完美对称
+
     native_coords += rng.normal(0, 0.03, native_coords.shape)
     
-    # 未折叠态：近似直线
+
     unfolded_coords = np.zeros((n_residues, 3))
     unfolded_coords[:, 0] = np.linspace(0, n_residues * 1.2, n_residues)
     unfolded_coords[:, 1] = rng.normal(0, 0.3, n_residues)
@@ -148,42 +89,16 @@ def build_coarse_grained_protein(n_residues: int = 12, seed: int = 42) -> tuple:
 def coarse_grained_potential(coords: np.ndarray, native_coords: np.ndarray,
                               k_bond: float = 50.0, k_native: float = 10.0,
                               k_repulse: float = 1.0, native_cutoff: float = 1.5) -> float:
-    """
-    计算粗粒化势能（Go-like 模型）。
-    
-    势能组成:
-        V = V_bond + V_native + V_excluded
-    
-        V_bond = Σ_i (k_bond/2) * (|r_i - r_{i+1}| - d0)^2
-        V_native = Σ_{native contacts} (k_native/2) * (|r_i - r_j| - d_{ij}^{native})^2
-        V_excluded = Σ_{non-native, r<r0} k_repulse * (r0 - r)^2
-    
-    Parameters
-    ----------
-    coords : np.ndarray
-        当前构象。
-    native_coords : np.ndarray
-        天然态构象。
-    k_bond, k_native, k_repulse : float
-        力常数。
-    native_cutoff : float
-        天然接触截断距离。
-    
-    Returns
-    -------
-    energy : float
-        总势能。
-    """
     N = coords.shape[0]
     energy = 0.0
     
-    # 键合势
+
     d0 = np.linalg.norm(native_coords[1] - native_coords[0])
     for i in range(N - 1):
         d = np.linalg.norm(coords[i + 1] - coords[i])
         energy += 0.5 * k_bond * (d - d0) ** 2
     
-    # 天然接触势和排除体积
+
     native_dists = np.linalg.norm(native_coords[:, None, :] - native_coords[None, :, :], axis=2)
     current_dists = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=2)
     
@@ -192,10 +107,10 @@ def coarse_grained_potential(coords: np.ndarray, native_coords: np.ndarray,
             d_nat = native_dists[i, j]
             d_cur = current_dists[i, j]
             if d_nat < native_cutoff:
-                # 天然接触
+
                 energy += 0.5 * k_native * (d_cur - d_nat) ** 2
             else:
-                # 排除体积
+
                 r0 = 0.8 * d_nat
                 if d_cur < r0:
                     energy += k_repulse * (r0 - d_cur) ** 2
@@ -205,37 +120,14 @@ def coarse_grained_potential(coords: np.ndarray, native_coords: np.ndarray,
 
 def generate_conformation_ensemble(native_coords: np.ndarray, unfolded_coords: np.ndarray,
                                     n_samples: int = 500, kT: float = 10.0, seed: int = 123) -> tuple:
-    """
-    生成构象系综（简化的 Metropolis-Hastings 采样）。
-    
-    Parameters
-    ----------
-    native_coords : np.ndarray
-        天然态参考。
-    unfolded_coords : np.ndarray
-        未折叠态参考。
-    n_samples : int
-        采样数。
-    kT : float
-        热能量。
-    seed : int
-        随机种子。
-    
-    Returns
-    -------
-    ensemble : np.ndarray, shape (n_samples, N, 3)
-        构象系综。
-    energies : np.ndarray, shape (n_samples,)
-        各构象势能。
-    """
     rng = np.random.default_rng(seed)
     N = native_coords.shape[0]
     
-    # 在天然态和未折叠态之间线性插值加噪声初始化
+
     ensemble = np.zeros((n_samples, N, 3))
     energies = np.zeros(n_samples)
     
-    # 混合初始化：随机从折叠态、未折叠态或中间态开始
+
     n_accept = 0
     for i in range(n_samples):
         alpha = rng.random()
@@ -243,7 +135,7 @@ def generate_conformation_ensemble(native_coords: np.ndarray, unfolded_coords: n
         current += rng.normal(0, 0.3, current.shape)
         current_energy = coarse_grained_potential(current, native_coords)
         
-        # 局部 MC 松弛
+
         for _ in range(20):
             trial = current + rng.normal(0, 0.25, current.shape)
             trial_energy = coarse_grained_potential(trial, native_coords)
@@ -259,7 +151,6 @@ def generate_conformation_ensemble(native_coords: np.ndarray, unfolded_coords: n
 
 
 def main():
-    """主流程。"""
     log("=" * 60)
     log("蛋白质折叠自由能景观多尺度数值分析系统")
     log("=" * 60)
@@ -268,9 +159,9 @@ def main():
     kT = 1.0
     D_diff = 0.5
     
-    # ============================================================
-    # Step 1: 构建粗粒化蛋白质模型
-    # ============================================================
+
+
+
     log("Step 1: 构建粗粒化蛋白质模型 (12残基)...")
     native_coords, unfolded_coords = build_coarse_grained_protein(n_residues=12, seed=42)
     N_res = native_coords.shape[0]
@@ -278,11 +169,11 @@ def main():
     log(f"  未折叠态 RMSD={compute_rmsd(unfolded_coords, native_coords):.4f}, "
         f"Rg={compute_radius_of_gyration(unfolded_coords):.4f}")
     
-    # ============================================================
-    # Step 2: 生成构象系综并计算反应坐标
-    # ============================================================
+
+
+
     log("Step 2: Metropolis-Hastings 构象采样 (500样本)...")
-    # 使用高温采样 (kT=10) 以获得更广泛的构象分布
+
     ensemble, energies = generate_conformation_ensemble(native_coords, unfolded_coords,
                                                          n_samples=500, kT=10.0, seed=123)
     
@@ -295,9 +186,9 @@ def main():
     log(f"  RMSD 范围: [{rmsd_values.min():.4f}, {rmsd_values.max():.4f}]")
     log(f"  Rg 范围: [{rg_values.min():.4f}, {rg_values.max():.4f}]")
     
-    # ============================================================
-    # Step 3: 反应坐标空间网格生成 (mesh2d_write 思想)
-    # ============================================================
+
+
+
     log("Step 3: 生成反应坐标空间网格...")
     q_min, q_max = 0.0, 1.0
     rmsd_min, rmsd_max = 0.0, max(rmsd_values.max(), 1e-6)
@@ -307,9 +198,9 @@ def main():
     write_grid_to_file(grid_nodes, grid_elements, "rc_grid", out_dir)
     log(f"  网格: {len(grid_nodes)} 节点, {len(grid_elements)} 单元")
     
-    # ============================================================
-    # Step 4: 自由能剖面计算 (1D 沿 Q)
-    # ============================================================
+
+
+
     log("Step 4: 计算一维自由能剖面 F(Q)...")
     n_bins = 30
     bin_edges = np.linspace(q_min, q_max, n_bins + 1)
@@ -320,33 +211,33 @@ def main():
     fe_profile = -kT * np.log(prob)
     fe_profile -= fe_profile.min()
     
-    # TODO: Hole 3 - 实现 Chebyshev 插值到 FEM 求解的完整数据转换链
-    # 要求:
-    #   1. 调用 fit_free_energy_profile 获取 Chebyshev 系数
-    #   2. 调用 chebyshev_interpolant 在细网格上求值自由能剖面 fe_cheb
-    #   3. 调用 chebyshev_derivative 计算一阶导数 fe_deriv
-    #   4. 保存 free_energy_profile.txt (Q, F(Q), dF/dQ)
-    #   5. 构造 FEM 网格节点 x_fem，将 fe_cheb 插值到节点得到 fe_fem_nodes
-    #   6. 调用 solve_steady_smoluchowski_1d 求解稳态概率密度 p_steady
-    #   7. 保存 smoluchowski_steady.txt (Q, p_steady)
-    # 注意: 需确保 chebyshev_interpolant (Hole 1) 和 FEM 求解器 (Hole 2) 的接口一致性
+
+
+
+
+
+
+
+
+
+
     raise NotImplementedError("Hole 3: 请补全 Chebyshev 插值到 FEM 求解的数据转换链")
     
-    # Fokker-Planck 特征值分析
+
     eigvals, eigvecs = solve_fokker_planck_eigenvalue_1d(x_fem, fe_fem_nodes,
                                                           D=D_diff, kT=kT, n_modes=5)
     log(f"  FP 前5个特征值: {eigvals}")
     np.savetxt(os.path.join(out_dir, "fp_eigenvalues.txt"), eigvals, header="eigenvalues", fmt="%.6e")
     
-    # ============================================================
-    # Step 6: Feynman-Kac 路径积分验证
-    # ============================================================
+
+
+
     log("Step 6: Feynman-Kac 路径积分计算折叠概率...")
     
     def potential_q(q):
         return np.interp(q, q_fine, fe_cheb) / kT
     
-    # 在不同 Q 值计算折叠概率
+
     q_test_points = np.linspace(0.1, 0.9, 5)
     fk_results = []
     for q0 in q_test_points:
@@ -360,18 +251,18 @@ def main():
     np.savetxt(os.path.join(out_dir, "feynman_kac_fold_prob.txt"),
                np.array(fk_results), header="Q  P_fold  stderr", fmt="%.6e")
     
-    # 平均首通时间
+
     mfpt, mfpt_err = mean_first_passage_time_1d(
         0.2, potential_q, D=D_diff, dt=0.001, n_steps=5000,
         boundary_left=0.0, boundary_right=1.0, n_trajectories=1000
     )
     log(f"  MFPT (from Q=0.2): {mfpt:.4f} ± {mfpt_err:.4f}")
     
-    # Kramers 速率近似
-    # 从自由能剖面提取势垒参数 (鲁棒提取)
+
+
     try:
         fe_max_idx = np.argmax(fe_cheb)
-        # 确保左右都有足够的数据点
+
         if fe_max_idx < 5:
             fe_max_idx = 5
         if fe_max_idx > len(fe_cheb) - 6:
@@ -381,7 +272,7 @@ def main():
         fe_min_right_idx = fe_max_idx + np.argmin(fe_cheb[fe_max_idx:])
         barrier = fe_cheb[fe_max_idx] - fe_cheb[fe_min_left_idx]
         
-        # 用二阶导数近似曲率
+
         h_step = q_fine[1] - q_fine[0]
         deriv2 = np.gradient(np.gradient(fe_cheb, h_step), h_step)
         curv_bottom = deriv2[fe_min_left_idx]
@@ -397,54 +288,54 @@ def main():
         kramers_rate = None
         log(f"  Kramers 速率提取异常: {e}")
     
-    # ============================================================
-    # Step 7: 球面积分溶剂效应
-    # ============================================================
+
+
+
     log("Step 7: 球面积分与取向分析...")
     
-    # 计算蛋白质平均偶极轴
+
     dipole_axis = np.mean(native_coords, axis=0)
     dipole_axis = dipole_axis / (np.linalg.norm(dipole_axis) + 1e-12)
     s2 = compute_nmr_order_parameter(dipole_axis, n_subdivide=3)
     log(f"  NMR 序参数 S^2 = {s2:.4f}")
     
-    # 球面单项式积分验证
+
     mono_val = sphere01_monomial_integral(2, 0, 0)
     log(f"  ∫_{'{S^2}'} x^2 dS = {mono_val:.6f} (解析)")
     
-    # 蒙特卡洛积分验证
+
     pts_mc, w_mc = sphere01_quad_mc(n_samples=10000)
     mc_int = np.sum(pts_mc[:, 0] ** 2 * w_mc)
     log(f"  MC 积分 x^2 = {mc_int:.6f}")
     
-    # ============================================================
-    # Step 8: 3D构象空间配分函数积分 (cube_felippa_rule)
-    # ============================================================
+
+
+
     log("Step 8: 3D构象空间局部配分函数积分...")
     
     def potential_box(coords_3d):
         Np = coords_3d.shape[0]
         energies = np.zeros(Np)
         for i in range(Np):
-            # 构造伪构象：假设所有残基相同位移
+
             pseudo = native_coords + coords_3d[i]
             energies[i] = coarse_grained_potential(pseudo, native_coords)
         return energies
     
-    # 在中心附近小区域积分
+
     box_min = np.array([-0.5, -0.5, -0.5])
     box_max = np.array([0.5, 0.5, 0.5])
     Z_local = integrate_partition_function_subdomain(box_min, box_max, potential_box, kT=kT, order_1d=3)
     log(f"  局部配分函数 Z_local = {Z_local:.6e}")
     
-    # 积分精度测试
+
     err_dict = test_cube_rule_precision(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, max_degree=4)
     max_err = max(err_dict.values())
     log(f"  立方体求积最大误差: {max_err:.2e}")
     
-    # ============================================================
-    # Step 9: 距离函数网格生成 (distmesh)
-    # ============================================================
+
+
+
     log("Step 9: 反应坐标空间自适应网格生成 (distmesh)...")
     try:
         p_mesh, t_mesh = generate_reaction_coordinate_mesh(
@@ -458,13 +349,13 @@ def main():
     except Exception as e:
         log(f"  distmesh 警告: {e}")
     
-    # ============================================================
-    # Step 10: 弹性网络模型与正常模式分析 (r8ss + hb_to_msm)
-    # ============================================================
+
+
+
     log("Step 10: 弹性网络模型 (ENM) 与正常模式分析...")
     gamma_matrix = build_elastic_network_matrix(native_coords, cutoff=2.0, spring_constant=1.0)
     
-    # 使用 R8SS 天际线格式存储和乘法验证
+
     na_r8ss, diag_r8ss, a_r8ss = r8ss_from_dense(gamma_matrix)
     x_test = np.ones(gamma_matrix.shape[0])
     b_r8ss = r8ss_mv(gamma_matrix.shape[0], na_r8ss, diag_r8ss, a_r8ss, x_test)
@@ -472,25 +363,25 @@ def main():
     r8ss_error = np.linalg.norm(b_r8ss - b_dense)
     log(f"  R8SS 矩阵-向量乘法误差: {r8ss_error:.2e}")
     
-    # NMA
+
     eigvals_nma, eigvecs_nma = normal_mode_analysis(gamma_matrix, n_modes=8)
     log(f"  ENM 前8个特征值 (频率平方): {eigvals_nma}")
     
-    # 均方涨落
+
     msf = compute_mean_square_fluctuation(gamma_matrix, kT=kT)
     log(f"  残基 MSF 范围: [{msf.min():.4f}, {msf.max():.4f}]")
     np.savetxt(os.path.join(out_dir, "mean_square_fluctuation.txt"), msf, header="MSF", fmt="%.6e")
     
-    # ============================================================
-    # Step 11: 多项式结式临界分析 (polynomial_resultant)
-    # ============================================================
+
+
+
     log("Step 11: 多项式势能面临界点分析...")
     
-    # 用多项式拟合自由能剖面的一段，然后分析临界点
-    # 选取 Q in [0.2, 0.8] 的 Chebyshev 系数作为多项式近似
+
+
     q_poly = q_fine[(q_fine >= 0.2) & (q_fine <= 0.8)]
     fe_poly = fe_cheb[(q_fine >= 0.2) & (q_fine <= 0.8)]
-    # 多项式拟合 (8阶)
+
     poly_coeffs = np.polyfit(q_poly, fe_poly, 8)
     
     crit_analysis = analyze_potential_landscape_criticality(poly_coeffs)
@@ -498,15 +389,15 @@ def main():
     log(f"  类型: {crit_analysis['types']}")
     log(f"  势垒高度: {crit_analysis['barrier_heights']}")
     
-    # Sylvester 矩阵示例：检测两个势能多项式的交点
-    poly1 = np.array([1.0, 0.0, -2.0])  # x^2 - 2
-    poly2 = np.array([1.0, -1.0, -1.0])  # x^2 - x - 1
+
+    poly1 = np.array([1.0, 0.0, -2.0])
+    poly2 = np.array([1.0, -1.0, -1.0])
     intersections = detect_bifurcation_points(poly1, poly2, x_range=(-2.0, 2.0))
     log(f"  示例多项式交点: {intersections}")
     
-    # ============================================================
-    # Step 12: Sigmoid 平滑截断 (sigmoid)
-    # ============================================================
+
+
+
     log("Step 12: Sigmoid 平滑截断与介电函数...")
     
     r_test = np.linspace(0.5, 4.0, 100)
@@ -518,20 +409,20 @@ def main():
                header="r  S(r)  epsilon(r)", fmt="%.6e")
     log(f"  截断函数: S(2.5)={smooth_cutoff_function(np.array([2.5]), 2.5, 0.3)[0]:.4f}")
     
-    # 高阶导数
+
     d2S = smooth_cutoff_derivative(np.array([2.5]), 2.5, 0.3, order=2)
     log(f"  S''(2.5) = {d2S[0]:.4f}")
     
-    # ============================================================
-    # Step 13: 不完全 Gamma 停留时间统计 (asa147)
-    # ============================================================
+
+
+
     log("Step 13: 不完全 Gamma 函数与停留时间统计...")
     
-    # Gamma 函数验证
+
     val_gam, fault = gammds(2.0, 3.0)
     log(f"  γ(2.0, 3.0)/Γ(3.0) = {val_gam:.6f} (ifault={fault})")
     
-    # 模拟停留时间数据（Gamma 分布抽样）
+
     rng = np.random.default_rng(99)
     true_shape, true_scale = 2.5, 1.2
     dwell_times = rng.gamma(shape=true_shape, scale=true_scale, size=200)
@@ -539,42 +430,42 @@ def main():
     log(f"  停留时间统计: mean={stats['mean']:.3f}, shape={stats['gamma_shape']:.3f}, "
         f"scale={stats['gamma_scale']:.3f}")
     
-    # 卡方检验 p 值示例
+
     chi2_val = 5.2
     pval = chi_square_pvalue(chi2_val, 3)
     log(f"  χ²={chi2_val}, dof=3, p-value={pval:.4f}")
     
-    # ============================================================
-    # Step 14: 贪心划分结构域 (partition_greedy)
-    # ============================================================
+
+
+
     log("Step 14: 贪心划分结构域...")
     
-    # 基于接触权重划分
-    # 基于接触权重划分 (使用绝对接触数，避免 Kirchhoff 矩阵行和为0)
+
+
     contact_counts = np.maximum(np.sum(np.abs(gamma_matrix), axis=1), 1e-6)
     groups = partition_residues_by_contact(np.diag(contact_counts), n_partitions=4)
     for i, g in enumerate(groups):
         log(f"  结构域 {i+1}: 残基 {g.tolist()}")
     
-    # 自由能景观划分
+
     fe_ranges = partition_free_energy_landscape(fe_profile, n_bins=4)
     for i, (emin, emax) in enumerate(fe_ranges):
         log(f"  能量盆地 {i+1}: F in [{emin:.3f}, {emax:.3f}]")
     
-    # 负载均衡示例
+
     workloads = np.array([100, 85, 120, 95, 110, 75, 130, 90])
     partition = partition_greedy(workloads)
     s0 = np.sum(workloads[partition == 0])
     s1 = np.sum(workloads[partition == 1])
     log(f"  负载均衡: 组0总和={s0}, 组1总和={s1}, 差异={abs(s0-s1)}")
     
-    # ============================================================
-    # Step 15: 四面体网格边界提取 (tet_mesh_boundary)
-    # ============================================================
+
+
+
     log("Step 15: 构象空间四面体网格边界分析...")
     
-    # 构造简化的四面体网格（构象空间子域）
-    # 用规则网格的四面体剖分模拟
+
+
     nx, ny, nz = 4, 4, 4
     x_grid = np.linspace(0, 1, nx)
     y_grid = np.linspace(0, rmsd_max, ny)
@@ -582,7 +473,7 @@ def main():
     X, Y, Z = np.meshgrid(x_grid, y_grid, z_grid, indexing='ij')
     nodes_3d = np.column_stack((X.ravel(), Y.ravel(), Z.ravel()))
     
-    # 构造四面体（每个立方体6个四面体）
+
     tets = []
     def node_idx(i, j, k):
         return i * ny * nz + j * nz + k
@@ -598,7 +489,7 @@ def main():
                 n101 = node_idx(i + 1, j, k + 1)
                 n110 = node_idx(i + 1, j + 1, k)
                 n111 = node_idx(i + 1, j + 1, k + 1)
-                # 6个四面体剖分
+
                 tets.extend([
                     [n000, n001, n011, n111],
                     [n000, n001, n101, n111],
@@ -616,21 +507,21 @@ def main():
     log(f"  边界节点: {n_bn}, 边界面: {n_bf}")
     log(f"  包围体积: {volume:.4f}, 表面积: {area:.4f}")
     
-    # 自由能盆地边界提取
+
     node_energies = np.array([np.interp(n[0], q_fine, fe_cheb) for n in nodes_3d])
     basin_nodes, basin_faces = extract_free_energy_basin_boundary(
         nodes_3d, tets, energy_threshold=fe_cheb.mean(), node_energies=node_energies
     )
     log(f"  低自由能盆地边界面数: {len(basin_faces)}")
     
-    # ============================================================
-    # 最终报告
-    # ============================================================
+
+
+
     log("=" * 60)
     log("计算完成。输出文件保存在 output/ 目录下。")
     log("=" * 60)
     
-    # 汇总输出
+
     summary = f"""
 蛋白质折叠自由能景观分析摘要
 ==============================

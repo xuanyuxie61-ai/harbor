@@ -1,41 +1,8 @@
-"""
-Matrix Market Format Exporter
-==============================
-Based on project 782_msm_to_mm.
-
-Exports large sparse/dense structural matrices (stiffness, mass,
-damping) to the NIST Matrix Market exchange format for archival,
-benchmarking, and inter-software compatibility.
-
-Matrix Market format:
-  %%MatrixMarket matrix coordinate real general
-  n_rows n_cols n_nonzeros
-  i j value
-  ...
-
-For symmetric matrices, only lower triangular part is stored.
-"""
 
 import numpy as np
 
 
 def matrix_to_coordinate_format(A, symmetry='general'):
-    """
-    Convert dense or sparse matrix to coordinate triples.
-    
-    Parameters
-    ----------
-    A : ndarray
-        Matrix.
-    symmetry : str
-        'general', 'symmetric', 'skew-symmetric', 'hermitian'.
-    
-    Returns
-    -------
-    rows : ndarray
-    cols : ndarray
-    vals : ndarray
-    """
     A = np.asarray(A)
     n_rows, n_cols = A.shape
     
@@ -49,7 +16,7 @@ def matrix_to_coordinate_format(A, symmetry='general'):
         for j in range(j_start, n_cols):
             val = A[i, j]
             if abs(val) > 1e-15:
-                rows.append(i + 1)  # 1-based indexing
+                rows.append(i + 1)
                 cols.append(j + 1)
                 vals.append(val)
     
@@ -59,21 +26,6 @@ def matrix_to_coordinate_format(A, symmetry='general'):
 def export_matrix_market(filename, A, format_type='coordinate',
                          matrix_type='real', symmetry='general',
                          comment="Structural analysis matrix"):
-    """
-    Export matrix to Matrix Market file.
-    
-    Parameters
-    ----------
-    filename : str
-    A : ndarray
-    format_type : str
-        'coordinate' or 'array'.
-    matrix_type : str
-        'real', 'integer', 'complex', 'pattern'.
-    symmetry : str
-        'general', 'symmetric', 'skew-symmetric', 'hermitian'.
-    comment : str
-    """
     A = np.asarray(A)
     n_rows, n_cols = A.shape
     
@@ -89,7 +41,7 @@ def export_matrix_market(filename, A, format_type='coordinate',
             for i, j, v in zip(rows, cols, vals):
                 f.write(f"{i} {j} {v:.16e}\n")
         else:
-            # Array format
+
             f.write(f"{n_rows} {n_cols}\n")
             for i in range(n_rows):
                 for j in range(n_cols):
@@ -98,18 +50,6 @@ def export_matrix_market(filename, A, format_type='coordinate',
 
 
 def export_structural_matrices(K, M, C=None, prefix="structural"):
-    """
-    Export stiffness, mass, and optional damping matrices.
-    
-    Parameters
-    ----------
-    K, M : ndarray
-        Stiffness and mass matrices.
-    C : ndarray, optional
-        Damping matrix.
-    prefix : str
-        File prefix.
-    """
     export_matrix_market(f"{prefix}_K.mtx", K, symmetry='symmetric',
                          comment="Global stiffness matrix")
     export_matrix_market(f"{prefix}_M.mtx", M, symmetry='symmetric',
@@ -120,21 +60,10 @@ def export_structural_matrices(K, M, C=None, prefix="structural"):
 
 
 def read_matrix_market(filename):
-    """
-    Read a Matrix Market file into a dense numpy array.
-    
-    Parameters
-    ----------
-    filename : str
-    
-    Returns
-    -------
-    A : ndarray
-    """
     with open(filename, 'r') as f:
         lines = f.readlines()
     
-    # Skip comments
+
     idx = 0
     while lines[idx].startswith('%'):
         idx += 1
@@ -143,7 +72,7 @@ def read_matrix_market(filename):
     parts = header.split()
     symmetry = parts[-1] if len(parts) > 4 else 'general'
     
-    # Read dimensions
+
     dims = lines[idx].strip().split()
     n_rows = int(dims[0])
     n_cols = int(dims[1])
@@ -163,7 +92,7 @@ def read_matrix_market(filename):
                 elif symmetry == 'skew-symmetric':
                     A[j, i] = -val
     else:
-        # Array format
+
         row = 0
         for line in lines[idx + 1:]:
             if line.strip():

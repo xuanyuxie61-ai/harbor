@@ -1,42 +1,9 @@
-"""
-special_functions.py
-===================
-核物理特殊函数计算模块
-
-本模块实现了原子核壳模型计算中所需的核心特殊函数，包括：
-1. 球贝塞尔函数 j_l(x) 与球诺伊曼函数 n_l(x) —— 用于径向薛定谔方程的解析解
-2. 正弦积分 Si(x) —— 用于核格林函数与自能计算中的振荡积分正则化
-3. 连带勒让德多项式 P_l^m(x) —— 用于球谐函数与形变势展开
-
-数学基础：
-- 球贝塞尔函数满足方程：x² y'' + 2x y' + [x² - l(l+1)] y = 0
-- 正弦积分定义：Si(x) = ∫₀^x sin(t)/t dt
-- 递推关系：j_{l+1}(x) = (2l+1)/x · j_l(x) - j_{l-1}(x)
-"""
 
 import numpy as np
 from math import factorial, sqrt, pi, sin, cos, exp, log
 
 
 def spherical_bessel_j(l, x):
-    """
-    计算球贝塞尔函数 j_l(x)。
-
-    对于小参数 x → 0：j_l(x) ~ x^l / (2l+1)!!
-    对于大参数 x → ∞：j_l(x) ~ sin(x - lπ/2) / x
-
-    参数
-    ----
-    l : int
-        角动量量子数，l >= 0
-    x : float 或 np.ndarray
-        自变量
-
-    返回
-    ----
-    float 或 np.ndarray
-        j_l(x) 的值
-    """
     if l < 0:
         raise ValueError("角动量量子数 l 必须非负")
     x = np.asarray(x, dtype=float)
@@ -44,7 +11,7 @@ def spherical_bessel_j(l, x):
     x = x.reshape(-1)
     result = np.zeros_like(x)
 
-    # 小参数级数展开：j_l(x) = x^l / (2l+1)!! · [1 - x²/(2(2l+3)) + ...]
+
     tiny = 1e-8
     small_mask = np.abs(x) < tiny
     if np.any(small_mask):
@@ -54,7 +21,7 @@ def spherical_bessel_j(l, x):
             double_fact *= k
         result[small_mask] = (xs ** l) / double_fact
 
-    # 中等参数：向前递推
+
     med_mask = (~small_mask) & (np.abs(x) <= 30.0)
     if np.any(med_mask):
         xm = x[med_mask]
@@ -74,7 +41,7 @@ def spherical_bessel_j(l, x):
                     j_prev1 = j_curr
                 result[med_mask] = j_prev1
 
-    # 大参数：渐近展开
+
     large_mask = np.abs(x) > 30.0
     if np.any(large_mask):
         xl = x[large_mask]
@@ -84,12 +51,6 @@ def spherical_bessel_j(l, x):
 
 
 def spherical_neumann_n(l, x):
-    """
-    计算球诺伊曼函数 n_l(x)（第二类球贝塞尔函数）。
-
-    小参数行为：n_l(x) ~ -(2l-1)!! / x^{l+1}
-    大参数行为：n_l(x) ~ -cos(x - lπ/2) / x
-    """
     if l < 0:
         raise ValueError("角动量量子数 l 必须非负")
     x = np.asarray(x, dtype=float)
@@ -137,17 +98,6 @@ def spherical_neumann_n(l, x):
 
 
 def sine_integral_si(x):
-    """
-    计算正弦积分 Si(x) = ∫₀^x sin(t)/t dt。
-
-    该函数在核物理中用于处理格林函数中的对数发散与振荡积分。
-    当 x → 0 时，Si(x) ~ x；当 x → ∞ 时，Si(x) → π/2。
-
-    实现采用分段策略：
-    - |x| ≤ 16：Chebyshev-like 级数展开
-    - 16 < |x| ≤ 32：Bessel 函数展开
-    - |x| > 32：渐近展开
-    """
     x = float(x)
     p2 = pi / 2.0
     el = 0.5772156649015329
@@ -160,7 +110,7 @@ def sine_integral_si(x):
         return 0.0
 
     elif xabs <= 16.0:
-        # 级数展开：Si(x) = Σ (-1)^k x^{2k+1} / [(2k+1)(2k+1)!]
+
         xr = xabs
         value = xabs
         for k in range(1, 40):
@@ -171,7 +121,7 @@ def sine_integral_si(x):
         return xsign * value
 
     elif xabs <= 32.0:
-        # 利用 Bessel 函数展开
+
         m = int(47.2 + 0.82 * xabs)
         bj = np.zeros(m)
         xa1 = 0.0
@@ -206,7 +156,7 @@ def sine_integral_si(x):
         return value
 
     else:
-        # 渐近展开
+
         xr = 1.0
         xf = 1.0
         for k in range(1, 10):
@@ -222,23 +172,13 @@ def sine_integral_si(x):
 
 
 def associated_legendre(l, m, x):
-    """
-    计算连带勒让德多项式 P_l^m(x)。
-
-    采用递推方法，利用 Bonnet 递推公式与连带递推关系：
-    (l - m) P_l^m(x) = x(2l - 1) P_{l-1}^m(x) - (l + m - 1) P_{l-2}^m(x)
-
-    在核壳模型中用于形变势的球谐展开：
-    V(r, θ, φ) = Σ_{λμ} V_{λμ}(r) Y_{λμ}(θ, φ)
-    其中 Y_{λμ} 与 P_λ^μ 直接相关。
-    """
     if abs(m) > l:
         return 0.0
     if abs(x) > 1.0:
         raise ValueError("|x| 必须 ≤ 1 以保证勒让德多项式定义")
 
     m_abs = abs(m)
-    # 使用 Ferrers 函数定义，x ∈ [-1, 1]
+
     pmm = 1.0
     if m_abs > 0:
         somx2 = sqrt((1.0 - x) * (1.0 + x))
@@ -264,16 +204,6 @@ def associated_legendre(l, m, x):
 
 
 def spherical_harmonic_Y(l, m, theta, phi):
-    """
-    计算球谐函数 Y_{lm}(θ, φ)。
-
-    Y_{lm}(θ, φ) = (-1)^m √[(2l+1)(l-m)! / (4π(l+m)!)] P_l^m(cos θ) e^{imφ}
-
-    该函数在核壳模型中用于：
-    1. 单粒子波函数角向部分
-    2. 形变势的多极展开
-    3. 电磁跃迁矩阵元的计算
-    """
     x = cos(theta)
     plm = associated_legendre(l, m, x)
     norm = sqrt((2 * l + 1) * factorial(l - abs(m)) / (4 * pi * factorial(l + abs(m))))
@@ -282,36 +212,11 @@ def spherical_harmonic_Y(l, m, theta, phi):
 
 
 def nuclear_form_factor(q, A, Z, R0=1.2):
-    """
-    计算原子核形状因子 F(q)。
-
-    基于球贝塞尔函数的解析表达式：
-    F(q) = 4π ∫₀^∞ ρ(r) j₀(qr) r² dr
-
-    对于均匀带电球模型：
-    F(q) = 3 [sin(qR) - qR cos(qR)] / (qR)³
-
-    参数
-    ----
-    q : float
-        动量转移 (fm⁻¹)
-    A : int
-        质量数
-    Z : int
-        电荷数
-    R0 : float
-        核半径参数 (fm)
-
-    返回
-    ----
-    float
-        形状因子的模平方 |F(q)|²
-    """
     R = R0 * (A ** (1.0 / 3.0))
     if abs(q) < 1e-10:
         return 1.0
     qr = q * R
     j0 = spherical_bessel_j(0, qr)
-    # 更精确的 Fermi 分布形状因子使用数值积分，此处用简化解析式
-    F = 3.0 * j0 / qr ** 2  # 近似
+
+    F = 3.0 * j0 / qr ** 2
     return abs(F) ** 2

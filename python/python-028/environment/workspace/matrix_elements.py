@@ -1,40 +1,9 @@
-"""
-matrix_elements.py
-==================
-核矩阵元计算与 Cauchy 主值积分模块
-
-本模块实现：
-1. 核子-核子相互作用矩阵元的数值积分
-2. 自能计算中的 Cauchy 主值积分
-3. 电磁多极算符矩阵元
-
-数学基础：
-1. Cauchy 主值积分：
-   P ∫_a^b f(x)/(x - x₀) dx = lim_{ε→0} [∫_a^{x₀-ε} + ∫_{x₀+ε}^b] f(x)/(x-x₀) dx
-
-   数值计算采用 Gauss-Legendre 求积，利用对称性消去奇异性：
-   P ∫_{-1}^1 g(s)/s ds ≈ Σ w_i [g(s_i) - g(0)] / s_i
-   当 N 为偶数时，Σ w_i/s_i = 0，因此 g(0) 项自动消失。
-
-2. 多极算符矩阵元：
-   ⟨n'l'j'||Q_λ||nlj⟩ = e_λ ∫ u_{n'l'}(r) r^λ u_{nl}(r) dr
-   其中 u(r) = r R(r) 为约化径向波函数。
-
-3. 自能（Self-Energy）：
-   Σ(E) = P ∫_{E_min}^{E_max} |V_{nk}|² / (E - E_k) dE_k
-   其中 V_{nk} 为耦合矩阵元，E_k 为中间态能量。
-"""
 
 import numpy as np
 from math import sqrt, pi, cos, sin
 
 
 def gauss_legendre_nodes_weights(n):
-    """
-    计算 n 点 Gauss-Legendre 求积的节点与权重。
-
-    对于积分 ∫_{-1}^1 f(x) dx ≈ Σ_{i=1}^n w_i f(x_i)
-    """
     if n <= 0:
         raise ValueError("n 必须为正整数")
     nodes, weights = np.polynomial.legendre.leggauss(n)
@@ -42,33 +11,6 @@ def gauss_legendre_nodes_weights(n):
 
 
 def cauchy_principal_value(f, a, b, x0, n=64):
-    """
-    计算 Cauchy 主值积分 P ∫_a^b f(x) / (x - x₀) dx。
-
-    算法（基于 cauchy_principal_value 的 Python 实现）：
-    1. 将积分区间分解为 [a, x₀-δ] ∪ [x₀-δ, x₀+δ] ∪ [x₀+δ, b]
-    2. 两侧正则积分用标准 Gauss-Legendre
-    3. 中心奇异积分通过对称求积：
-       P ∫_{x₀-δ}^{x₀+δ} f(x)/(x-x₀) dx
-       = ∫_{-1}^1 [f(x₀ + δ s) - f(x₀)] / s ds
-       ≈ Σ w_i f(x₀ + δ s_i) / s_i   （N 为偶数时）
-
-    参数
-    ----
-    f : callable
-        被积函数（光滑部分）
-    a, b : float
-        积分区间
-    x0 : float
-        奇点位置，必须满足 a < x0 < b
-    n : int
-        Gauss-Legendre 点数（必须为偶数）
-
-    返回
-    ----
-    cpv : float
-        Cauchy 主值积分结果
-    """
     if n % 2 != 0:
         n += 1
 
@@ -109,30 +51,6 @@ def cauchy_principal_value(f, a, b, x0, n=64):
 
 
 def self_energy_integral(coupling_squared, energy_levels, E, n_quad=64):
-    """
-    计算单粒子自能 Σ(E)。
-
-    Σ(E) = Σ_k |V_{nk}|² · P ∫ dE' ρ(E') / (E - E')
-
-    这里将离散能级近似为 δ 函数加 Lorentz 展宽：
-    ρ(E') ≈ (1/π) Σ_k Γ_k / [(E' - E_k)² + Γ_k²]
-
-    参数
-    ----
-    coupling_squared : ndarray
-        |V_{nk}|² 数组
-    energy_levels : ndarray
-        中间态能量 E_k (MeV)
-    E : float
-        入射能量 (MeV)
-    n_quad : int
-        积分点数
-
-    返回
-    ----
-    sigma : float
-        自能 (MeV)
-    """
     sigma = 0.0
     gamma_width = 0.5
 
@@ -162,60 +80,11 @@ def self_energy_integral(coupling_squared, energy_levels, E, n_quad=64):
 
 
 def electric_multipole_matrix_element(r_grid, u_i, u_f, lambda_order):
-    """
-    计算电多极跃迁矩阵元。
-
-    ⟨f||Q_λ||i⟩ = e_eff ∫_0^∞ u_f(r) r^λ u_i(r) dr
-
-    参数
-    ----
-    r_grid : ndarray
-        径向格点
-    u_i, u_f : ndarray
-        初态与末态约化波函数 u(r) = r R(r)
-    lambda_order : int
-        多极阶数 λ
-
-    返回
-    ----
-    me : float
-        约化矩阵元 (e·fm^λ)
-    """
     integrand = u_f * (r_grid ** lambda_order) * u_i
     return np.trapezoid(integrand, r_grid)
 
 
 def transition_probability(lambda_order, me, E_gamma, mass_number, Ji):
-    """
-    计算约化跃迁几率 B(λ) 与半寿命估计。
-
-    B(λ) = |⟨f||Q_λ||i⟩|² / (2J_i + 1)
-
-    Weisskopf 单位：
-    B_W(λ) = (1/4π) [3/(λ+3)]² (1.2 A^{1/3})^{2λ}
-
-    参数
-    ----
-    lambda_order : int
-        多极阶数
-    me : float
-        约化矩阵元
-    E_gamma : float
-        γ 射线能量 (MeV)
-    mass_number : int
-        质量数 A
-    Ji : float
-        初态总角动量
-
-    返回
-    ----
-    B_lambda : float
-        约化跃迁几率
-    B_W : float
-        Weisskopf 单位
-    tau_half : float
-        估算半寿命 (秒)
-    """
     B_lambda = me ** 2 / (2.0 * Ji + 1.0)
 
     R = 1.2 * (mass_number ** (1.0 / 3.0))
@@ -230,37 +99,9 @@ def transition_probability(lambda_order, me, E_gamma, mass_number, Ji):
 
 
 def overlap_integral(r_grid, u1, u2):
-    """
-    计算两个径向波函数的重叠积分 ⟨1|2⟩ = ∫ u_1(r) u_2(r) dr。
-    """
     return np.trapezoid(u1 * u2, r_grid)
 
 
 def spectroscopic_factor(r_grid, u_orbital, u_residual, A_core, n, l, j):
-    """
-    计算谱学因子 S。
-
-    S = |⟨A+1 | a^†_{nlj} | A⟩|²
-      ≈ |∫ u_{res}(r) u_{orb}(r) dr|² · (2j + 1)
-
-    参数
-    ----
-    r_grid : ndarray
-    u_orbital : ndarray
-        轨道波函数（剥离/拾取核子）
-    u_residual : ndarray
-        剩余核波函数
-    A_core : int
-        核心核子数
-    n, l : int
-        主量子数、轨道角动量
-    j : float
-        总角动量
-
-    返回
-    ----
-    S : float
-        谱学因子
-    """
     overlap = overlap_integral(r_grid, u_orbital, u_residual)
     return overlap ** 2 * (2.0 * j + 1.0)

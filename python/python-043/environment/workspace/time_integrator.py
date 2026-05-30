@@ -1,48 +1,9 @@
-"""
-time_integrator.py — 自适应时间积分器
-
-融合以下种子项目：
-- 1030_rk12_adapt : 一阶/二阶 Runge-Kutta 自适应步长积分
-- 674_lindberg_exact : 刚性 ODE 精确解验证
-
-功能：
-1. 实现 RK1/RK2 自适应步长积分器（源自 rk12_adapt）
-2. 实现 RK4 固定步长积分器（用于高阶参考解）
-3. 提供刚性方程检验接口（Lindberg 精确解对比）
-4. 为 MHD 方程组提供时间推进接口
-
-核心公式：
-  对于 y' = f(t, y):
-  RK1 (Euler):    y1 = y_n + h k1,   k1 = f(t_n, y_n)
-  RK2 (Heun):     y2 = y_n + h/2 (k1 + k2),  k2 = f(t_n+h, y_n+h k1)
-  局部截断误差:   e = ||y2 - y1||
-  步长调整策略:
-    若 e > tol * h :   h = h / 2  (拒绝步)
-    若 e < tol * h / 16 : h = h * 2  (接受步并放大)
-    否则接受当前步
-"""
 
 import numpy as np
 from utils import lindberg_rhs, lindberg_exact_solution
 
 
 def rk12_adapt(rhs_func, tspan, y0, dt_init, tol):
-    """
-    自适应 RK1/RK2 时间积分器。
-    源自 1030_rk12_adapt (rk12_adapt.m)。
-
-    参数：
-      rhs_func : 右端项函数，签名 func(t, y) -> dy/dt (数组)
-      tspan    : [t_start, t_end]
-      y0       : 初始条件 (m,)
-      dt_init  : 建议初始步长
-      tol      : 容差，截断误差需满足 e < tol * dt
-
-    返回：
-      t : 时间序列 (n+1,)
-      y : 解序列 (n+1, m)
-      e : 估计截断误差序列 (n+1,)
-    """
     t_start, t_end = tspan
     y0 = np.atleast_1d(y0)
     m = len(y0)
@@ -91,16 +52,6 @@ def rk12_adapt(rhs_func, tspan, y0, dt_init, tol):
 
 
 def rk4_fixed(rhs_func, tspan, y0, n_steps):
-    """
-    四阶 Runge-Kutta 固定步长积分器（用于生成参考解）。
-
-    公式：
-      k1 = f(t_n, y_n)
-      k2 = f(t_n + h/2, y_n + h k1 / 2)
-      k3 = f(t_n + h/2, y_n + h k2 / 2)
-      k4 = f(t_n + h,   y_n + h k3)
-      y_{n+1} = y_n + h/6 (k1 + 2k2 + 2k3 + k4)
-    """
     t_start, t_end = tspan
     y0 = np.atleast_1d(y0)
     h = (t_end - t_start) / n_steps
@@ -120,13 +71,6 @@ def rk4_fixed(rhs_func, tspan, y0, n_steps):
 
 
 def adams_bashforth_3(rhs_func, tspan, y0, n_steps):
-    """
-    三阶 Adams-Bashforth 多步法。
-    前 2 步用 RK4 启动。
-
-    公式（k ≥ 2）:
-      y_{k+1} = y_k + h/12 * (23 f_k - 16 f_{k-1} + 5 f_{k-2})
-    """
     t_start, t_end = tspan
     y0 = np.atleast_1d(y0)
     h = (t_end - t_start) / n_steps
@@ -135,7 +79,7 @@ def adams_bashforth_3(rhs_func, tspan, y0, n_steps):
     y = np.zeros((n_steps + 1, len(y0)))
     y[0] = y0
 
-    # 用 RK4 启动前两步
+
     for i in range(min(2, n_steps)):
         k1 = rhs_func(t[i], y[i])
         k2 = rhs_func(t[i] + h / 2, y[i] + h * k1 / 2)
@@ -155,16 +99,6 @@ def adams_bashforth_3(rhs_func, tspan, y0, n_steps):
 
 def integrate_mhd_system(state, rhs_mhd, tspan, dt_init, tol,
                          integrator_type='rk12'):
-    """
-    MHD 系统的时间推进接口。
-
-    状态向量 state 包含：
-      [磁矢势 A 的节点值, 速度场 u 的节点值, 温度场 T 的节点值]
-
-    采用分量拆分（operator splitting）：
-      1. 扩散项（刚性）用隐式处理或更小步长
-      2. 对流项（非刚性）用显式 RK
-    """
     if integrator_type == 'rk12':
         return rk12_adapt(rhs_mhd, tspan, state, dt_init, tol)
     elif integrator_type == 'rk4':
@@ -178,10 +112,6 @@ def integrate_mhd_system(state, rhs_mhd, tspan, dt_init, tol,
 
 
 def verify_integrator_accuracy():
-    """
-    使用 Lindberg 精确解验证时间积分器精度（源自 674_lindberg_exact）。
-    返回各积分器在 t=0.01 处的相对误差。
-    """
     tspan = np.array([0.0, 0.01])
     y0 = np.array([1.0, 1.0, -1.0, 0.0])
     y_exact, _ = lindberg_exact_solution(np.array([0.01]))
@@ -189,17 +119,17 @@ def verify_integrator_accuracy():
 
     results = {}
 
-    # RK12
+
     t_rk12, y_rk12, _ = rk12_adapt(lindberg_rhs, tspan, y0, 0.001, 1e-8)
     err = np.linalg.norm(y_rk12[-1] - y_exact) / (np.linalg.norm(y_exact) + 1e-30)
     results['rk12'] = err
 
-    # RK4
+
     t_rk4, y_rk4 = rk4_fixed(lindberg_rhs, tspan, y0, 100)
     err = np.linalg.norm(y_rk4[-1] - y_exact) / (np.linalg.norm(y_exact) + 1e-30)
     results['rk4'] = err
 
-    # AB3
+
     t_ab3, y_ab3 = adams_bashforth_3(lindberg_rhs, tspan, y0, 100)
     err = np.linalg.norm(y_ab3[-1] - y_exact) / (np.linalg.norm(y_exact) + 1e-30)
     results['ab3'] = err

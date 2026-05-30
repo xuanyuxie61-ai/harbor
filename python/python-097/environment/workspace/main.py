@@ -1,36 +1,8 @@
-"""
-main.py
-
-微波器件FDTD仿真统一入口。
-零参数可运行，执行完整的电磁仿真流程:
-1. 构建圆柱形微波谐振腔几何
-2. 生成Yee交错网格
-3. 配置材料属性（含介质加载）
-4. 初始化FDTD引擎与PML边界
-5. 注入高斯调制正弦激励源
-6. 时域推进与能量监测
-7. 模式分析（逆幂方法）
-8. Q值计算与收敛性分析
-9. 数值验证与误差估计
-
-科学问题:
----------
-分析一个带有圆扇形介质加载的圆柱形微波谐振腔的电磁模式特性。
-通过时域FDTD仿真提取谐振频率和品质因数Q，
-并与理论本征模式分析结果进行对比验证。
-
-物理参数:
----------
-- 腔体半径: 50 mm
-- 腔体高度: 100 mm
-- 介质加载: 圆扇形，εr=10.0，填充角60°
-- 激励频率: 2.0 GHz（接近TM₀₁₀模式）
-"""
 
 import sys
 import numpy as np
 
-# 导入所有模块
+
 from physics_constants import (
     EPSILON_0, MU_0, C_0, ETA_0,
     quality_factor, wavenumber_frequency_relation,
@@ -56,35 +28,33 @@ from numerical_utils import (
 
 
 def print_section(title):
-    """打印格式化章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_simulation():
-    """主仿真流程。"""
     np.random.seed(42)
 
     print_section("微波器件FDTD仿真 — 圆柱谐振腔模式分析")
     print("科学领域: 电磁学 — 微波器件时域有限差分仿真")
     print("合成项目: 基于15个种子算法的博士级科学计算")
 
-    # ============================================================
-    # 1. 仿真参数配置
-    # ============================================================
+
+
+
     print_section("1. 仿真参数与网格配置")
 
-    # 物理尺寸 (m)
-    R_cavity = 0.05        # 腔体半径 50 mm
-    H_cavity = 0.10        # 腔体高度 100 mm
-    f_excitation = 2.0e9   # 激励频率 2.0 GHz
 
-    # 使用素数步数避免数值共振 (基于is_prime)
+    R_cavity = 0.05
+    H_cavity = 0.10
+    f_excitation = 2.0e9
+
+
     nx, ny, nz = generate_prime_grid_steps(31, 31, 41)
     print(f"  素数网格步数: nx={nx}, ny={ny}, nz={nz}")
 
-    # 构建计算域（略大于腔体以容纳PML）
+
     Lx = Ly = 2.2 * R_cavity
     Lz = 1.2 * H_cavity
 
@@ -92,12 +62,12 @@ def run_simulation():
     print(f"  计算域: {Lx*1000:.1f}×{Ly*1000:.1f}×{Lz*1000:.1f} mm³")
     print(f"  网格步长: dx={grid.dx*1000:.3f}, dy={grid.dy*1000:.3f}, dz={grid.dz*1000:.3f} mm")
 
-    # ============================================================
-    # 2. 几何形状与材料定义
-    # ============================================================
+
+
+
     print_section("2. 几何与材料配置")
 
-    # 圆柱形谐振腔
+
     cavity = CylindricalCavity(
         radius=R_cavity,
         height=H_cavity,
@@ -109,10 +79,10 @@ def run_simulation():
     print(f"  理论TM₀₁₀截止频率: {cavity.tm_cutoff_frequency(0, 1, 0)/1e9:.4f} GHz")
     print(f"  理论TE₁₁₁截止频率: {cavity.te_cutoff_frequency(1, 1, 1)/1e9:.4f} GHz")
 
-    # 圆扇形介质加载（基于circle_segment）
+
     dielectric_segment = CircleSegmentDielectric(
         r=R_cavity * 0.8,
-        theta=np.pi / 3.0,  # 60度
+        theta=np.pi / 3.0,
         height=H_cavity * 0.5,
         epsilon_r=10.0,
         center=(Lx / 2.0, Ly / 2.0),
@@ -121,17 +91,17 @@ def run_simulation():
           f"θ={np.degrees(dielectric_segment.theta):.1f}°, εr={dielectric_segment.epsilon_r}")
     print(f"  介质面积: {dielectric_segment.area()*1e6:.3f} mm²")
 
-    # 分配材料属性
+
     shapes = [cavity, dielectric_segment]
     epsilon, mu, sigma = assign_material_properties(grid, shapes)
 
-    # 验证材料参数
+
     eps_min, eps_max = np.min(epsilon), np.max(epsilon)
     print(f"  介电常数范围: {eps_min/EPSILON_0:.2f}ε₀ ~ {eps_max/EPSILON_0:.2f}ε₀")
 
-    # ============================================================
-    # 3. PML边界初始化
-    # ============================================================
+
+
+
     print_section("3. PML吸收边界条件")
 
     pml = PMLBoundary3D(grid, pml_thickness=6, reflection_coeff=1e-5)
@@ -140,12 +110,12 @@ def run_simulation():
     print(f"  PML最大电导率: {pml.sigma_max:.3e} S/m")
     print(f"  估计反射系数: {R_est:.2e}")
 
-    # ============================================================
-    # 4. FDTD引擎配置
-    # ============================================================
+
+
+
     print_section("4. FDTD引擎初始化")
 
-    # 高斯调制正弦源
+
     t0 = 5.0 / f_excitation
     tau = 2.0 / f_excitation
     src_pos = (nx // 2, ny // 2, nz // 3)
@@ -173,12 +143,12 @@ def run_simulation():
     print(f"  CFL时间步长: {engine.dt*1e12:.3f} ps")
     print(f"  最大波速: {engine.c_max/1e8:.4f}×10⁸ m/s")
 
-    # ============================================================
-    # 5. 时域仿真运行
-    # ============================================================
+
+
+
     print_section("5. 时域仿真推进")
 
-    # 计算足够的周期以观察稳态
+
     T_period = 1.0 / f_excitation
     n_steps = int(15.0 * T_period / engine.dt)
     sample_interval = max(1, n_steps // 200)
@@ -188,32 +158,32 @@ def run_simulation():
     print(f"  能量采样间隔: {sample_interval} 步")
     print("  运行中...")
 
-    # 手动推进以便加入PML和能量监测
+
     energy_history = []
     power_loss_history = []
     time_history = []
 
     for step in range(n_steps):
-        # TODO: Hole 3 — 实现完整的FDTD时域推进循环体
-        # 要求：
-        # 1. 按正确顺序调用engine.update_magnetic()和engine.update_electric()
-        # 2. 调用PML边界更新（pml.update_electric_pml和pml.update_magnetic_pml）
-        # 3. 应用PEC边界条件（engine.apply_pec_boundary()）
-        # 4. 更新时间计数并注入激励源（engine.apply_source()）
-        # 5. 数值溢出保护（软截断和清除NaN/Inf）
-        # 6. 按sample_interval间隔采样能量和功率
-        # 注意：Yee算法的标准顺序为 update_magnetic -> update_electric -> boundary -> source
+
+
+
+
+
+
+
+
+
         raise NotImplementedError("Hole 3: 请实现FDTD时域推进主循环")
 
     print(f"  仿真完成。最终时间: {engine.time*1e9:.3f} ns")
 
-    # ============================================================
-    # 6. 能量守恒检验（基于rigid_body_ode思想）
-    # ============================================================
+
+
+
     print_section("6. 能量守恒与数值稳定性分析")
 
-    # 注：在有持续激励源的情况下，严格能量守恒不成立（源持续做功）。
-    # 此处主要检查数值稳定性：无异常NaN/Inf溢出即为通过。
+
+
     energy_check = check_energy_conservation(
         energy_history, time_history, power_loss_history, tol=1.0
     )
@@ -222,7 +192,7 @@ def run_simulation():
     print(f"  能量漂移: {energy_check['energy_drift']:.3e}")
     print(f"  注: 有源条件下能量不守恒是正常的（外部源持续注入能量）")
 
-    # 数值色散分析
+
     kx_test = 2.0 * np.pi / Lx
     ky_test = 2.0 * np.pi / Ly
     omega_num, omega_ex = stability_analysis_2d_scalar(
@@ -231,25 +201,25 @@ def run_simulation():
     dispersion_error = abs(omega_num - omega_ex) / abs(omega_ex + 1e-30)
     print(f"  数值色散误差(测试波数): {dispersion_error:.3e}")
 
-    # ============================================================
-    # 7. 模式分析与Q值计算
-    # ============================================================
+
+
+
     print_section("7. 本征模式分析与Q值计算")
 
-    # 2D截面模式分析（基于power_method + biharmonic_fd2d差分）
+
     nx_2d = min(nx, 25)
     ny_2d = min(ny, 25)
     dx_2d = Lx / (nx_2d - 1)
     dy_2d = Ly / (ny_2d - 1)
 
-    # 提取2D截面的材料参数
+
     epsilon_2d = epsilon[:, :, nz // 2]
     mu_2d = mu[:, :, nz // 2]
 
-    # 降采样到分析网格
+
     epsilon_2d_anal = epsilon_2d[::max(1, nx//nx_2d), ::max(1, ny//ny_2d)]
     mu_2d_anal = mu_2d[::max(1, nx//nx_2d), ::max(1, ny//ny_2d)]
-    # 确保尺寸匹配
+
     epsilon_2d_anal = epsilon_2d_anal[:nx_2d, :ny_2d]
     mu_2d_anal = mu_2d_anal[:nx_2d, :ny_2d]
 
@@ -260,21 +230,21 @@ def run_simulation():
         k_mode = mode['wavenumber']
         print(f"  模式{idx+1}: f = {f_mode/1e9:.4f} GHz, k = {k_mode:.2f} rad/m")
 
-    # 从时域数据计算Q值
+
     if len(energy_history) > 20:
-        # 取后段稳态数据拟合衰减
+
         W_arr = np.array(energy_history)
         t_arr = np.array(time_history)
-        # 使用局部极大值包络
+
         from scipy.signal import find_peaks
         peaks, _ = find_peaks(W_arr, distance=max(3, int(T_period / engine.dt / sample_interval * 0.8)))
         if len(peaks) >= 3:
             peak_times = t_arr[peaks]
             peak_energies = W_arr[peaks]
-            # 指数拟合: W = W0 exp(-ωt/Q)
+
             if len(peak_energies) >= 2 and np.all(peak_energies > 1e-30):
                 logW = np.log(peak_energies)
-                # 线性回归: logW = logW0 - (ω/Q) t
+
                 A_mat = np.vstack([np.ones(len(peak_times)), peak_times]).T
                 coeffs = np.linalg.lstsq(A_mat, logW, rcond=None)[0]
                 decay_rate = -coeffs[1]
@@ -290,20 +260,20 @@ def run_simulation():
     else:
         Q_simulated = None
 
-    # 理论Q值（导体损耗）
-    sigma_copper = 5.8e7  # S/m
+
+    sigma_copper = 5.8e7
     skin_depth = np.sqrt(2.0 / (2.0 * np.pi * f_excitation * MU_0 * sigma_copper))
     surface_resistance = 1.0 / (sigma_copper * skin_depth)
-    # 简化Q值估计
+
     if surface_resistance > 0:
         Q_theoretical = (2.0 * np.pi * f_excitation * MU_0 * R_cavity) / (4.0 * surface_resistance)
         print(f"  理论Q值(铜壁): {Q_theoretical:.2f}")
     else:
         Q_theoretical = None
 
-    # ============================================================
-    # 8. 功率流分析（基于pagerank思想）
-    # ============================================================
+
+
+
     print_section("8. 功率流网络分析（PageRank类比）")
 
     E_final = (engine.Ex, engine.Ey, engine.Ez)
@@ -315,17 +285,17 @@ def run_simulation():
     print(f"  平均能量集中度: {rank_mean:.3e}")
     print(f"  能量集中比: {rank_max/rank_mean:.2f}")
 
-    # ============================================================
-    # 9. 特殊矩阵验证（基于hankel_inverse）
-    # ============================================================
+
+
+
     print_section("9. Hankel/Toeplitz结构验证")
 
-    # 构造一个条件数良好的Hankel矩阵进行Fiedler求逆验证
+
     n_hankel = 3
     x_hankel = np.array([2.0, -1.0, 3.0, 0.5, 1.0])
     A_inv, A = hankel_inverse_fiedler(n_hankel, x_hankel)
 
-    # 验证逆矩阵
+
     I_approx = A @ A_inv
     identity_error = np.linalg.norm(I_approx - np.eye(n_hankel))
     cond_number = np.linalg.cond(A)
@@ -334,7 +304,7 @@ def run_simulation():
     print(f"  Fiedler逆矩阵验证误差: {identity_error:.3e}")
     print(f"  （验证了Fiedler公式 H⁻¹ = M₁·M₂ - M₃·M₄ 的正确性）")
 
-    # 天线阵列互阻抗矩阵（Toeplitz结构）
+
     n_ant = 5
     Z_matrix = antenna_array_impedance_matrix(n_ant, 0.5)
     print(f"  阵列互阻抗矩阵({n_ant}元):")
@@ -342,12 +312,12 @@ def run_simulation():
         row_str = "  " + "  ".join([f"{Z_matrix[i,j]:7.2f}" for j in range(n_ant)])
         print(row_str)
 
-    # ============================================================
-    # 10. 高阶积分验证（基于quadrature_rules）
-    # ============================================================
+
+
+
     print_section("10. 高阶数值积分验证")
 
-    # 使用高斯积分计算总能量
+
     W_quad = integrate_field_energy_quadrature(
         E_final, H_final, epsilon, mu, grid.dx, grid.dy, grid.dz, order=3
     )
@@ -358,17 +328,17 @@ def run_simulation():
     print(f"  直接求和能量: {W_direct:.6e} J")
     print(f"  积分相对差异: {quad_error:.3e}")
 
-    # 三角形Wandzura积分测试
+
     from quadrature_rules import integrate_triangle_wandzura
     tri_vertices = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
     f_test = lambda x, y: x**2 + y**2
     I_wandzura = integrate_triangle_wandzura(f_test, tri_vertices, rule_degree=7)
-    I_exact = 1.0 / 6.0  # ∫∫_T (x²+y²) dA = 1/6 (对于单位直角三角形)
+    I_exact = 1.0 / 6.0
     print(f"  Wandzura积分测试: {I_wandzura:.6e} (精确值: {I_exact:.6e}, 误差: {abs(I_wandzura-I_exact):.3e})")
 
-    # ============================================================
-    # 11. 插值验证（基于lagrange_interp_1d）
-    # ============================================================
+
+
+
     print_section("11. 拉格朗日插值验证")
 
     xd = np.linspace(0.0, Lz, 7)
@@ -380,16 +350,16 @@ def run_simulation():
     print(f"  插值节点数: {len(xd)}")
     print(f"  插值RMS误差: {interp_rms:.3e}")
 
-    # 材料参数插值测试
+
     z_test = np.linspace(0.0, Lz, 20)
     eps_profile = np.where(z_test < H_cavity / 2.0, EPSILON_0, 2.0 * EPSILON_0)
     z_query = np.linspace(0.0, Lz, 100)
     eps_interp = interpolate_material_profile(z_test, eps_profile, z_query, method='lagrange')
     print(f"  材料参数插值范围: {np.min(eps_interp)/EPSILON_0:.2f}ε₀ ~ {np.max(eps_interp)/EPSILON_0:.2f}ε₀")
 
-    # ============================================================
-    # 12. 蒙特卡洛验证（基于sphere_distance）
-    # ============================================================
+
+
+
     print_section("12. 蒙特卡洛球面采样验证")
 
     sphere_stats = sphere_distance_stats(n_samples=2000)
@@ -398,9 +368,9 @@ def run_simulation():
     print(f"  方差: {sphere_stats['variance']:.4f}")
     print(f"  距离统计相对误差: {abs(sphere_stats['mean'] - theoretical_mean):.4f}")
 
-    # ============================================================
-    # 13. 结果汇总
-    # ============================================================
+
+
+
     print_section("13. 仿真结果汇总")
     print(f"  腔体几何: 圆柱形, R={R_cavity*1000:.1f}mm, H={H_cavity*1000:.1f}mm")
     print(f"  网格规模: {nx}×{ny}×{nz} = {nx*ny*nz:,} 个Yee元胞")

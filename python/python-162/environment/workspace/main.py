@@ -1,31 +1,9 @@
-"""
-main.py
-================================================================================
-统一入口：锂电池电化学-热耦合全尺度仿真平台
-================================================================================
-本项目基于15个种子科研代码项目的核心算法，合成一个面向
-"能源系统：锂电池电化学热耦合" 的前沿博士级科学计算问题。
-
-运行方式：
-    python main.py
-
-零参数可运行，自动完成以下完整流程：
-  1. 电池几何建模与网格生成
-  2. 粒子尺寸分布（PSD）建模与聚类
-  3. 电化学伪二维（DFN）模型时间推进
-  4. 二维热有限元求解与电化学-热耦合
-  5. 随机锂离子传输蒙特卡洛分析
-  6. 充电协议组合优化
-  7. 阻抗谱FFT分析
-  8. 结果输出与统计汇总
-================================================================================
-"""
 
 import numpy as np
 import time
 import os
 
-# Import all scientific modules
+
 from geometry_engine import BatteryCellGeometry, Polygon2D
 from mesh_generator import (
     generate_structured_triangle_mesh,
@@ -103,9 +81,9 @@ def main():
     print("*" * 70)
     start_time = time.time()
 
-    # ==========================================================================
-    # Stage 1: Geometry & Mesh Generation
-    # ==========================================================================
+
+
+
     print_header("Stage 1: 电池几何建模与网格生成")
     geometry = BatteryCellGeometry(
         total_width=1.0, total_height=0.5,
@@ -122,13 +100,13 @@ def main():
     print(f"  生成单元数: {len(elements)}")
     print(f"  网格质量 (min/mean): {quality.min():.4f} / {quality.mean():.4f}")
 
-    # Fibonacci seeding for auxiliary points
+
     aux_points = fibonacci_seeding_2d(200, (0.0, 1.0, 0.0, 0.5))
     print(f"  Fibonacci辅助种子点数: {len(aux_points)}")
 
-    # ==========================================================================
-    # Stage 2: Particle Size Distribution (PSD) & Clustering
-    # ==========================================================================
+
+
+
     print_header("Stage 2: 粒子尺寸分布建模与聚类")
     np.random.seed(42)
     n_particles = 500
@@ -141,26 +119,26 @@ def main():
     ci_lo, ci_hi = psd_confidence_interval(radii, confidence=0.95)
     print(f"  95%置信区间: [{ci_lo:.2e}, {ci_hi:.2e}] m")
 
-    # Particle hierarchy
+
     hierarchy = ParticleHierarchy(n_classes=5)
     print(f"  粒子层次树直径: {hierarchy.diameter()}")
     print(f"  Catalan(5) = {catalan_number(5)}")
 
-    # ==========================================================================
-    # Stage 3: Electrochemical Simulation (DFN model)
-    # ==========================================================================
+
+
+
     print_header("Stage 3: 伪二维电化学模型 (DFN) 时间推进")
     echem = MacroscopicElectrochemicalSolver(
         L_neg=50e-6, L_sep=25e-6, L_pos=50e-6,
         n_neg=15, n_sep=8, n_pos=15,
         T0=298.15
     )
-    I_app = 30.0  # A/m^2 (approx 1C for typical electrode)
-    dt_echem = 1.0  # s
+    I_app = 30.0
+    dt_echem = 1.0
     n_steps_echem = 20
     voltages = []
     for step in range(n_steps_echem):
-        T_local = 298.15 + step * 0.5  # slowly rising temperature
+        T_local = 298.15 + step * 0.5
         result = echem.step(dt_echem, I_app, T_local)
         voltages.append(result["voltage"])
     print(f"  施加电流密度: {I_app} A/m^2")
@@ -169,9 +147,9 @@ def main():
     print(f"  平均表面浓度 (neg): {result['solid_surface_conc'][:echem.n_neg].mean():.2f} mol/m^3")
     print(f"  平均表面浓度 (pos): {result['solid_surface_conc'][echem.n_neg + echem.n_sep:].mean():.2f} mol/m^3")
 
-    # ==========================================================================
-    # Stage 4: Thermal FEM Coupling
-    # ==========================================================================
+
+
+
     print_header("Stage 4: 二维热有限元求解与电化学-热耦合")
     thermal_cond = {
         "neg_cc": 398.0, "neg_elec": 1.04, "separator": 0.334,
@@ -185,10 +163,10 @@ def main():
     T0 = np.full(len(nodes), 298.15)
 
     def q_gen_func(step, T_current):
-        # TODO: Hole 3 - 定义热源函数并映射 element 热源到 node 热源
-        # 需调用 compute_heat_generation 计算各单元热源
-        # 并通过平均法将 element-wise Q_elem 映射为 node-wise Q_nodes
-        # 注意：调用参数需与 thermal_fem.py 中 compute_heat_generation 的接口匹配
+
+
+
+
         n_nodes = len(nodes)
         Q_nodes = np.zeros(n_nodes)
         return Q_nodes
@@ -201,9 +179,9 @@ def main():
     grad_mag = thermal_solver.compute_temperature_gradient(T_history[-1])
     print(f"  最大温度梯度: {grad_mag.max():.4f} K/m")
 
-    # ==========================================================================
-    # Stage 5: Stochastic Li+ Transport (Feynman-Kac)
-    # ==========================================================================
+
+
+
     print_header("Stage 5: 随机锂离子传输蒙特卡洛分析")
     mean_c, std_c = feynman_kac_particle_diffusion(
         radius=1e-7, D_s=1e-12, surface_concentration=25000.0,
@@ -225,9 +203,9 @@ def main():
     var_conc = concentration_variance_from_walk(positions, length=75e-6, n_bins=15)
     print(f"  电解液浓度方差: {var_conc:.6f}")
 
-    # ==========================================================================
-    # Stage 6: Charging Protocol Optimization
-    # ==========================================================================
+
+
+
     print_header("Stage 6: 充电协议组合优化")
     current_options = np.array([5.0, 10.0, 20.0, 30.0, 50.0])
     durations = np.array([60.0, 60.0, 60.0, 60.0, 60.0])
@@ -259,9 +237,9 @@ def main():
     seg_labels, seg_centers = cluster_protocol_segments(np.array(greedy_I), n_segments=3)
     print(f"  协议电流聚类中心: {seg_centers}")
 
-    # ==========================================================================
-    # Stage 7: Impedance Spectroscopy via FFT
-    # ==========================================================================
+
+
+
     print_header("Stage 7: 电化学阻抗谱 FFT 分析")
     t_signal = np.linspace(0.0, 10.0, 1024)
     dt_sig = t_signal[1] - t_signal[0]
@@ -272,9 +250,9 @@ def main():
     print(f"  直流阻抗 (Z[0]): {abs(Z[0]):.4f} Ohm")
     print(f"  特征频率阻抗: {abs(Z[len(freqs)//4]):.4f} Ohm")
 
-    # ==========================================================================
-    # Stage 8: Special Functions & Numerical Utilities Verification
-    # ==========================================================================
+
+
+
     print_header("Stage 8: 特殊函数与数值工具验证")
     lg5 = log_gamma(5.0)
     print(f"  ln(Gamma(5)) = {lg5:.6f}  (理论: ln(24) = {np.log(24):.6f})")
@@ -287,7 +265,7 @@ def main():
     tri_sum = np.sum(tri_w)
     print(f"  三角形3点积分权重和: {tri_sum:.6f}  (理论: 0.5)")
 
-    # Banded matrix test
+
     from banded_linear_algebra import BandedMatrix
     bm_test = BandedMatrix(10, 1, 1)
     for i in range(10):
@@ -298,18 +276,18 @@ def main():
             bm_test.set_entry(i, i + 1, -1.0)
     info = bm_test.plu_factor()
     b_test = bm_test.solve(np.ones(10))
-    # Reconstruct original A for validation
+
     A_orig = np.zeros((10, 10))
     for i in range(10):
         for j in range(max(0, i - 1), min(10, i + 2)):
-            # For tridiagonal, original values are known
+
             if i == j:
                 A_orig[i, j] = 2.0
             else:
                 A_orig[i, j] = -1.0
     print(f"  带状矩阵求解残差: {np.linalg.norm(A_orig @ b_test - np.ones(10)):.2e}")
 
-    # Toeplitz test
+
     toeplitz_first = np.array([2.0, -1.0, 0.5, 0.0])
     ts = SymmetricToeplitzSolver(toeplitz_first)
     b_t = np.array([1.0, 0.0, 0.0, 0.0])
@@ -317,21 +295,21 @@ def main():
     recon = ts.matvec(x_t)
     print(f"  Toeplitz求解残差: {np.linalg.norm(recon - b_t):.2e}")
 
-    # Muller root test
+
     def test_poly(x):
         return x ** 3 - 2 * x - 5
     root = muller_root(test_poly, 1.0, 2.0, 3.0)
     print(f"  Muller根 x^3-2x-5=0: {root:.6f}  (残差: {test_poly(root):.2e})")
 
-    # RK2 test
+
     def ode_test(t, y):
         return np.array([-0.5 * y[0]])
     t_rk, y_rk = rk2_integrate(ode_test, np.array([1.0]), (0.0, 2.0), 100)
     print(f"  RK2积分 y'= -0.5*y, y(0)=1, y(2): {y_rk[-1, 0]:.6f}  (理论: {np.exp(-1.0):.6f})")
 
-    # ==========================================================================
-    # Final Summary
-    # ==========================================================================
+
+
+
     elapsed = time.time() - start_time
     print_header("仿真完成总结")
     print(f"  总运行时间: {elapsed:.3f} s")
@@ -344,7 +322,7 @@ def main():
     print("=" * 70)
     print("\n")
 
-    # Write minimal result file
+
     result_path = os.path.join(os.path.dirname(__file__), "simulation_result.txt")
     with open(result_path, "w", encoding="utf-8") as f:
         f.write("PROJECT_162 锂电池电化学-热耦合仿真结果\n")

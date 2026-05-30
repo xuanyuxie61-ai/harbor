@@ -1,29 +1,9 @@
-"""
-banded_linear_algebra.py
-================================================================================
-Banded and Toeplitz matrix linear algebra for electrochemical-thermal systems.
-
-Injects core algorithms from:
-  - 979_r8gb  (general banded matrix PLU factorization and solve)
-  - 999_r8sto (symmetric Toeplitz Durbin/Levinson solver)
-
-Scientific role:
-  The discretized Butler-Volmer / heat equations produce banded Jacobians.
-  Toeplitz structure appears in periodic convolutions for impedance spectroscopy
-  and in radial diffusion operators with uniform grids.
-================================================================================
-"""
 
 import numpy as np
 from typing import Tuple, Optional
 
 
 class BandedMatrix:
-    """
-    General banded matrix stored in LINPACK-style compact form.
-    For an N x N matrix with lower bandwidth ml and upper bandwidth mu,
-    the storage array has shape (2*ml + mu + 1, N).
-    """
 
     def __init__(self, n: int, ml: int, mu: int):
         self.n = n
@@ -33,7 +13,6 @@ class BandedMatrix:
         self.pivot = np.zeros(n, dtype=int)
 
     def set_entry(self, i: int, j: int, value: float):
-        """Set A[i, j] using band storage indexing."""
         if i < 0 or i >= self.n or j < 0 or j >= self.n:
             return
         if j - i > self.mu or i - j > self.ml:
@@ -50,10 +29,6 @@ class BandedMatrix:
         return self.ab[row, j]
 
     def plu_factor(self) -> int:
-        """
-        LINPACK-style banded PLU factorization with partial pivoting.
-        Returns info: 0 for success, k if the k-th pivot is zero.
-        """
         n = self.n
         ml = self.ml
         mu = self.mu
@@ -83,9 +58,6 @@ class BandedMatrix:
         return info
 
     def solve(self, b: np.ndarray, trans: int = 0) -> np.ndarray:
-        """
-        Solve A*x = b (trans=0) or A^T*x = b (trans=1) using factored form.
-        """
         n = self.n
         ml = self.ml
         mu = self.mu
@@ -116,7 +88,6 @@ class BandedMatrix:
         return x
 
     def determinant(self) -> float:
-        """Compute determinant from PLU factorization."""
         n = self.n
         m = self.ml + self.mu + 1
         det = 1.0
@@ -129,21 +100,12 @@ class BandedMatrix:
 
 
 class SymmetricToeplitzSolver:
-    """
-    Solves linear systems with symmetric Toeplitz matrices using
-    Durbin's algorithm (O(N^2)) and Levinson-style extensions.
-    Maps from 999_r8sto.
-    """
 
     def __init__(self, first_row: np.ndarray):
         self.first_row = np.asarray(first_row, dtype=float)
         self.n = len(first_row)
 
     def yule_walker(self, rhs_prefix: np.ndarray) -> np.ndarray:
-        """
-        Solve A * x = -rhs_prefix where A is symmetric positive-definite Toeplitz.
-        Uses Durbin's algorithm (Durbin 1960).
-        """
         n = self.n
         r = self.first_row
         b = np.asarray(rhs_prefix, dtype=float)
@@ -168,9 +130,6 @@ class SymmetricToeplitzSolver:
         return x
 
     def solve_general(self, b: np.ndarray) -> np.ndarray:
-        """
-        Solve A * x = b for general RHS using the Yule-Walker extension.
-        """
         n = self.n
         b_arr = np.asarray(b, dtype=float)
         if len(b_arr) != n:
@@ -194,7 +153,6 @@ class SymmetricToeplitzSolver:
         return x
 
     def matvec(self, x: np.ndarray) -> np.ndarray:
-        """Fast matrix-vector product A @ x in O(N^2) exploiting Toeplitz structure."""
         n = self.n
         x_arr = np.asarray(x, dtype=float)
         if len(x_arr) != n:
@@ -208,7 +166,6 @@ class SymmetricToeplitzSolver:
 
 
 def banded_from_dense(A: np.ndarray, ml: int, mu: int) -> BandedMatrix:
-    """Convert a dense matrix to banded storage."""
     n = A.shape[0]
     bm = BandedMatrix(n, ml, mu)
     for i in range(n):
@@ -218,7 +175,6 @@ def banded_from_dense(A: np.ndarray, ml: int, mu: int) -> BandedMatrix:
 
 
 def build_tridiagonal_banded(n: int, lower: float, diag: float, upper: float) -> BandedMatrix:
-    """Build a tridiagonal banded matrix with constant coefficients."""
     bm = BandedMatrix(n, 1, 1)
     for i in range(n):
         bm.set_entry(i, i, diag)

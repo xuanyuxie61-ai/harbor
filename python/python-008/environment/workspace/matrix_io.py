@@ -1,57 +1,8 @@
-"""
-Matrix I/O Module
-=================
-Based on seed project 782_msm_to_mm:
-- msm_to_mm.m  →  Matrix Market format conversion
-
-Physics:
---------
-Large sparse linear systems arising from radiative transfer
-discretization in GRB afterglows are stored in standard formats
-for interoperability.  The Matrix Market (MM) format represents
-sparse matrices as:
-
-    %%MatrixMarket matrix coordinate real general
-    M  N  NZ
-    i_1  j_1  a_{i1,j1}
-    i_2  j_2  a_{i2,j2}
-    ...
-
-where M, N are dimensions and NZ is the number of nonzeros.
-
-For dense arrays, the format is:
-
-    %%MatrixMarket matrix array real general
-    M  N
-    a_{1,1}
-    a_{2,1}
-    ...
-
-This module provides conversion between NumPy arrays/sparse
-triplets and Matrix Market text representation, which is useful
-for exporting GRB radiative-transfer matrices to external solvers
-(e.g., PETSc, MUMPS).
-"""
 
 import numpy as np
 
 
 def dense_to_mm_array(A, symmetry='general'):
-    """
-    Convert a dense NumPy array to Matrix Market array format string.
-
-    Parameters
-    ----------
-    A : ndarray
-        Dense matrix.
-    symmetry : str
-        'general', 'symmetric', 'skew-symmetric', or 'hermitian'.
-
-    Returns
-    -------
-    text : str
-        Matrix Market representation.
-    """
     A = np.asarray(A)
     m, n = A.shape
     lines = []
@@ -70,25 +21,6 @@ def dense_to_mm_array(A, symmetry='general'):
 
 
 def sparse_to_mm_coordinate(row, col, val, m, n, symmetry='general'):
-    """
-    Convert sparse triplet format to Matrix Market coordinate format.
-
-    Parameters
-    ----------
-    row, col : ndarray
-        0-based row and column indices.
-    val : ndarray
-        Nonzero values.
-    m, n : int
-        Matrix dimensions.
-    symmetry : str
-        'general', 'symmetric', 'skew-symmetric', or 'hermitian'.
-
-    Returns
-    -------
-    text : str
-        Matrix Market representation.
-    """
     row = np.asarray(row, dtype=int)
     col = np.asarray(col, dtype=int)
     val = np.asarray(val, dtype=float)
@@ -105,20 +37,6 @@ def sparse_to_mm_coordinate(row, col, val, m, n, symmetry='general'):
 
 
 def write_mm(filename, A, format_type='array', symmetry='general'):
-    """
-    Write a matrix to a file in Matrix Market format.
-
-    Parameters
-    ----------
-    filename : str
-        Output file path.
-    A : ndarray or tuple
-        Dense array, or (row, col, val, m, n) for sparse.
-    format_type : str
-        'array' or 'coordinate'.
-    symmetry : str
-        Symmetry type.
-    """
     if format_type.lower() == 'array':
         text = dense_to_mm_array(A, symmetry)
     elif format_type.lower() == 'coordinate':
@@ -132,18 +50,10 @@ def write_mm(filename, A, format_type='array', symmetry='general'):
 
 
 def read_mm_coordinate(filename):
-    """
-    Read a sparse matrix in Matrix Market coordinate format.
-
-    Returns
-    -------
-    row, col, val, m, n : tuple
-        0-based indices and dimensions.
-    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
-    # Skip comments
+
     idx = 0
     while lines[idx].strip().startswith('%'):
         idx += 1
@@ -165,23 +75,14 @@ def read_mm_coordinate(filename):
 
 
 def export_grb_matrix(A_dense, filename_prefix='grb_matrix'):
-    """
-    Export a GRB radiative-transfer matrix in both dense and sparse
-    Matrix Market formats.
-
-    Returns
-    -------
-    files : list
-        List of written file paths.
-    """
     files = []
 
-    # Dense array format
+
     fname_array = filename_prefix + '_array.mtx'
     write_mm(fname_array, A_dense, format_type='array', symmetry='general')
     files.append(fname_array)
 
-    # Coordinate format (extract nonzeros)
+
     nz_mask = np.abs(A_dense) > 0.0
     row_idx, col_idx = np.where(nz_mask)
     vals = A_dense[row_idx, col_idx]

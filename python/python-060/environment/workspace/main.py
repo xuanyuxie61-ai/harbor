@@ -1,30 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-平流层臭氧化学动力学三维数值模拟系统
-(Stratospheric Ozone Chemical Dynamics 3D Simulation System)
-
-本程序是一个面向前沿大气科学问题的博士级计算项目，
-综合运用了数值分析、计算化学、偏微分方程求解、
-不确定性量化等多个领域的高级算法。
-
-科学问题:
-模拟地球平流层（10-50 km高度）中臭氧（O3）的化学动力学过程，
-包括 Chapman 光化学机制、催化破坏循环（NOx/ClOx/HOx/BrOx）、
-垂直传输扩散以及参数不确定性量化。
-
-运行方式:
-    python main.py
-
-输出:
-    控制台输出模拟结果、统计分析和数值验证信息
-"""
 
 import numpy as np
 import sys
 import time
 
-# 导入各模块
+
 from chemistry_model import StratosphericChemistry
 from reaction_rates import ReactionRateInterpolator, PhotolysisRateCalculator
 from transport_solver import VerticalTransportSolver
@@ -39,31 +20,27 @@ from utils import print_matrix_summary, check_array_bounds
 
 
 def section_header(title: str):
-    """打印章节标题"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_chemistry_simulation():
-    """
-    运行核心化学动力学模拟
-    """
     section_header("1. 平流层臭氧化学动力学模拟")
 
-    # 初始化化学模型
+
     chem = StratosphericChemistry(num_altitude_levels=80)
     print(f"高度范围: {chem.z[0]/1000:.1f} - {chem.z[-1]/1000:.1f} km")
     print(f"温度范围: {chem.T.min():.1f} - {chem.T.max():.1f} K")
     print(f"压强范围: {chem.P.min():.2f} - {chem.P.max():.2f} hPa")
 
-    # 计算反应速率
+
     rates = chem.compute_reaction_rates()
     print(f"\n化学反应速率 (molec cm⁻³ s⁻¹):")
     for key, rate in rates.items():
         print(f"  {key}: max = {rate.max():.3e}, mean = {rate.mean():.3e}")
 
-    # 计算生产/损失
+
     production, loss = chem.compute_production_loss()
     o3_tendency = chem.ozone_tendency()
     print(f"\n臭氧化学趋势:")
@@ -71,13 +48,13 @@ def run_chemistry_simulation():
     print(f"  最大值: {o3_tendency.max():.3e} molec cm⁻³ s⁻¹")
     print(f"  平均值: {o3_tendency.mean():.3e} molec cm⁻³ s⁻¹")
 
-    # 计算臭氧柱总量
+
     o3_du = chem.ozone_column_density()
     print(f"\n臭氧柱总量: {o3_du:.2f} DU")
     print(f"(参考值: 全球平均约 250-350 DU)")
 
-    # 时间积分 (简化: 100步显式Euler)
-    dt = 3600.0  # 1小时
+
+    dt = 3600.0
     n_steps = 100
     print(f"\n运行 {n_steps} 步时间积分 (dt = {dt} s)...")
 
@@ -96,19 +73,16 @@ def run_chemistry_simulation():
 
 
 def run_reaction_rate_analysis():
-    """
-    反应速率分析与温度插值
-    """
     section_header("2. 反应速率温度依赖与 Vandermonde 插值")
 
-    # 初始化插值器
+
     interpolator = ReactionRateInterpolator(
         temp_range=(180.0, 270.0),
         pres_range=(1.0, 1000.0),
         n_t=50, n_p=30
     )
 
-    # 测试温度插值
+
     z_test = np.linspace(10000.0, 50000.0, 50)
     T_test = 220.0 + 20.0 * np.sin(np.pi * (z_test - 10000.0) / 40000.0)
     T_test = np.clip(T_test, 180.0, 270.0)
@@ -122,7 +96,7 @@ def run_reaction_rate_analysis():
     rmse = np.sqrt(np.mean((T_fit - T_test) ** 2))
     print(f"\n温度拟合 RMSE: {rmse:.4f} K")
 
-    # 查表测试
+
     rate_names = ['k_O_O2_M', 'k_O_O3', 'k_NO_O3', 'k_Cl_O3']
     T_test_pt = 220.0
     P_test_pt = 50.0
@@ -132,7 +106,7 @@ def run_reaction_rate_analysis():
         k = interpolator.lookup_rate(name, T_test_pt, P_test_pt)
         print(f"  {name}: {k:.3e} cm³ molec⁻¹ s⁻¹")
 
-    # 光解速率计算
+
     photo = PhotolysisRateCalculator(n_wavelength=100)
     J_o3 = photo.compute_photolysis_rate('O3', altitude=25000.0, T=220.0)
     J_o2 = photo.compute_photolysis_rate('O2', altitude=25000.0, T=220.0)
@@ -142,27 +116,24 @@ def run_reaction_rate_analysis():
 
 
 def run_transport_solver(chem: StratosphericChemistry):
-    """
-    运行传输方程求解
-    """
     section_header("3. 垂直传输方程求解 (GMRES / CG)")
 
-    # 初始化传输求解器
+
     w = 0.001 * np.sin(np.pi * (chem.z - 10000.0) / 40000.0)
     transport = VerticalTransportSolver(chem.z, chem.Kzz, w)
 
-    # 测试浓度场
+
     n_o3 = chem.species['O3'].copy()
 
-    # 计算化学源汇
+
     prod, loss = chem.compute_production_loss()
     source = prod['O3'] - loss['O3']
 
-    # 计算化学雅可比对角线 (仅 O3)
+
     jac_diag = chem.compute_jacobian_diagonal(species_name='O3')
 
-    # 隐式求解
-    dt = 1800.0  # 30分钟
+
+    dt = 1800.0
     print(f"时间步长: {dt} s")
     is_spd = transport._is_symmetric_positive_definite(
         transport.build_implicit_matrix(dt, jac_diag))
@@ -176,7 +147,7 @@ def run_transport_solver(chem: StratosphericChemistry):
     print(f"  最终总量: {np.sum(n_o3_new):.3e}")
     print(f"  相对变化: {(np.sum(n_o3_new) - np.sum(n_o3)) / np.sum(n_o3) * 100:.4f}%")
 
-    # 计算通量散度
+
     div = transport.compute_flux_divergence(n_o3)
     print(f"\n通量散度统计:")
     print(f"  最小值: {div.min():.3e}")
@@ -185,21 +156,18 @@ def run_transport_solver(chem: StratosphericChemistry):
 
 
 def run_bvp_solver():
-    """
-    病态边界值问题求解
-    """
     section_header("4. 病态BVP求解 (奇异摄动问题)")
 
     bvp = IllConditionedBVPSolver(z_min=10000.0, z_max=50000.0, n_points=200)
 
-    # 测试不同 epsilon 值
+
     epsilons = [1e-2, 1e-3, 1e-4]
 
     for eps in epsilons:
         print(f"\nepsilon = {eps:.0e}:")
         z, y = bvp.solve_finite_difference(epsilon=eps, max_iter=100, tol=1e-8)
 
-        # 边界层分析
+
         bl_info = bvp.boundary_layer_analysis(z, y, eps)
         print(f"  边界层厚度: {bl_info['boundary_layer_thickness_km']:.3f} km")
         print(f"  边界层位置: {bl_info['boundary_layer_position_km']:.1f} km")
@@ -208,16 +176,13 @@ def run_bvp_solver():
         thickness = bvp.compute_ozone_layer_thickness(y, threshold=1e11)
         print(f"  臭氧层有效厚度: {thickness:.1f} km")
 
-        # 使用多重打靶法
+
         z2, y2 = bvp.solve_shooting(epsilon=eps, n_subintervals=5)
         err = np.max(np.abs(y - y2)) / (np.max(np.abs(y)) + 1e-30)
         print(f"  FD vs Shooting 相对差异: {err:.3e}")
 
 
 def run_mesh_generation():
-    """
-    网格生成与质量评估
-    """
     section_header("5. 六边形-CVT 大气网格生成与质量评估")
 
     mesh = generate_atmospheric_mesh(n_horizontal=50, n_vertical=40)
@@ -233,11 +198,11 @@ def run_mesh_generation():
     print(f"  平均最近邻距离: {quality['mean_neighbor_dist']:.3e} m")
     print(f"  距离标准差: {quality['std_neighbor_dist']:.3e} m")
 
-    # Alpha measure 评估 (使用三角剖分)
+
     evaluator = MeshQualityEvaluator()
     points = mesh['xy_horizontal']
     if len(points) >= 3:
-        # 构造简化三角剖分
+
         from scipy.spatial import Delaunay
         try:
             tri = Delaunay(points)
@@ -253,9 +218,6 @@ def run_mesh_generation():
 
 
 def run_sparse_grid_uq():
-    """
-    稀疏网格不确定性量化
-    """
     section_header("6. 稀疏网格不确定性量化 (Smolyak)")
 
     uq = OzoneModelUQ(dim=5, level_max=3)
@@ -273,7 +235,7 @@ def run_sparse_grid_uq():
     print(f"  75% 分位数: {stats['q75']:.2f} DU")
     print(f"  95% 分位数: {stats['q95']:.2f} DU")
 
-    # Sobol 敏感性分析
+
     print("\nSobol 一阶敏感性指标:")
     sobol = uq.sobol_first_order(n_monte_carlo=2000)
     for key, val in sobol.items():
@@ -281,14 +243,11 @@ def run_sparse_grid_uq():
 
 
 def run_monte_carlo_experiment():
-    """
-    蒙特卡洛实验
-    """
     section_header("7. 蒙特卡洛参数扰动实验")
 
     mc = OzoneMonteCarloExperiment(n_ensemble=500)
 
-    # 参数扰动实验
+
     print("运行参数扰动实验...")
     result_param = mc.run_parameter_perturbation_experiment()
 
@@ -300,7 +259,7 @@ def run_monte_carlo_experiment():
     print(f"  最小值: {result_param['o3_min']:.2f} DU")
     print(f"  最大值: {result_param['o3_max']:.2f} DU")
 
-    # 排放不确定性实验
+
     z_km = np.linspace(0, 50, 51)
     print("\n运行排放不确定性实验...")
     result_emission = mc.run_emission_uncertainty_experiment(z_km)
@@ -311,15 +270,12 @@ def run_monte_carlo_experiment():
 
 
 def run_tetrahedral_analysis():
-    """
-    三维体积分析
-    """
     section_header("8. 臭氧层三维体积分析")
 
     vol_analysis = StratosphericVolumeAnalysis(
         z_min=10000.0, z_max=50000.0, horizontal_extent=2.0e6)
 
-    # 分析臭氧层结构
+
     metrics = vol_analysis.analyze_ozone_layer(threshold=1e12)
 
     print(f"三维网格统计:")
@@ -336,16 +292,13 @@ def run_tetrahedral_analysis():
 
 
 def run_numerical_quadrature(chem: StratosphericChemistry):
-    """
-    数值积分验证
-    """
     section_header("9. 数值积分与柱总量计算")
 
     integrator = AtmosphericColumnIntegrator(chem.z, horizontal_area=1.0e10)
 
-    # 臭氧柱总量
-    n_o3 = chem.species['O3']  # molec/cm³
-    # 转换为 molec/m³
+
+    n_o3 = chem.species['O3']
+
     n_o3_m3 = n_o3 * 1e6
 
     column = integrator.column_density(n_o3_m3)
@@ -356,16 +309,16 @@ def run_numerical_quadrature(chem: StratosphericChemistry):
     print(f"Dobson Unit: {du:.2f} DU")
     print(f"区域总摩尔数: {moles:.3e} mol")
 
-    # 垂直积分验证
+
     from numerical_quadrature import VerticalIntegrator
     vert_int = VerticalIntegrator(chem.z)
 
-    # 测试积分精度 (使用已知解析解)
+
     f_test = np.exp(-chem.z / 10000.0)
     I_trap = vert_int.trapezoid(f_test)
     I_simpson = vert_int.simpson(f_test)
 
-    # 解析解: ∫ exp(-z/H) dz = -H exp(-z/H)
+
     H = 10000.0
     I_exact = H * (np.exp(-chem.z[0]/H) - np.exp(-chem.z[-1]/H))
 
@@ -374,9 +327,9 @@ def run_numerical_quadrature(chem: StratosphericChemistry):
     print(f"  梯形法则: {I_trap:.6e}, 相对误差: {abs(I_trap-I_exact)/I_exact*100:.4f}%")
     print(f"  Simpson 法则: {I_simpson:.6e}, 相对误差: {abs(I_simpson-I_exact)/I_exact*100:.4f}%")
 
-    # 光学厚度计算
-    sigma = 1e-20 * np.ones_like(chem.z)  # cm²
-    n = chem.species['O2']  # molec/cm³
+
+    sigma = 1e-20 * np.ones_like(chem.z)
+    n = chem.species['O2']
     tau = vert_int.optical_depth_integral(sigma, n)
     print(f"\nO2 光学厚度 (从顶部向下):")
     print(f"  顶部: {tau[0]:.3f}")
@@ -384,17 +337,14 @@ def run_numerical_quadrature(chem: StratosphericChemistry):
 
 
 def run_matrix_decomposition():
-    """
-    矩阵分解验证
-    """
     section_header("10. Cholesky 分解与协方差矩阵处理")
 
     chol = CholeskyDecomposition()
 
-    # 测试 Cholesky 分解
+
     n = 20
     A = np.random.randn(n, n)
-    A = A @ A.T + np.eye(n) * 0.1  # 确保 SPD
+    A = A @ A.T + np.eye(n) * 0.1
 
     L, nullty, ifault = chol.decompose(A)
 
@@ -403,30 +353,30 @@ def run_matrix_decomposition():
     print(f"秩亏量: {nullty}")
 
     if ifault == 0:
-        # 验证 A = L L^T
+
         A_recon = L @ L.T
         recon_err = np.max(np.abs(A - A_recon)) / np.max(np.abs(A))
         print(f"重构相对误差: {recon_err:.3e}")
 
-        # 求解线性系统
+
         b = np.random.randn(n)
         x = chol.solve(L, b)
         resid = np.linalg.norm(A @ x - b) / np.linalg.norm(b)
         print(f"求解相对残差: {resid:.3e}")
 
-        # 条件数估计
+
         cond_est = chol.condition_number_estimate(L)
         cond_exact = np.linalg.cond(A)
         print(f"条件数估计: {cond_est:.3e}")
         print(f"精确条件数: {cond_exact:.3e}")
 
-        # log det
+
         logdet = chol.log_determinant(L)
         logdet_exact = np.linalg.slogdet(A)[1]
         print(f"log(det(A)) 估计: {logdet:.4f}")
         print(f"log(det(A)) 精确: {logdet_exact:.4f}")
 
-    # 协方差矩阵采样
+
     cov_handler = CovarianceMatrixHandler()
     sigmas = np.array([0.1, 0.15, 0.2, 0.12, 0.18])
     corr = np.eye(5)
@@ -444,16 +394,13 @@ def run_matrix_decomposition():
 
 
 def run_comprehensive_summary(chem: StratosphericChemistry):
-    """
-    综合结果汇总
-    """
     section_header("综合结果汇总")
 
     print("平流层臭氧化学动力学模拟完成。")
     print(f"\n关键输出指标:")
     print(f"  臭氧柱总量: {chem.ozone_column_density():.2f} DU")
 
-    # 物种浓度汇总
+
     print(f"\n物种浓度峰值 (molec/cm³):")
     for s, conc in chem.species.items():
         print(f"  {s:8s}: {conc.max():.3e} (at z={chem.z[np.argmax(conc)]/1000:.1f}km)")
@@ -464,9 +411,6 @@ def run_comprehensive_summary(chem: StratosphericChemistry):
 
 
 def main():
-    """
-    主程序入口
-    """
     print("=" * 70)
     print("  平流层臭氧化学动力学三维数值模拟系统")
     print("  Stratospheric Ozone Chemical Dynamics 3D Simulation")
@@ -476,37 +420,37 @@ def main():
     start_time = time.time()
 
     try:
-        # 1. 化学动力学模拟
+
         chem = run_chemistry_simulation()
 
-        # 2. 反应速率分析
+
         run_reaction_rate_analysis()
 
-        # 3. 传输方程求解
+
         run_transport_solver(chem)
 
-        # 4. 病态BVP求解
+
         run_bvp_solver()
 
-        # 5. 网格生成
+
         run_mesh_generation()
 
-        # 6. 稀疏网格UQ
+
         run_sparse_grid_uq()
 
-        # 7. 蒙特卡洛实验
+
         run_monte_carlo_experiment()
 
-        # 8. 三维体积分析
+
         run_tetrahedral_analysis()
 
-        # 9. 数值积分
+
         run_numerical_quadrature(chem)
 
-        # 10. 矩阵分解
+
         run_matrix_decomposition()
 
-        # 综合汇总
+
         run_comprehensive_summary(chem)
 
     except Exception as e:

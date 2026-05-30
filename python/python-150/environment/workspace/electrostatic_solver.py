@@ -1,47 +1,12 @@
-"""
-electrostatic_solver.py
-=======================
-分子静电势求解器
-
-融合种子项目:
-  - 869_pic : 粒子云网格 (PIC) 电荷沉积、Gauss-Seidel Poisson 求解、
-              双线性插值、Maxwell-Boltzmann 分布
-
-科学背景:
-  分子内电子云产生静电势 φ，满足 Poisson 方程:
-      ∇²φ = -ρ / ε₀
-  其中 ρ 为电荷密度。在离散网格上采用有限差分法，
-  结合 Gauss-Seidel 迭代求解。电场 E = -∇φ 用于计算原子受力。
-
-  本模块将原子电荷沉积到三维网格（类似 PIC 的 Cloud-in-Cell），
-  然后求解 Poisson 方程，最后将电场插值回原子位置。
-"""
 
 import numpy as np
 from typing import Tuple
 
 
 class ElectrostaticSolver:
-    """
-    基于有限差分与 Gauss-Seidel 的分子静电势求解器。
-    """
 
     def __init__(self, box: Tuple[float, float, float], grid: Tuple[int, int, int],
                  epsilon: float = 1.0, max_iter: int = 2000, tol: float = 1e-6):
-        """
-        Parameters
-        ----------
-        box : (Lx, Ly, Lz)
-            模拟盒子尺寸 (Å)。
-        grid : (nx, ny, nz)
-            网格分辨率。
-        epsilon : float
-            介电常数 (相对真空)。
-        max_iter : int
-            Gauss-Seidel 最大迭代次数。
-        tol : float
-            残差收敛阈值。
-        """
         self.Lx, self.Ly, self.Lz = box
         self.nx, self.ny, self.nz = grid
         self.dx = self.Lx / max(self.nx - 1, 1)
@@ -51,34 +16,19 @@ class ElectrostaticSolver:
         self.max_iter = max_iter
         self.tol = tol
 
-    # ------------------------------------------------------------------
-    # 1. 电荷沉积 (Cloud-in-Cell, 源自 PIC)
-    # ------------------------------------------------------------------
+
+
+
     def deposit_charge(self, atoms: np.ndarray, charges: np.ndarray) -> np.ndarray:
-        """
-        将原子电荷通过三线性权重沉积到三维网格。
-
-        Parameters
-        ----------
-        atoms : np.ndarray, shape (n, 3)
-            原子坐标 (Å)。
-        charges : np.ndarray, shape (n,)
-            原子部分电荷 (e)。
-
-        Returns
-        -------
-        rho : np.ndarray, shape (nx, ny, nz)
-            网格电荷密度 (e/Å³)。
-        """
         rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
         n_atoms = atoms.shape[0]
         for a in range(n_atoms):
             x, y, z = atoms[a]
-            # 映射到网格索引 (包含边界处理)
+
             ix = int(np.floor(x / self.dx))
             iy = int(np.floor(y / self.dy))
             iz = int(np.floor(z / self.dz))
-            # 限制在有效范围
+
             ix = max(0, min(ix, self.nx - 2))
             iy = max(0, min(iy, self.ny - 2))
             iz = max(0, min(iz, self.nz - 2))
@@ -109,20 +59,10 @@ class ElectrostaticSolver:
                         rho[ix + dx_, iy + dy_, iz + dz_] += w * qv
         return rho
 
-    # ------------------------------------------------------------------
-    # 2. 有限差分 Laplacian 与 Gauss-Seidel 求解 (源自 PIC 的 eval_2dpot_gs)
-    # ------------------------------------------------------------------
-    def solve_poisson(self, rho: np.ndarray) -> np.ndarray:
-        """
-        求解 ∇²φ = -ρ/ε₀，边界条件为 Dirichlet φ=0 在盒子外缘。
-        采用 Gauss-Seidel 逐点迭代，含 SOR 加速 (omega=1.5)。
 
-        离散 Laplacian (7点模板):
-            (∇²φ)_{i,j,k} ≈
-                (φ_{i+1,j,k} - 2φ_{i,j,k} + φ_{i-1,j,k}) / dx²
-              + (φ_{i,j+1,k} - 2φ_{i,j,k} + φ_{i,j-1,k}) / dy²
-              + (φ_{i,j,k+1} - 2φ_{i,j,k} + φ_{i,j,k-1}) / dz²
-        """
+
+
+    def solve_poisson(self, rho: np.ndarray) -> np.ndarray:
         phi = np.zeros_like(rho)
         omega = 1.5
         nx, ny, nz = self.nx, self.ny, self.nz
@@ -152,14 +92,10 @@ class ElectrostaticSolver:
                 break
         return phi
 
-    # ------------------------------------------------------------------
-    # 3. 电场计算 (中心差分) 与插值回原子 (源自 PIC)
-    # ------------------------------------------------------------------
+
+
+
     def compute_electric_field(self, phi: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        由 φ 通过中心差分计算电场分量 E = -∇φ。
-        边界处采用单侧差分。
-        """
         Ex = np.zeros_like(phi)
         Ey = np.zeros_like(phi)
         Ez = np.zeros_like(phi)
@@ -205,9 +141,6 @@ class ElectrostaticSolver:
 
     def interpolate_field_to_atoms(self, atoms: np.ndarray,
                                    Ex: np.ndarray, Ey: np.ndarray, Ez: np.ndarray) -> np.ndarray:
-        """
-        将网格电场通过三线性插值映射回原子位置。
-        """
         n_atoms = atoms.shape[0]
         E_atoms = np.zeros((n_atoms, 3), dtype=np.float64)
         for a in range(n_atoms):
@@ -246,21 +179,12 @@ class ElectrostaticSolver:
         return E_atoms
 
     def compute_electrostatic_energy(self, phi: np.ndarray, rho: np.ndarray) -> float:
-        """
-        静电能: E = 0.5 * ε₀ ∫ φ ρ dV ≈ 0.5 * ε₀ Σ φ_i ρ_i dV。
-        """
         dV = self.dx * self.dy * self.dz
         energy = 0.5 * self.epsilon * np.sum(phi * rho) * dV
         return float(energy)
 
 
 def maxwell_boltzmann_velocity(temperature: float, mass_amu: float, n_samples: int) -> np.ndarray:
-    """
-    Maxwell-Boltzmann 速度采样 (源自 PIC)。
-    一维速度分布:
-        p(v) = sqrt(m / (2π k_B T)) * exp(-m v^2 / (2 k_B T))
-    返回 n_samples 个速度 (Å/ps)。
-    """
-    k_B = 0.831446  # Boltzmann constant in amu·Å²/(ps²·K)
+    k_B = 0.831446
     sigma = np.sqrt(k_B * temperature / mass_amu)
     return np.random.normal(0.0, sigma, n_samples)

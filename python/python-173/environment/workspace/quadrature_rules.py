@@ -1,27 +1,8 @@
-"""
-高阶数值积分规则模块
-
-融合自:
-- 1256_tetrahedron_witherden_rule: 四面体高斯求积规则
-- 229_cube_arbq_rule: 立方体高斯求积规则
-
-本模块为二维三角形单元提供高阶数值积分，支持 FEM 刚度矩阵与载荷向量的精确组装。
-对于参考三角形 T_ref = {(xi, eta): xi >= 0, eta >= 0, xi + eta <= 1}，
-采用 Duffy 变换将其映射到标准正方形 [-1,1]^2:
-    xi  = (1 + s) * (1 - t) / 4
-    eta = (1 + t) / 2
-    |J| = (1 - t) / 8
-"""
 
 import numpy as np
 
 
 class TriangleQuadrature:
-    """
-    三角形参考域上的高阶求积规则。
-    积分公式：
-        ∫∫_{T_ref} f(xi, eta) dxi deta ≈ Σ_i w_i * f(xi_i, eta_i)
-    """
 
     _rules = {
         1: {
@@ -91,12 +72,6 @@ class TriangleQuadrature:
     }
 
     def __init__(self, degree=3):
-        """
-        Parameters
-        ----------
-        degree : int
-            期望的精确多项式次数 (1 <= degree <= 5)
-        """
         if degree < 1 or degree > 5:
             raise ValueError(f"TriangleQuadrature: degree={degree} 不在支持范围 [1,5]")
         self.degree = degree
@@ -106,19 +81,6 @@ class TriangleQuadrature:
         self.n_points = len(self.weights)
 
     def integrate(self, func):
-        """
-        在参考三角形上积分给定的标量/向量函数 func(xi, eta)。
-        
-        Parameters
-        ----------
-        func : callable
-            func(xi, eta) -> scalar or array
-        
-        Returns
-        -------
-        result : float or ndarray
-            积分值
-        """
         result = 0.0
         for i in range(self.n_points):
             xi_i = self.points[i, 0]
@@ -128,19 +90,6 @@ class TriangleQuadrature:
         return result
 
     def integrate_array(self, values):
-        """
-        对已经求值在积分点上的函数值进行加权求和。
-        
-        Parameters
-        ----------
-        values : ndarray, shape (n_points, ...)
-            函数在积分点处的值
-        
-        Returns
-        -------
-        result : ndarray
-            积分结果
-        """
         if values.shape[0] != self.n_points:
             raise ValueError(
                 f"integrate_array: values 第一维长度 {values.shape[0]} "
@@ -151,30 +100,6 @@ class TriangleQuadrature:
 
 
 def integrate_over_physical_triangle(quad_rule, nodes, func_physical):
-    """
-    在物理三角形上积分，通过仿射变换将参考三角形映射到物理三角形。
-    
-    映射关系:
-        x = x1 + (x2 - x1) * xi + (x3 - x1) * eta
-        y = y1 + (y2 - y1) * xi + (y3 - y1) * eta
-    
-    Jacobian 行列式:
-        |J| = |(x2-x1)*(y3-y1) - (x3-x1)*(y2-y1)|
-    
-    Parameters
-    ----------
-    quad_rule : TriangleQuadrature
-        参考三角形上的求积规则
-    nodes : ndarray, shape (3, 2)
-        物理三角形三个顶点的坐标 [ [x1,y1], [x2,y2], [x3,y3] ]
-    func_physical : callable
-        func_physical(x, y) -> scalar or array
-    
-    Returns
-    -------
-    result : float or ndarray
-        物理三角形上的积分值
-    """
     x1, y1 = nodes[0]
     x2, y2 = nodes[1]
     x3, y3 = nodes[2]
@@ -195,23 +120,6 @@ def integrate_over_physical_triangle(quad_rule, nodes, func_physical):
 
 
 def gauss_legendre_1d(n_points):
-    """
-    一维 Gauss-Legendre 求积节点与权重。
-    
-    在区间 [-1, 1] 上，∫ f(x) dx ≈ Σ w_i f(x_i)
-    
-    Parameters
-    ----------
-    n_points : int
-        点数 (1 <= n_points <= 5)
-    
-    Returns
-    -------
-    x : ndarray
-        节点
-    w : ndarray
-        权重
-    """
     if n_points == 1:
         x = np.array([0.0])
         w = np.array([2.0])

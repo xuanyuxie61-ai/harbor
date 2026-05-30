@@ -1,23 +1,9 @@
-"""
-超声成像波束形成与反演系统 —— 统一入口
-
-项目编号: PROJECT_91
-科学领域: 声学工程 —— 超声成像波束形成与反演
-
-本系统整合15个种子项目的核心算法，构建一个面向多物理场耦合
-超声层析成像的博士级科学计算平台。
-
-运行方式:
-    python main.py
-
-无需任何参数，系统将自动执行完整的计算流程并输出结果。
-"""
 
 import numpy as np
 import time
 import sys
 
-# 导入所有模块
+
 from mesh_quality import mesh_quality_report, reject_poor_triangles
 from acoustic_fem_mesh import generate_optimized_acoustic_mesh
 from transducer_dynamics import simulate_transducer_response, verify_stiff_solver_fix
@@ -32,17 +18,15 @@ from inverse_tomography import build_projection_matrix, solve_tomography_svd, an
 
 
 def print_section(title: str):
-    """打印带分隔线的章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_module_1_mesh_generation():
-    """模块1: 声学网格生成与RCM优化"""
     print_section("模块1: 声学有限元网格生成与RCM带宽优化")
 
-    # 生成标准声学模拟域 (0.1m x 0.1m)
+
     nodes, triangles, reorder, old_to_new = generate_optimized_acoustic_mesh(nx=21, ny=21)
 
     report = mesh_quality_report(triangles, nodes)
@@ -55,7 +39,7 @@ def run_module_1_mesh_generation():
     print(f"  Gamma度量: {report['gamma']:.4f}")
     print(f"  优化前矩阵半带宽: {report['bandwidth']}")
 
-    # RCM优化后带宽
+
     from acoustic_fem_mesh import build_adjacency_structure
     from mesh_quality import bandwidth_mesh
     adj = build_adjacency_structure(nodes, triangles)
@@ -67,10 +51,9 @@ def run_module_1_mesh_generation():
 
 
 def run_module_2_transducer_dynamics():
-    """模块2: 压电换能器瞬态动力学与刚性ODE验证"""
     print_section("模块2: 压电换能器瞬态动力学与刚性ODE验证")
 
-    # 模拟5MHz换能器响应
+
     freq = 5e6
     t, disp, vel = simulate_transducer_response(freq=freq, Q=50.0,
                                                  t_span=(0.0, 10e-6),
@@ -83,7 +66,7 @@ def run_module_2_transducer_dynamics():
     print(f"  最大位移: {max_disp:.4e} m")
     print(f"  最大速度: {max_vel:.4e} m/s")
 
-    # Lindberg刚性ODE验证
+
     verify_result = verify_stiff_solver_fix(lam=-5.0,
                                             t_span=(0.0, 1.0),
                                             n_steps_list=[50, 100, 200, 400])
@@ -97,34 +80,32 @@ def run_module_2_transducer_dynamics():
 
 
 def run_module_3_helmholtz_solver():
-    """模块3: Helmholtz方程求解与声压插值"""
     print_section("模块3: 声学Helmholtz方程有限差分解与插值重建")
 
-    # TODO: Hole_3 — 请补全Helmholtz方程求解与插值重建模块
-    # 需要完成:
-    # 1. 1D Helmholtz方程求解:
-    #    - 计算波数 k = 2πf/c0 (c0=1540m/s, freq=5MHz)
-    #    - 构造点源源项 f_src（在 x=0.05m 处置1）
-    #    - 调用 solve_helmholtz_1d 求解（bc_left='abc', bc_right='abc'）
-    #    - 输出声压幅值信息
-    # 2. 分段线性插值重建:
-    #    - 将1D声压解插值到更密网格 (500点)
-    #    - 调用 interpolate_acoustic_pressure
-    # 3. 2D Helmholtz方程求解:
-    #    - 构造中心点源源项 f_2d[10,10]=1.0
-    #    - 调用 solve_helmholtz_2d_dirichlet
-    #    - 输出最大声压幅值
-    # 
-    # 注意: 此模块依赖于 helmholtz_solver.py 中的科学计算实现
 
-    return None, None, None, None, None  # 占位，需替换为正确实现
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    return None, None, None, None, None
 
 
 def run_module_4_nonlinear_acoustics():
-    """模块4: 非线性声学椭圆函数解"""
     print_section("模块4: 非线性声学椭圆函数与冲击波形成")
 
-    # Burgers方程周期解
+
     x = np.linspace(0, 1, 256)
     t_burgers = 0.5
     u_burgers = burgers_periodic_solution(x, t_burgers, A=1.0, nu=0.01, m=0.5)
@@ -134,13 +115,13 @@ def run_module_4_nonlinear_acoustics():
     print(f"  最大速度: {np.max(u_burgers):.4f}")
     print(f"  最小速度: {np.min(u_burgers):.4f}")
 
-    # 冲击波形成
+
     u_shock = shock_wave_formation(x, 0.3, u0=1.0, x0=0.5, L=1.0)
     print(f"\n冲击波形成 (t=0.3, t_shock=1.0):")
     print(f"  最大速度: {np.max(u_shock):.4f}")
     print(f"  冲击位置估计: ~0.65")
 
-    # 非线性参数估计
+
     p_amps = np.array([1e5, 5000.0])
     freqs = np.array([5e6, 10e6])
     nonlinear_params = nonlinear_acoustic_parameter_estimation(p_amps, freqs)
@@ -152,10 +133,9 @@ def run_module_4_nonlinear_acoustics():
 
 
 def run_module_5_flow_coupling():
-    """模块5: 流-声耦合背景场"""
     print_section("模块5: Taylor-Green涡流-声耦合背景场")
 
-    # 生成Taylor-Green涡
+
     x_grid = np.linspace(0, np.pi, 50)
     y_grid = np.linspace(0, np.pi, 50)
     X, Y = np.meshgrid(x_grid, y_grid)
@@ -167,19 +147,19 @@ def run_module_5_flow_coupling():
     print(f"  最大v速度: {np.max(np.abs(v_flow)):.4f} m/s")
     print(f"  最大压力: {np.max(np.abs(p_flow)):.4f} Pa")
 
-    # Mach数分析
+
     ma = mach_number_field(u_flow, v_flow)
     print(f"  最大Mach数: {np.max(ma):.4e}")
     print(f"  线性近似有效性: {'是' if np.max(ma) < 0.3 else '否 (Ma>0.3) '}")
 
-    # 流-声耦合源项
+
     c0 = 1540.0
     freq = 5e6
     k = 2.0 * np.pi * freq / c0
     dx = x_grid[1] - x_grid[0]
     dy = y_grid[1] - y_grid[0]
 
-    # 构造简单声压场
+
     p_acoustic = np.exp(1j * k * X) * np.ones_like(Y)
 
     source = compute_flow_acoustic_source(u_flow, v_flow, p_acoustic, dx, dy, k, c0)
@@ -191,34 +171,33 @@ def run_module_5_flow_coupling():
 
 
 def run_module_6_microbubble_diffusion():
-    """模块6: 微泡扩散模拟"""
     print_section("模块6: 超声造影剂微泡扩散与声辐射力")
 
-    # 计算扩散系数
+
     radius = 2.5e-6
     D = diffusion_coefficient(radius)
     print(f"微泡参数:")
     print(f"  半径: {radius*1e6:.1f} μm")
     print(f"  扩散系数 D: {D:.4e} m²/s")
 
-    # 声辐射力
+
     F_rad = acoustic_radiation_force(frequency=5e6, pressure_amplitude=1e5,
                                       bubble_radius=radius)
     print(f"  声辐射力: {F_rad:.4e} N")
 
-    # 布朗运动模拟
+
     trajectory, msd, D_measured = simulate_microbubble_diffusion(
         n_particles=500, radius=radius, n_steps=500, dt=1e-6,
         domain_size=5e-3,
         acoustic_force=np.array([F_rad, 0.0])
     )
 
-    # 验证Einstein关系: MSD = 2D·t (2D情况为 4D·t)
+
     t_msd = np.arange(len(msd)) * 1e-6
-    # 线性拟合MSD
+
     if len(t_msd) > 10:
         slope = np.polyfit(t_msd[10:], msd[10:], 1)[0]
-        D_from_msd = slope / 4.0  # 2D扩散: MSD = 4Dt
+        D_from_msd = slope / 4.0
     else:
         D_from_msd = D
 
@@ -233,15 +212,14 @@ def run_module_6_microbubble_diffusion():
 
 
 def run_module_7_wavelet_denoising():
-    """模块7: 小波去噪与多尺度特征提取"""
     print_section("模块7: Haar小波变换去噪与多尺度特征提取")
 
-    # 合成超声A-scan信号
+
     fs = 40e6
     t = np.arange(2048) / fs
     freq = 5e6
 
-    # 模拟回波（含噪声）
+
     clean_signal = np.zeros(2048)
     depths = [0.02, 0.035, 0.05]
     amps = [1.0, 0.6, 0.3]
@@ -257,7 +235,7 @@ def run_module_7_wavelet_denoising():
     noise = 0.15 * np.random.randn(2048)
     noisy_signal = clean_signal + noise
 
-    # 去噪
+
     denoised, info = denoise_ultrasound_signal(noisy_signal, n_levels=6, threshold_mode='soft')
 
     print(f"去噪处理:")
@@ -267,7 +245,7 @@ def run_module_7_wavelet_denoising():
     print(f"  原始信号能量: {info['original_energy']:.4e}")
     print(f"  去噪后能量: {info['denoised_energy']:.4e}")
 
-    # 多尺度特征
+
     features = extract_multiscale_features(noisy_signal, n_levels=4)
     print(f"\n多尺度特征:")
     for key in sorted(features.keys()):
@@ -278,7 +256,6 @@ def run_module_7_wavelet_denoising():
 
 
 def run_module_8_pca_analysis():
-    """模块8: PCA特征提取"""
     print_section("模块8: 超声B-scan图像PCA降维与特征提取")
 
     result = pca_bscan_analysis(n_images=50, n_components=10)
@@ -295,10 +272,9 @@ def run_module_8_pca_analysis():
 
 
 def run_module_9_beamforming():
-    """模块9: 波束形成与动态聚焦"""
     print_section("模块9: 超声阵列波束形成与动态聚焦")
 
-    # 模拟阵列响应
+
     channel_data, element_positions = simulate_array_response(
         n_elements=64,
         element_spacing=0.3e-3,
@@ -312,7 +288,7 @@ def run_module_9_beamforming():
     print(f"  阵元间距: 0.30 mm")
     print(f"  孔径: {np.max(element_positions)*1e3*2:.1f} mm")
 
-    # 波束形成
+
     focus_depths = np.linspace(0.01, 0.08, 100)
     beamformed = delay_and_sum_beamforming(
         channel_data, 40e6, element_positions, focus_depths,
@@ -324,7 +300,7 @@ def run_module_9_beamforming():
     print(f"  最大回波幅值: {np.max(beamformed):.4e}")
     print(f"  回波峰位置: {focus_depths[np.argmax(beamformed)]*1e3:.1f} mm")
 
-    # 波束方向图
+
     angles = np.linspace(-np.pi/6, np.pi/6, 180)
     pattern = beam_pattern(64, 0.3e-3, 5e6, angles, window_type='hanning')
 
@@ -332,7 +308,7 @@ def run_module_9_beamforming():
     print(f"  主瓣3dB宽度: ~{0.886 * 1540/5e6 / (64*0.3e-3) * 180/np.pi:.2f}°")
     print(f"  最大旁瓣电平: {np.max(pattern[pattern < -3]):.1f} dB")
 
-    # 发射聚焦延迟
+
     tx_delays = transmit_focus_delay(64, 0.3e-3, focus_depth=0.04)
     print(f"\n发射聚焦延迟 (40mm深度):")
     print(f"  最大延迟: {np.max(tx_delays)*1e9:.2f} ns")
@@ -342,13 +318,12 @@ def run_module_9_beamforming():
 
 
 def run_module_10_tomography_inversion():
-    """模块10: 断层反演与序列比对"""
     print_section("模块10: 超声断层反演与组织序列分类")
 
-    # 构建投影矩阵
+
     A, angles = build_projection_matrix(n_rays=10, n_pixels_x=8, n_pixels_y=8)
 
-    # 系统可识别性分析
+
     identifiability = analyze_system_identifiability(A)
     print(f"投影矩阵分析:")
     print(f"  矩阵尺寸: {identifiability['matrix_shape']}")
@@ -357,17 +332,17 @@ def run_module_10_tomography_inversion():
     print(f"  条件数: {identifiability['condition_number']:.2e}")
     print(f"  可识别性比率: {identifiability['identifiability_ratio']:.2f}")
 
-    # 合成传播时间数据
-    # 真实慢度分布：中心高速区域
+
+
     true_slowness = np.ones(64) * 1.0 / 1540.0
-    true_slowness[28:36] = 1.0 / 1600.0  # 中心区域声速稍高
+    true_slowness[28:36] = 1.0 / 1600.0
     travel_times = A.astype(float) @ true_slowness
 
-    # 加噪声
+
     noise = 0.01 * np.max(travel_times) * np.random.randn(len(travel_times))
     travel_times_noisy = travel_times + noise
 
-    # SVD反演
+
     reconstructed = solve_tomography_svd(A, travel_times_noisy, regularization=1e-3)
 
     print(f"\n层析反演:")
@@ -376,14 +351,14 @@ def run_module_10_tomography_inversion():
     error = np.linalg.norm(reconstructed - true_slowness) / np.linalg.norm(true_slowness)
     print(f"  相对重建误差: {error*100:.2f}%")
 
-    # 整数RREF精确分析
+
     A_rref, rank = __import__('inverse_tomography').i4mat_rref2(A)
     print(f"\n整数精确RREF分析:")
     print(f"  整数RREF秩: {rank}")
     print(f"  矩阵元素类型: 纯整数运算")
 
-    # Levenshtein序列比对
-    # 合成不同组织的A-scan符号序列
+
+
     tissue_normal = [0.1, 0.2, 0.5, 0.8, 0.6, 0.3, 0.1, 0.0]
     tissue_tumor = [0.1, 0.3, 0.7, 0.9, 0.9, 0.7, 0.3, 0.1]
     tissue_cyst = [0.0, 0.0, 0.1, 0.2, 0.2, 0.1, 0.0, 0.0]
@@ -403,7 +378,6 @@ def run_module_10_tomography_inversion():
 
 
 def main():
-    """主程序入口，执行完整的超声成像波束形成与反演流程。"""
     print("=" * 70)
     print("  超声成像波束形成与反演系统")
     print("  PROJECT_91 — 声学工程博士级科学计算平台")
@@ -415,7 +389,7 @@ def main():
     np.random.seed(42)
     start_time = time.time()
 
-    # 执行全部10个模块
+
     results = {}
 
     results['mesh'] = run_module_1_mesh_generation()

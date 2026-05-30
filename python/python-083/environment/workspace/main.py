@@ -1,27 +1,13 @@
-"""
-main.py
-=======
-统一入口：面向增材制造的多尺度结构拓扑优化与工艺-性能协同设计。
-
-科学问题：
-  在激光粉末床熔融（LPBF）增材制造中，如何通过多尺度拓扑优化设计
-  兼具高刚度、低重量和良好可制造性的晶格填充结构？
-
-运行方式：
-  python main.py
-（零参数可运行）
-"""
 
 import numpy as np
 import sys
 import time
 
-# 设置随机种子保证可复现
+
 np.random.seed(2024)
 
 
 def print_section(title: str):
-    """格式化输出分节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
@@ -34,54 +20,54 @@ def main():
     print("  Multi-scale Topology Optimization & AM Process Co-design")
     print("=" * 70)
 
-    # =====================================================================
-    # 0. 基础参数与网格生成 (fem_core + mesh_vtoe + triangulation_t3_to_t4)
-    # =====================================================================
+
+
+
     print_section("0. 有限元网格生成与预处理")
 
     from fem_core import (generate_rectangular_mesh, triangulation_t3_to_t4,
                           build_vtoe, solve_fem_system, compute_element_stress)
 
-    lx, ly = 10.0, 5.0  # 设计域尺寸 (mm)
+    lx, ly = 10.0, 5.0
     nx, ny = 30, 15
     node_xy, element_node = generate_rectangular_mesh(lx, ly, nx, ny)
     n_nodes = node_xy.shape[0]
     n_elements = element_node.shape[0]
     print(f"  T3 网格: {n_nodes} 节点, {n_elements} 单元")
 
-    # T3 -> T4 升级（验证功能）
+
     node_xy4, element_node4 = triangulation_t3_to_t4(node_xy, element_node)
     print(f"  T4 升级后: {node_xy4.shape[0]} 节点, {element_node4.shape[0]} 单元")
 
-    # 节点→单元反向映射
+
     vtoe_ptr, vtoe = build_vtoe(element_node, n_nodes)
     print(f"  VTOE 映射构建完成，平均节点度 = {len(vtoe)/n_nodes:.2f}")
 
-    # =====================================================================
-    # 1. 宏观拓扑优化 (topology_optimizer + r8st 稀疏CG思想)
-    # =====================================================================
+
+
+
     print_section("1. SIMP 宏观拓扑优化")
 
     from topology_optimizer import simp_topology_optimization
 
-    E0 = 110e3       # Ti-6Al-4V 杨氏模量 (MPa)
-    nu = 0.34        # 泊松比
-    volfrac = 0.4    # 体积分数约束
+    E0 = 110e3
+    nu = 0.34
+    volfrac = 0.4
     n_dof = n_nodes * 2
 
-    # 边界条件：左边界固定，右边界施加均布拉力
+
     F = np.zeros(n_dof, dtype=np.float64)
     bc_nodes = []
     bc_values = []
     tol = 1e-6
 
-    # 左边界固定
+
     left_nodes = np.where(node_xy[:, 0] < tol)[0]
     for nd in left_nodes:
         bc_nodes.extend([2*nd, 2*nd+1])
         bc_values.extend([0.0, 0.0])
 
-    # 右边界施加 y 方向集中力
+
     right_nodes = np.where(np.abs(node_xy[:, 0] - lx) < tol)[0]
     force_per_node = -5000.0 / max(1, len(right_nodes))
     for nd in right_nodes:
@@ -100,9 +86,9 @@ def main():
     print(f"  最终体积分数: {hist_V[-1]:.4f}")
     print(f"  柔度降低比例: {(1 - hist_C[-1]/hist_C[0])*100:.2f}%")
 
-    # =====================================================================
-    # 2. 微观均匀化 (homogenization + circle_integrals + circles)
-    # =====================================================================
+
+
+
     print_section("2. 微观胞元等效属性均匀化")
 
     from homogenization import (compute_effective_properties,
@@ -116,13 +102,13 @@ def main():
         E_sc, nu_sc = compute_effective_properties(E0/1e3, nu, f, "self_consistent")
         print(f"  {f:.2f}   |      {E_mt:.3f}              |      {E_sc:.3f}")
 
-    # 边界积分方法验证
+
     k_ratio = effective_property_by_boundary_integral(0.3, n_harmonics=6)
     print(f"\n  边界积分法验证（孔隙率 0.3）: k_eff/k_m = {k_ratio:.4f}")
 
-    # =====================================================================
-    # 3. CVT 晶格结构生成 (lattice_generator + usa_cvt_geo + hand_data + circles + tortoise)
-    # =====================================================================
+
+
+
     print_section("3. CVT 晶格结构生成与打印路径编码")
 
     from lattice_generator import generate_am_lattice
@@ -136,16 +122,16 @@ def main():
     print(f"  实际相对密度: {lattice['relative_density']:.4f}")
     print(f"  前 3 个胞元打印路径词长度: {[len(w) for w in lattice['print_path_words'][:3]]}")
 
-    # =====================================================================
-    # 4. 增材制造工艺热-流模拟 (thermal_process + fd1d_advection_lax + navier_stokes_3d_exact)
-    # =====================================================================
+
+
+
     print_section("4. LPBF 热-流耦合工艺模拟")
 
     from thermal_process import (simulate_layer_deposition_thermal,
                                   ethier_steinman_solution,
                                   estimate_melt_pool_size)
 
-    # 4a. 多层沉积热循环
+
     thermal_result = simulate_layer_deposition_thermal(
         n_layers=5, layer_thickness=0.05, scan_speed=800.0,
         laser_power=200.0, thermal_diffusivity=6.7e-6,
@@ -156,7 +142,7 @@ def main():
     print(f"  最大峰值温度: {np.max(thermal_result['peak_temps']):.1f} K")
     print(f"  平均冷却速率: {np.mean(np.abs(thermal_result['cooling_rates'])):.1e} K/s")
 
-    # 4b. 熔池尺寸估算
+
     mp = estimate_melt_pool_size(
         laser_power=200.0, scan_speed=800.0, absorptivity=0.3,
         thermal_diffusivity=6.7e-6, melting_temp=1928.0, ambient_temp=400.0)
@@ -165,7 +151,7 @@ def main():
           f"长 {mp['length_m']*1e6:.1f} μm")
     print(f"  Peclet 数: {mp['peclet']:.3f}")
 
-    # 4c. 3D NS 精确解验证
+
     n_grid = 11
     x = np.linspace(-0.5, 0.5, n_grid)
     y = np.linspace(-0.5, 0.5, n_grid)
@@ -176,16 +162,16 @@ def main():
     print(f"  NS 精确解验证: max |∇·u| = {np.max(np.abs(div_u)):.2e}")
     print(f"                 max |U| = {np.max(np.abs(U_ns)):.4f}")
 
-    # =====================================================================
-    # 5. 相场损伤分析 (phase_field_damage + fitzhugh_nagumo 快慢动力学)
-    # =====================================================================
+
+
+
     print_section("5. 相场断裂损伤分析")
 
     from phase_field_damage import compute_crack_driving_force
 
-    # 使用优化后的位移场和原始弹性模量
-    G_c = 2.1e3       # 临界能量释放率 (N/m)
-    l_0 = 0.15        # 相场特征长度 (mm)
+
+    G_c = 2.1e3
+    l_0 = 0.15
 
     psi_pos, phi, J_int = compute_crack_driving_force(
         node_xy, element_node, U_opt, E0, nu, G_c, l_0, plane_stress=True)
@@ -196,9 +182,9 @@ def main():
     print(f"  损伤单元数 (φ>0.5): {n_cracked} / {n_elements}")
     print(f"  等效 J 积分: {J_int:.4e} N/mm")
 
-    # =====================================================================
-    # 6. Smolyak 稀疏网格代理模型 (surrogate_model + sparse_interp_nd)
-    # =====================================================================
+
+
+
     print_section("6. 高维代理模型 (Smolyak 稀疏网格)")
 
     from surrogate_model import (SmolyakSparseGrid, test_function_oscillatory,
@@ -217,9 +203,9 @@ def main():
     print(f"  压缩比: {n_full / n_sparse:.1f}x")
     print(f"  测试点插值误差: {abs(approx - exact):.6e}")
 
-    # =====================================================================
-    # 7. 不确定性量化 (uncertainty_quantification + hypercube_distance + fair_dice)
-    # =====================================================================
+
+
+
     print_section("7. 增材制造参数不确定性量化")
 
     from uncertainty_quantification import (sample_hypercube_uniform,
@@ -236,41 +222,41 @@ def main():
     print(f"    均值: {dist_stats['mean']:.4f}, 标准差: {dist_stats['std']:.4f}")
     print(f"    中位数: {dist_stats['median']:.4f}")
 
-    # 逆变换采样：模拟粉末粒径离散分布
-    powder_pmf = np.array([0.1, 0.25, 0.35, 0.2, 0.1])  # 5个粒径等级
+
+    powder_pmf = np.array([0.1, 0.25, 0.35, 0.2, 0.1])
     powder_samples = sample_discrete_distribution(powder_pmf, 1000, seed=66)
     empirical_pmf = np.bincount(powder_samples, minlength=5) / 1000.0
     print(f"  粉末粒径离散分布采样验证:")
     print(f"    理论 PMF: {powder_pmf}")
     print(f"    经验 PMF: {empirical_pmf}")
 
-    # =====================================================================
-    # 8. 多尺度协同设计总结
-    # =====================================================================
+
+
+
     print_section("8. 多尺度协同设计总结")
 
-    # 计算带微观晶格的等效柔度
+
     E_eff_lattice, nu_eff_lattice = compute_effective_properties(
         E0/1e3, nu, lattice['relative_density'], "mori_tanaka")
     print(f"  晶格等效杨氏模量: {E_eff_lattice:.3f} GPa")
     print(f"  晶格等效泊松比: {nu_eff_lattice:.3f}")
 
-    # 宏观质量估算
-    rho_material = 4.43e-9  # Ti-6Al-4V 密度 (ton/mm³)
-    macro_volume = lx * ly * 1.0  # 假设厚度 1 mm
-    macro_mass = macro_volume * volfrac * rho_material * 1e9  # mg -> g
+
+    rho_material = 4.43e-9
+    macro_volume = lx * ly * 1.0
+    macro_mass = macro_volume * volfrac * rho_material * 1e9
     lattice_mass = macro_volume * lattice['relative_density'] * rho_material * 1e9
     print(f"  实体结构估算质量: {macro_mass:.3f} g")
     print(f"  晶格填充估算质量: {lattice_mass:.3f} g")
     print(f"  减重比例: {(1 - lattice_mass/macro_mass)*100:.1f}%")
 
-    # 热-结构耦合指标
+
     max_temp = np.max(thermal_result['peak_temps'])
-    temp_stress_factor = max_temp / 1928.0  # 相对于熔点的归一化温度
+    temp_stress_factor = max_temp / 1928.0
     print(f"  热应力风险指标: {temp_stress_factor:.3f}")
 
-    # 整体制造可行性评分
-    overhang_risk = np.mean(rho_opt < 0.1)  # 低密度区域可能无法自支撑
+
+    overhang_risk = np.mean(rho_opt < 0.1)
     manufacturability_score = max(0.0, 1.0 - overhang_risk - temp_stress_factor * 0.3)
     print(f"  制造可行性综合评分: {manufacturability_score:.3f} (0-1)")
 

@@ -1,38 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-data_io.py
-数据输入输出与网格格式转换
-
-融合种子项目：
-  - 425_ffmatlib (ffreaddata): 多维 ASCII 数据读取
-  - 1322_triangle_to_xml: 网格格式转换
-  - 1320_triangle_to_fem: 网格数据到 FEM 格式输出
-
-核心功能：
-  1. MT 观测数据读写（频率、阻抗、视电阻率、相位）
-  2. 模型参数文件读写
-  3. 网格节点/单元数据文件读写
-  4. 反演结果报告生成
-  5. 数据格式转换与校验
-"""
 
 import numpy as np
 import os
 
 
 class MTDataReader:
-    """
-    MT 观测数据读取器
-
-    支持格式：
-      - 简单 ASCII 列格式：频率  阻抗实部  阻抗虚部  误差
-      - 扩展格式：频率  Z_xy_r  Z_xy_i  Z_yx_r  Z_yx_i  rho_xy  rho_yx  phi_xy  phi_yx
-    """
 
     @staticmethod
     def read_simple(filename):
-        """读取简单格式数据"""
         if not os.path.exists(filename):
             raise FileNotFoundError(f"文件不存在: {filename}")
         data = np.loadtxt(filename, dtype=np.float64)
@@ -42,12 +18,6 @@ class MTDataReader:
 
     @staticmethod
     def read_complex_impedance(filename):
-        """
-        读取复阻抗数据
-
-        文件格式（每行）：
-            freq_hz  Z_real  Z_imag  error
-        """
         data = MTDataReader.read_simple(filename)
         frequencies = data[:, 0]
         Z = data[:, 1] + 1j * data[:, 2]
@@ -56,12 +26,6 @@ class MTDataReader:
 
     @staticmethod
     def read_full_mt_data(filename):
-        """
-        读取完整 MT 数据
-
-        文件格式（每行）：
-            freq  Zxy_r  Zxy_i  Zyx_r  Zyx_i  rho_xy  rho_yx  phi_xy  phi_yx  err
-        """
         data = MTDataReader.read_simple(filename)
         result = {
             'frequencies': data[:, 0],
@@ -77,17 +41,14 @@ class MTDataReader:
 
 
 class MTDataWriter:
-    """MT 数据写入器"""
 
     @staticmethod
     def write_simple(filename, frequencies, values, header=""):
-        """写入简单两列数据"""
         data = np.column_stack([frequencies, values])
         np.savetxt(filename, data, fmt='%.6e', header=header, comments='# ')
 
     @staticmethod
     def write_complex_impedance(filename, frequencies, Z, errors=None):
-        """写入复阻抗数据"""
         if errors is None:
             errors = np.ones(len(frequencies)) * 0.05
         data = np.column_stack([
@@ -102,7 +63,6 @@ class MTDataWriter:
     @staticmethod
     def write_full_mt_data(filename, frequencies, Zxy, Zyx,
                            rho_xy, rho_yx, phi_xy, phi_yx, errors=None):
-        """写入完整 MT 数据"""
         if errors is None:
             errors = np.ones(len(frequencies)) * 0.05
         data = np.column_stack([
@@ -119,53 +79,31 @@ class MTDataWriter:
 
 
 class MeshDataIO:
-    """
-    网格数据 I/O（融合 1320_triangle_to_fem 和 1322_triangle_to_xml 思想）
-    """
 
     @staticmethod
     def write_nodes(filename, points):
-        """
-        写入节点坐标文件
-
-        格式（基于 triangle_to_fem 的 r8mat_write）：
-            每行一个节点：x y [z]
-        """
         points = np.asarray(points, dtype=np.float64)
         np.savetxt(filename, points, fmt='%g')
 
     @staticmethod
     def read_nodes(filename):
-        """读取节点坐标"""
         return np.loadtxt(filename, dtype=np.float64)
 
     @staticmethod
     def write_elements(filename, triangles):
-        """
-        写入单元连接性文件
-
-        格式（基于 triangle_to_fem 的 i4mat_write）：
-            每行一个单元：node1 node2 node3
-        """
         triangles = np.asarray(triangles, dtype=np.int32)
         np.savetxt(filename, triangles, fmt='%d')
 
     @staticmethod
     def read_elements(filename):
-        """读取单元连接性"""
         return np.loadtxt(filename, dtype=np.int32)
 
     @staticmethod
     def write_xml_mesh(filename, points, triangles):
-        """
-        写入 DOLFIN XML 网格文件
-
-        融合 1322_triangle_to_xml 的 xml_mesh2d_write 核心逻辑。
-        """
         points = np.asarray(points, dtype=np.float64)
         triangles = np.asarray(triangles, dtype=np.int32)
 
-        # 确保 0-based 索引
+
         tri_min = np.min(triangles)
         if tri_min == 1:
             triangles = triangles - 1
@@ -195,24 +133,6 @@ class MeshDataIO:
     @staticmethod
     def write_model_report(filename, model, predictions, residuals,
                            inversion_stats, frequencies):
-        """
-        生成反演结果报告
-
-        Parameters
-        ----------
-        filename : str
-            输出文件名
-        model : dict
-            模型参数
-        predictions : dict
-            预测数据
-        residuals : dict
-            残差
-        inversion_stats : dict
-            反演统计信息
-        frequencies : ndarray
-            频率列表
-        """
         with open(filename, 'w') as f:
             f.write("=" * 70 + "\n")
             f.write("大地电磁测深反演结果报告\n")
@@ -241,11 +161,9 @@ class MeshDataIO:
 
 
 class DataValidator:
-    """数据验证器"""
 
     @staticmethod
     def validate_mt_data(frequencies, rho_a, phi):
-        """验证 MT 数据的物理合理性"""
         issues = []
 
         if np.any(frequencies <= 0):
@@ -260,8 +178,8 @@ class DataValidator:
         if len(frequencies) < 2:
             issues.append("至少需要两个频率点")
 
-        # 检查阻抗相位与电阻率的一致性
-        # 在低频区，相位应接近 45°；高频区可能偏离
+
+
         if np.mean(phi[:max(1, len(phi)//4)]) < 30.0:
             issues.append("低频相位偏低，可能存在近场效应或数据质量问题")
 
@@ -269,7 +187,6 @@ class DataValidator:
 
     @staticmethod
     def validate_model(resistivities, thicknesses):
-        """验证层状模型的物理合理性"""
         issues = []
 
         if np.any(resistivities <= 0):
@@ -288,7 +205,7 @@ class DataValidator:
 
 
 if __name__ == "__main__":
-    # 自检
+
     freqs = np.logspace(-2, 2, 10)
     Z = np.random.randn(10) + 1j * np.random.randn(10)
     MTDataWriter.write_complex_impedance("test_mt_data.txt", freqs, Z)

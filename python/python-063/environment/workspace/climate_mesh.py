@@ -1,16 +1,8 @@
-"""
-climate_mesh.py
-球面气候网格生成模块
-
-基于正二十面体递归细分的球面三角网格生成，用于古气候模拟的空间离散化。
-融合种子项目 1305_triangle_grid（三角形格点生成）与 748_medit_to_fem（网格 I/O 与格式转换思想）。
-"""
 
 import numpy as np
 
 
 def _normalize(v):
-    """将向量归一化为单位长度。"""
     norm = np.linalg.norm(v)
     if norm < 1e-15:
         raise ValueError("Cannot normalize zero vector")
@@ -18,11 +10,6 @@ def _normalize(v):
 
 
 def generate_icosahedron():
-    """
-    生成单位球内接正二十面体。
-    黄金比例 phi = (1 + sqrt(5)) / 2。
-    返回: vertices (12, 3), faces (20, 3)
-    """
     phi = (1.0 + np.sqrt(5.0)) / 2.0
     vertices = np.array([
         [-1.0,  phi, 0.0], [ 1.0,  phi, 0.0],
@@ -44,10 +31,6 @@ def generate_icosahedron():
 
 
 def subdivide_spherical_mesh(vertices, faces, n_subdiv=2):
-    """
-    对球面三角网格进行递归细分（Loop-like 细分）。
-    每条边取中点后投影回球面，每个三角形细分为 4 个。
-    """
     verts = {i: tuple(v) for i, v in enumerate(vertices)}
     face_list = [list(f) for f in faces]
     next_idx = len(verts)
@@ -87,12 +70,6 @@ def subdivide_spherical_mesh(vertices, faces, n_subdiv=2):
 
 
 def compute_spherical_triangle_area(v1, v2, v3):
-    """
-    计算单位球面上三角形的面积。
-    使用 L'Huilier 定理:
-        tan(E/4) = sqrt(tan(s/2) * tan((s-a)/2) * tan((s-b)/2) * tan((s-c)/2))
-    其中 a,b,c 为球面角距离，E 为球面角盈，面积 = E。
-    """
     def spherical_distance(a, b):
         dot = np.clip(np.dot(a, b), -1.0, 1.0)
         return np.arccos(dot)
@@ -116,7 +93,6 @@ def compute_spherical_triangle_area(v1, v2, v3):
 
 
 def compute_mesh_areas(vertices, faces):
-    """计算每个三角形单元的球面面积。"""
     areas = np.zeros(len(faces), dtype=np.float64)
     for i, tri in enumerate(faces):
         areas[i] = compute_spherical_triangle_area(
@@ -126,10 +102,6 @@ def compute_mesh_areas(vertices, faces):
 
 
 def compute_dual_voronoi_areas(vertices, faces):
-    """
-    计算每个节点对应的 Voronoi 对偶面积，作为积分权重。
-    采用重心分配法：每个三角形的面积三等分给三个顶点。
-    """
     n_nodes = len(vertices)
     areas = np.zeros(n_nodes, dtype=np.float64)
     for tri in faces:
@@ -142,7 +114,6 @@ def compute_dual_voronoi_areas(vertices, faces):
 
 
 def mesh_info(vertices, faces):
-    """输出网格统计信息。"""
     areas = compute_mesh_areas(vertices, faces)
     return {
         'n_nodes': len(vertices),

@@ -1,64 +1,24 @@
-"""
-数值鲁棒性工具模块
-
-原项目映射: 726_matlab_mistake
-科学背景: 数值计算中常见的错误类型包括:
-          1. 赋值与比较混淆 (= vs ==)
-          2. 整数除法截断 (1/2 = 0 vs 1.0/2.0 = 0.5)
-          3. 数组越界访问
-          4. 浮点精度问题
-          5. 除零错误
-          6. 非法数学操作（如 log(负数)）
-
-在NLP语义嵌入中的应用:
-    提供数值计算中的边界检查、类型安全、
-    异常处理和数值稳定性保障工具。
-"""
 
 import numpy as np
 import warnings
 
 
 class RobustNumericUtils:
-    """
-    数值鲁棒性工具集合。
-    """
 
     @staticmethod
     def safe_divide(a: float, b: float, default: float = 0.0) -> float:
-        """
-        安全除法。
-        
-        避免除以零错误:
-            if |b| < epsilon: return default
-            else: return a / b
-        """
         if abs(b) < 1e-15:
             return float(default)
         return float(a) / float(b)
 
     @staticmethod
     def safe_log(x: float, default: float = -700.0) -> float:
-        """
-        安全对数。
-        
-        避免对非正数取对数:
-            if x <= 0: return default
-            else: return log(x)
-        """
         if x <= 0.0:
             return float(default)
         return float(np.log(x))
 
     @staticmethod
     def safe_sqrt(x: float, default: float = 0.0) -> float:
-        """
-        安全平方根。
-        
-        避免对负数取平方根:
-            if x < 0: return default
-            else: return sqrt(x)
-        """
         if x < 0.0:
             return float(default)
         return float(np.sqrt(x))
@@ -66,9 +26,6 @@ class RobustNumericUtils:
     @staticmethod
     def clip_array(arr: np.ndarray, min_val: float = None,
                    max_val: float = None) -> np.ndarray:
-        """
-        安全截断数组。
-        """
         arr = np.asarray(arr, dtype=float)
         if min_val is not None and max_val is not None:
             if min_val > max_val:
@@ -78,11 +35,6 @@ class RobustNumericUtils:
     @staticmethod
     def normalize_vector(v: np.ndarray, ord: int = 2,
                          default: np.ndarray = None) -> np.ndarray:
-        """
-        安全归一化向量。
-        
-        避免零向量的归一化错误。
-        """
         v = np.asarray(v, dtype=float)
         norm = np.linalg.norm(v, ord=ord)
         if norm < 1e-15:
@@ -93,11 +45,6 @@ class RobustNumericUtils:
 
     @staticmethod
     def check_finite(arr: np.ndarray, name: str = "array") -> np.ndarray:
-        """
-        检查数组中是否包含非法值（inf, nan）。
-        
-        如果存在非法值，抛出 ValueError。
-        """
         arr = np.asarray(arr, dtype=float)
         if not np.all(np.isfinite(arr)):
             n_nan = np.sum(np.isnan(arr))
@@ -109,11 +56,6 @@ class RobustNumericUtils:
 
     @staticmethod
     def condition_number_safe(A: np.ndarray, threshold: float = 1e12) -> dict:
-        """
-        安全计算矩阵条件数。
-        
-        如果条件数过大，发出警告。
-        """
         A = np.asarray(A, dtype=float)
         if A.ndim != 2 or A.shape[0] != A.shape[1]:
             raise ValueError("A must be a square matrix")
@@ -135,11 +77,6 @@ class RobustNumericUtils:
     @staticmethod
     def solve_linear_system_safe(A: np.ndarray, b: np.ndarray,
                                   regularization: float = 1e-10) -> np.ndarray:
-        """
-        安全求解线性系统。
-        
-        如果矩阵奇异或病态，使用正则化求解。
-        """
         A = np.asarray(A, dtype=float)
         b = np.asarray(b, dtype=float)
 
@@ -147,7 +84,7 @@ class RobustNumericUtils:
             x = np.linalg.solve(A, b)
             return x
         except np.linalg.LinAlgError:
-            # 使用伪逆或正则化
+
             n = A.shape[0]
             A_reg = A + regularization * np.eye(n)
             x = np.linalg.solve(A_reg, b)
@@ -156,11 +93,6 @@ class RobustNumericUtils:
 
     @staticmethod
     def semantic_similarity_safe(u: np.ndarray, v: np.ndarray) -> float:
-        """
-        安全计算语义相似度（余弦相似度）。
-        
-        cos_sim = (u . v) / (||u|| * ||v||)
-        """
         u = np.asarray(u, dtype=float)
         v = np.asarray(v, dtype=float)
 
@@ -178,11 +110,6 @@ class RobustNumericUtils:
 
     @staticmethod
     def batch_semantic_similarity(embeddings: np.ndarray) -> np.ndarray:
-        """
-        批量计算语义相似度矩阵。
-        
-        安全处理零向量。
-        """
         embeddings = np.asarray(embeddings, dtype=float)
         n = embeddings.shape[0]
         sim_matrix = np.zeros((n, n))
@@ -199,33 +126,32 @@ class RobustNumericUtils:
 
 
 def demo():
-    """模块功能演示"""
     print("=" * 60)
     print("数值鲁棒性工具演示")
     print("=" * 60)
 
     utils = RobustNumericUtils()
 
-    # 安全除法
+
     print("\n--- 安全除法 ---")
     print(f"safe_divide(1.0, 2.0) = {utils.safe_divide(1.0, 2.0)}")
     print(f"safe_divide(1.0, 0.0) = {utils.safe_divide(1.0, 0.0)}")
     print(f"safe_divide(1, 2) = {utils.safe_divide(1, 2)}")
 
-    # 安全对数
+
     print("\n--- 安全对数 ---")
     print(f"safe_log(2.0) = {utils.safe_log(2.0):.6f}")
     print(f"safe_log(0.0) = {utils.safe_log(0.0)}")
     print(f"safe_log(-1.0) = {utils.safe_log(-1.0)}")
 
-    # 安全归一化
+
     print("\n--- 安全归一化 ---")
     v1 = np.array([3.0, 4.0])
     v2 = np.array([0.0, 0.0])
     print(f"normalize({v1}) = {utils.normalize_vector(v1)}")
     print(f"normalize({v2}) = {utils.normalize_vector(v2)}")
 
-    # 语义相似度
+
     print("\n--- 语义相似度 ---")
     e1 = np.array([1.0, 0.0, 1.0])
     e2 = np.array([0.0, 1.0, 0.0])
@@ -233,13 +159,13 @@ def demo():
     print(f"sim(e1, e2) = {utils.semantic_similarity_safe(e1, e2):.6f}")
     print(f"sim(e1, e3) = {utils.semantic_similarity_safe(e1, e3):.6f}")
 
-    # 批量相似度
+
     print("\n--- 批量语义相似度 ---")
     embeddings = np.array([[1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 0]], dtype=float)
     sim_mat = utils.batch_semantic_similarity(embeddings)
     print(f"相似度矩阵:\n{sim_mat}")
 
-    # 病态矩阵
+
     print("\n--- 病态矩阵处理 ---")
     A = np.array([[1.0, 1.0], [1.0, 1.0000001]])
     b = np.array([2.0, 2.0])

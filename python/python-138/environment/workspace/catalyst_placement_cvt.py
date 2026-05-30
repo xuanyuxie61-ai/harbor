@@ -1,31 +1,9 @@
-"""
-基于 Centroidal Voronoi Tessellation (CVT) 的微反应器催化剂最优分布算法
-===========================================================================
-将 CVT 算法应用于微反应器催化剂颗粒的空间排布优化，使得催化剂在反应器
-横截面上的覆盖率最均匀，从而强化混合与传质。
-
-核心公式：
-    给定区域 Ω ⊂ ℝ²，CVT 将 Ω 划分为 N 个 Voronoi 单元 {V_i}，使得
-    能量泛函最小：
-
-        E = Σᵢ ∫_{V_i} ρ(x) ||x - z_i||² dx
-
-    其中 z_i 为单元 V_i 的质心（即生成元），ρ(x) 为催化剂密度权重函数。
-    最优条件：每个生成元恰好是其 Voronoi 单元的质心：
-
-        z_i = ∫_{V_i} ρ(x) x dx / ∫_{V_i} ρ(x) dx
-
-    本模块使用 Lloyd 迭代逼近 CVT，并通过 Monte Carlo 采样估计积分。
-"""
 
 import numpy as np
 from typing import Tuple, List, Optional, Callable
 
 
 class CatalystCVTPlacer:
-    """
-    基于 CVT 的二维/三维催化剂分布优化器。
-    """
 
     def __init__(
         self,
@@ -59,14 +37,13 @@ class CatalystCVTPlacer:
 
         self.density_func = density_func
         if density_func is None:
-            # 默认均匀密度
+
             self.density_func = lambda pts: np.ones(pts.shape[0])
 
-        # 初始化生成元（均匀随机）
+
         self.generators = self._init_generators()
 
     def _init_generators(self) -> np.ndarray:
-        """在边界框内均匀初始化生成元。"""
         gens = np.zeros((self.n, self.dim))
         for d in range(self.dim):
             lo, hi = self.bounds[d]
@@ -74,8 +51,7 @@ class CatalystCVTPlacer:
         return gens
 
     def _sample_points(self) -> np.ndarray:
-        """在边界框内按照密度函数进行重要性采样。"""
-        # 拒绝采样：先生成均匀样本，再以 density/max_density 接受
+
         samples = []
         batch = min(self.sample_num * 2, 50000)
         while len(samples) < self.sample_num:
@@ -94,22 +70,14 @@ class CatalystCVTPlacer:
         return samples
 
     def _find_closest(self, points: np.ndarray) -> np.ndarray:
-        """
-        对每个采样点，找到最近的生成元索引。
-        时间复杂度 O(sample_num * n)。
-        """
-        # 向量化计算欧氏距离矩阵
-        # distances[i,j] = ||points[i] - generators[j]||
+
+
         diff = points[:, np.newaxis, :] - self.generators[np.newaxis, :, :]
         dists = np.sqrt(np.sum(diff ** 2, axis=2))
         closest = np.argmin(dists, axis=1)
         return closest
 
     def _compute_energy(self, samples: np.ndarray, closest: np.ndarray) -> float:
-        """
-        计算 CVT 能量泛函：
-            E = (1/M) Σᵢ Σ_{x∈V_i} ρ(x) ||x - z_i||²
-        """
         dens = self.density_func(samples)
         energy = 0.0
         for i in range(self.n):
@@ -121,14 +89,6 @@ class CatalystCVTPlacer:
         return energy / len(samples)
 
     def iterate(self) -> Tuple[np.ndarray, float, float]:
-        """
-        执行 Lloyd 迭代求解 CVT。
-
-        返回:
-            generators: 优化后的生成元坐标 (n, dim)
-            energy: 最终能量
-            max_shift: 最后一次迭代中生成元的最大移动距离
-        """
         energy_history = []
         for it in range(self.max_iter):
             samples = self._sample_points()
@@ -148,10 +108,10 @@ class CatalystCVTPlacer:
                         new_gens[i] = self.generators[i]
                     counts[i] = total_weight
                 else:
-                    # 空单元：随机重置
+
                     new_gens[i] = self._init_generators()[0]
 
-            # 边界裁剪
+
             for d in range(self.dim):
                 lo, hi = self.bounds[d]
                 new_gens[:, d] = np.clip(new_gens[:, d], lo, hi)
@@ -169,12 +129,6 @@ class CatalystCVTPlacer:
         return self.generators, energy, max_shift
 
     def compute_uniformity_index(self) -> float:
-        """
-        计算催化剂分布均匀度指数：
-            η = 1 - σ_V / μ_V
-        其中 σ_V 为各 Voronoi 单元体积（权重）的标准差，μ_V 为均值。
-        η → 1 表示完全均匀。
-        """
         samples = self._sample_points()
         closest = self._find_closest(samples)
         dens = self.density_func(samples)
@@ -191,10 +145,6 @@ class CatalystCVTPlacer:
         return eta
 
     def get_catalyst_loading_map(self, grid_res: int = 50) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        在规则网格上生成催化剂负载密度图。
-        返回 (grid_density, grid_coords)。
-        """
         if self.dim != 2:
             raise NotImplementedError("仅 2D 支持网格密度图")
         x = np.linspace(self.bounds[0, 0], self.bounds[0, 1], grid_res)
@@ -202,7 +152,7 @@ class CatalystCVTPlacer:
         xv, yv = np.meshgrid(x, y)
         pts = np.column_stack([xv.ravel(), yv.ravel()])
         closest = self._find_closest(pts)
-        # 密度图以生成元为中心高斯衰减
+
         density = np.zeros(len(pts))
         for i in range(len(pts)):
             gen = self.generators[closest[i]]

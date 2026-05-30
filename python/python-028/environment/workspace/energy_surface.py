@@ -1,66 +1,9 @@
-"""
-energy_surface.py
-=================
-核势能面全局优化模块
-
-本模块基于 glomin 与 zero_brent 的优化算法，
-实现核集体坐标 (β₂, γ) 平面上势能面的全局最小化搜索。
-
-功能：
-1. 一维全局最小化（glomin 算法）—— 沿特定 γ 方向的 β 优化
-2. 二维势能面网格搜索 + 局部精化
-3. 鞍点搜索与形变路径计算
-
-数学基础：
-- glomin 算法假设 f''(x) ≤ M，利用该上界进行区间排除：
-  若在某区间 [a, b] 内，基于二阶导数上界可证明 f(x) > f_best + ε，
-  则该区间的全局最小不可能位于其中，可被安全剪枝。
-
-- 势能面极小化：
-  min_{β, γ} V(β, γ) = V_WS(β, γ) + E_pair(β, γ) + E_rot(β, γ)
-
-- 转动能量（Yrast 线）：
-  E_rot(I, β, γ) = [I(I+1) - K²] / (2 I_perp(β, γ))
-  其中 I_perp = I_0 [1 + c_β β cos(γ + 2π/3)]
-"""
 
 import numpy as np
 from math import sqrt, sin, cos, pi, fabs, exp
 
 
 def glomin_global_minimize(a, b, c, M_bound, eps_eval, tol, f):
-    """
-    glomin 全局最小化算法（基于 glomin.m 的 Python 实现）。
-
-    假设：
-    - f 在 [a, b] 上二阶连续可微
-    - f''(x) ≤ M_bound 对所有 x ∈ [a, b]
-    - eps_eval 为函数求值误差上界
-
-    参数
-    ----
-    a, b : float
-        区间端点，a < b
-    c : float
-        初始猜测点
-    M_bound : float
-        二阶导数上界（必须 > 0）
-    eps_eval : float
-        函数求值误差上界
-    tol : float
-        解的精度要求
-    f : callable
-        目标函数
-
-    返回
-    ----
-    x_min : float
-        全局最小值点估计
-    f_min : float
-        最小值估计
-    calls : int
-        函数调用次数
-    """
     calls = 0
     a0, x, a2 = b, b, a
     y0 = f(b)
@@ -185,18 +128,12 @@ def glomin_global_minimize(a, b, c, M_bound, eps_eval, tol, f):
 
 
 def brent_local_minimize(a, b, c, f, tol=1e-8):
-    """
-    使用 Brent 法进行局部最小化（通过导数符号变化转化为寻根问题）。
-
-    在已知 f(a) > f(c) 且 f(b) > f(c) 的条件下，
-    对 f'(x) = 0 使用 Brent 寻根法。
-    """
     def df_approx(x):
         h = max(abs(x) * 1e-6, 1e-8)
         return (f(x + h) - f(x - h)) / (2.0 * h)
 
-    # 在 [a, b] 内寻找 f'(x) = 0
-    # 简单策略：黄金分割 + 抛物线插值
+
+
     phi_ratio = (3.0 - sqrt(5.0)) / 2.0
     x = w = v = c
     fx = fw = fv = f(c)
@@ -265,41 +202,11 @@ def brent_local_minimize(a, b, c, f, tol=1e-8):
 def optimize_nuclear_shape_energy(potential_fn, beta_range=(-0.3, 0.5),
                                    gamma_range=(0.0, pi / 3.0),
                                    n_grid_beta=20, n_grid_gamma=15):
-    """
-    在 (β, γ) 平面上搜索核势能面的全局最小值。
-
-    策略：
-    1. 粗网格扫描确定候选区域
-    2. 沿 γ = 0, π/6, π/3 方向分别使用 glomin 全局优化 β
-    3. 返回全局最小能量及对应的形变参数
-
-    参数
-    ----
-    potential_fn : callable
-        V(beta, gamma) → float
-    beta_range : tuple
-        β 的搜索范围
-    gamma_range : tuple
-        γ 的搜索范围
-    n_grid_beta, n_grid_gamma : int
-        粗网格分辨率
-
-    返回
-    ----
-    beta_opt : float
-        最优 β
-    gamma_opt : float
-        最优 γ
-    E_min : float
-        最小能量 (MeV)
-    surface_data : dict
-        扫描得到的势能面数据
-    """
     beta_grid = np.linspace(beta_range[0], beta_range[1], n_grid_beta)
     gamma_grid = np.linspace(gamma_range[0], gamma_range[1], n_grid_gamma)
     E_grid = np.zeros((n_grid_gamma, n_grid_beta))
 
-    # 粗网格扫描
+
     best_E = 1e10
     best_beta, best_gamma = 0.0, 0.0
 
@@ -315,13 +222,13 @@ def optimize_nuclear_shape_energy(potential_fn, beta_range=(-0.3, 0.5),
             except Exception:
                 E_grid[i, j] = 1e10
 
-    # 沿关键 γ 方向使用 glomin 精化
+
     gamma_cuts = [0.0, pi / 6.0, pi / 3.0]
     for g_cut in gamma_cuts:
         def V_1d(b):
             return potential_fn(b, g_cut)
 
-        # 估计二阶导数上界 M
+
         db = 0.01
         M_est = 0.0
         for b_test in np.linspace(beta_range[0], beta_range[1], 20):
@@ -354,18 +261,9 @@ def optimize_nuclear_shape_energy(potential_fn, beta_range=(-0.3, 0.5),
 
 
 def moment_of_inertia(beta, gamma, A, R0=1.2):
-    """
-    计算形变核的转动惯量（刚体近似）。
-
-    对于轴对称椭球（γ = 0）：
-    I_perp = (1/5) M A (a² + b²)
-    其中 a = R(1 + β√(5/16π)), b = R(1 - β√(5/16π)/2)
-
-    一般情况（γ ≠ 0）使用 Bohr 参数化。
-    """
-    M = 939.0  # MeV/c²
+    M = 939.0
     R = R0 * (A ** (1.0 / 3.0))
-    # 简化公式
+
     I_0 = (2.0 / 5.0) * M * A * R ** 2
     I_perp = I_0 * (1.0 + 0.3 * beta * cos(gamma + 2.0 * pi / 3.0))
     I_parallel = I_0 * (1.0 + 0.3 * beta * cos(gamma))

@@ -1,51 +1,8 @@
-"""
-special_functions.py
-==================
-博士级金融工程数值基础设施模块
-
-本模块实现了利率期限结构建模中所需的核心特殊函数与概率分布工具，
-包括：
-  1. 对数正态分布（Log-Normal）的 PDF、CDF、逆 CDF 及采样器
-  2. 标准正态分布逆 CDF（Wichura 算法 AS 241，精度达 1e-16）
-  3. Lambert W 函数近似（WAPR 算法，上下分支）
-
-数学背景
---------
-对数正态分布描述了在 Black-Scholes 框架下资产价格与利率的演化：
-  若 X ~ LogNormal(μ, σ²)，则 log X ~ N(μ, σ²)。
-  PDF:  p(x) = 1/(x σ √(2π)) exp{ - (ln x - μ)² / (2σ²) },  x > 0
-  CDF:  F(x) = Φ( (ln x - μ)/σ )
-  逆 CDF: F⁻¹(p) = exp( μ + σ Φ⁻¹(p) )
-
-Lambert W 函数在利率模型中有解析应用：
-  对于方程 w e^w = x，解为 w = W(x)。
-  在 CIR 模型与某些收益率曲线闭式解中直接出现。
-"""
 
 import numpy as np
 
 
 def log_normal_pdf(x, mu, sigma):
-    """
-    对数正态分布概率密度函数。
-
-    公式:
-        PDF(x; μ, σ) = exp( -0.5 * ((ln x - μ)/σ)^2 ) / (σ * x * sqrt(2π))
-
-    Parameters
-    ----------
-    x : float or np.ndarray
-        自变量，必须严格大于 0。
-    mu : float
-        位置参数。
-    sigma : float
-        尺度参数，必须严格大于 0。
-
-    Returns
-    -------
-    float or np.ndarray
-        PDF 值，对非法输入返回 0.0。
-    """
     if sigma <= 0.0:
         raise ValueError("log_normal_pdf: sigma 必须大于 0")
     x = np.asarray(x, dtype=float)
@@ -59,27 +16,6 @@ def log_normal_pdf(x, mu, sigma):
 
 
 def log_normal_cdf(x, mu, sigma):
-    """
-    对数正态分布累积分布函数。
-
-    公式:
-        CDF(x; μ, σ) = Φ( (ln x - μ) / σ )
-    其中 Φ 为标准正态 CDF。
-
-    Parameters
-    ----------
-    x : float or np.ndarray
-        自变量，必须严格大于 0。
-    mu : float
-        位置参数。
-    sigma : float
-        尺度参数，必须严格大于 0。
-
-    Returns
-    -------
-    float or np.ndarray
-        CDF 值，对 x <= 0 返回 0.0。
-    """
     if sigma <= 0.0:
         raise ValueError("log_normal_cdf: sigma 必须大于 0")
     x = np.asarray(x, dtype=float)
@@ -92,26 +28,6 @@ def log_normal_cdf(x, mu, sigma):
 
 
 def log_normal_cdf_inv(cdf, mu, sigma):
-    """
-    对数正态分布逆 CDF（分位点函数）。
-
-    公式:
-        F^{-1}(p) = exp( μ + σ * Φ^{-1}(p) )
-
-    Parameters
-    ----------
-    cdf : float or np.ndarray
-        概率值，必须在 [0, 1] 区间内。
-    mu : float
-        位置参数。
-    sigma : float
-        尺度参数，必须严格大于 0。
-
-    Returns
-    -------
-    float or np.ndarray
-        逆 CDF 值。
-    """
     if sigma <= 0.0:
         raise ValueError("log_normal_cdf_inv: sigma 必须大于 0")
     cdf = np.asarray(cdf, dtype=float)
@@ -122,55 +38,15 @@ def log_normal_cdf_inv(cdf, mu, sigma):
 
 
 def log_normal_sample(mu, sigma, size=None):
-    """
-    对数正态分布随机采样（逆变换法）。
-
-    算法:
-        X = exp( μ + σ * Φ^{-1}(U) ),  U ~ Uniform(0,1)
-
-    Parameters
-    ----------
-    mu : float
-        位置参数。
-    sigma : float
-        尺度参数，必须严格大于 0。
-    size : int or tuple, optional
-        输出样本形状。
-
-    Returns
-    -------
-    float or np.ndarray
-        采样值。
-    """
     if sigma <= 0.0:
         raise ValueError("log_normal_sample: sigma 必须大于 0")
     u = np.random.uniform(0.0, 1.0, size=size)
-    # 避免边界 0 和 1
+
     u = np.clip(u, 1e-12, 1.0 - 1e-12)
     return log_normal_cdf_inv(u, mu, sigma)
 
 
 def normal_01_cdf_inv(p):
-    """
-    标准正态分布逆 CDF（Wichura 算法 AS 241）。
-
-    精度: 约 1 part in 10^16。
-    公式基于有理函数逼近：
-        当 |q| <= 0.425 时，使用中心区域多项式比;
-        当 0.425 < |q| <= 5.0 时，使用中间区域多项式比;
-        当 |q| > 5.0 时，使用尾部区域多项式比。
-    其中 q = p - 0.5。
-
-    Parameters
-    ----------
-    p : float or np.ndarray
-        概率值，必须在 (0, 1) 内。
-
-    Returns
-    -------
-    float or np.ndarray
-        标准正态分位点。
-    """
     p = np.asarray(p, dtype=float)
     if np.any(p <= 0.0) or np.any(p >= 1.0):
         raise ValueError("normal_01_cdf_inv: p 必须在 (0, 1) 开区间内")
@@ -221,13 +97,13 @@ def normal_01_cdf_inv(p):
     abs_q = np.abs(q)
     value = np.zeros_like(p, dtype=float)
 
-    # 中心区域
+
     mask_center = abs_q <= split1
     if np.any(mask_center):
         r = const1 - q[mask_center] * q[mask_center]
         value[mask_center] = q[mask_center] * _poly_eval(7, a, r) / _poly_eval(7, b, r)
 
-    # 中间与尾部区域
+
     mask_tail = ~mask_center
     if np.any(mask_tail):
         r = np.where(q[mask_tail] < 0.0, p[mask_tail], 1.0 - p[mask_tail])
@@ -254,7 +130,6 @@ def normal_01_cdf_inv(p):
 
 
 def _poly_eval(n, c, x):
-    """Horner 法求多项式值，c[0] 为常数项。"""
     x = np.asarray(x, dtype=float)
     val = np.full_like(x, c[n], dtype=float)
     for i in range(n - 1, -1, -1):
@@ -263,7 +138,6 @@ def _poly_eval(n, c, x):
 
 
 def _erf_approx(z):
-    """标准正态 CDF 的误差函数近似（基于 Abramowitz & Stegun 公式 7.1.26）。"""
     z = np.asarray(z, dtype=float)
     a1 = 0.254829592
     a2 = -0.284496736
@@ -280,31 +154,6 @@ def _erf_approx(z):
 
 
 def lambert_w(x, branch=0, offset_mode=0):
-    """
-    Lambert W 函数近似（WAPR 算法）。
-
-    定义: W(z) 满足 W(z) * exp(W(z)) = z。
-    上分支 W_0 (branch=0): 定义域 z >= -1/e
-    下分支 W_{-1} (branch!=0): 定义域 -1/e < z < 0
-
-    在利率模型中，Lambert W 出现在某些收益率曲线的隐式解析解：
-        如方程 r = a + b exp(-c r) 的解可用 Lambert W 表达。
-
-    Parameters
-    ----------
-    x : float or np.ndarray
-        自变量。
-    branch : int or np.ndarray
-        0 表示上分支，非零表示下分支。
-    offset_mode : int
-        1 表示 x 为偏移量，实际参数为 x - exp(-1);
-        其他表示 x 为实际参数。
-
-    Returns
-    -------
-    np.ndarray
-        W(x) 的近似值，非法输入返回 NaN。
-    """
     x = np.asarray(x, dtype=float)
     W = np.full_like(x, np.nan, dtype=float)
 
@@ -349,7 +198,7 @@ def lambert_w(x, branch=0, offset_mode=0):
             delx = xx - em
 
         if nb == 0:
-            # 上分支
+
             if np.abs(xx) <= x0:
                 W[idx] = xx / (1.0 + xx / (1.0 + xx / (2.0 + xx / (0.6 + 0.34 * xx))))
                 continue
@@ -365,7 +214,7 @@ def lambert_w(x, branch=0, offset_mode=0):
                 zl = np.log(xx)
                 W[idx] = np.log(xx / np.log(xx / zl ** np.exp(-1.124491989777808 / (0.4225028202459761 + zl))))
         else:
-            # 下分支
+
             if xx >= 0.0:
                 continue
             elif xx <= x1:
@@ -382,7 +231,7 @@ def lambert_w(x, branch=0, offset_mode=0):
                 eta = 2.0 - em2 * xx
                 W[idx] = np.log(xx / np.log(-xx / ((1.0 - 0.5043921323068457 * (zl + 1.0)) * (np.sqrt(eta) + eta / 3.0) + 1.0)))
 
-        # 一次 Halley 迭代精化
+
         wv = W[idx]
         if not np.isnan(wv) and wv != 0.0:
             zn = np.log(xx / wv) - wv

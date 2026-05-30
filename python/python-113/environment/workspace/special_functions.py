@@ -1,36 +1,12 @@
-"""
-special_functions.py
-统计力学与电化学中的特殊数学函数
-
-基于种子项目 881_polpak 的核心算法：
-- r8_erf: 高精度误差函数（Cody 有理逼近）
-- hermite_poly_phys: 物理学家 Hermite 多项式
-- laguerre_poly: Laguerre 多项式
-- gamma_values, beta, legendre_poly, spherical_harmonic 等
-
-在离子通道问题中的应用：
-- erf 用于 Gouy-Chapman 双电层电势解析解
-- Hermite 多项式用于速度分布的 Gauss-Hermite 求积
-- Laguerre 用于径向分布的展开
-- Gamma 函数用于统计力学配分函数
-"""
 
 import numpy as np
 from scipy.special import factorial
 
 
-# ---------------------------------------------------------------------------
-# 误差函数 erf(x) —— 基于 Cody 有理 Chebyshev 逼近（源自 r8_erf.m）
-# ---------------------------------------------------------------------------
-def erf_cody(x):
-    """
-    高精度误差函数 ERF(x)。
 
-    分段有理逼近：
-      |x| <= 0.46875:   多项式比值
-      0.46875 < |x| <= 4.0:  有理函数 * exp(-x^2)
-      |x| > 4.0:  渐近展开
-    """
+
+
+def erf_cody(x):
     a = np.array([
         3.16112374387056560E+00,
         1.13864154151050156E+02,
@@ -131,24 +107,10 @@ def erf_cody(x):
     return erfx
 
 
-# ---------------------------------------------------------------------------
-# Hermite 物理学家多项式 H_n(x)（源自 hermite_poly_phys.m）
-# ---------------------------------------------------------------------------
+
+
+
 def hermite_phys(n, x):
-    """
-    计算 Hermite 多项式 H_0(x) ... H_n(x)。
-
-    递推关系：
-        H_0(x) = 1
-        H_1(x) = 2x
-        H_n(x) = 2x H_{n-1}(x) - 2(n-1) H_{n-2}(x)
-
-    微分方程：
-        H''_n - 2x H'_n + 2n H_n = 0
-
-    正交性：
-        ∫_{-∞}^{∞} exp(-x^2) H_n(x) H_m(x) dx = sqrt(pi) 2^n n! δ_{nm}
-    """
     if n < 0:
         return np.array([])
     cx = np.zeros(n + 1)
@@ -161,24 +123,10 @@ def hermite_phys(n, x):
     return cx
 
 
-# ---------------------------------------------------------------------------
-# Laguerre 多项式 L_n(x)（源自 laguerre_poly.m）
-# ---------------------------------------------------------------------------
+
+
+
 def laguerre_poly(n, x):
-    """
-    计算 Laguerre 多项式 L_0(x) ... L_n(x)。
-
-    递推关系：
-        L_0(x) = 1
-        L_1(x) = 1 - x
-        n L_n(x) = (2n - 1 - x) L_{n-1}(x) - (n-1) L_{n-2}(x)
-
-    微分方程：
-        x L''_n + (1 - x) L'_n + n L_n = 0
-
-    正交性：
-        ∫_0^∞ exp(-x) L_n(x) L_m(x) dx = δ_{nm}
-    """
     if n < 0:
         return np.array([])
     cx = np.zeros(n + 1)
@@ -191,20 +139,10 @@ def laguerre_poly(n, x):
     return cx
 
 
-# ---------------------------------------------------------------------------
-# Legendre 多项式 P_n(x)（源自 legendre_poly.m）
-# ---------------------------------------------------------------------------
+
+
+
 def legendre_poly(n, x):
-    """
-    Legendre 多项式 P_n(x)。
-
-    递推：
-        P_0(x) = 1
-        P_1(x) = x
-        n P_n(x) = (2n-1) x P_{n-1}(x) - (n-1) P_{n-2}(x)
-
-    用于球坐标展开。
-    """
     if n < 0:
         return np.array([])
     cx = np.zeros(n + 1)
@@ -217,17 +155,10 @@ def legendre_poly(n, x):
     return cx
 
 
-# ---------------------------------------------------------------------------
-# Gamma 函数 log（源自 gamma_log_values.m / gamma_values.m）
-# ---------------------------------------------------------------------------
-def log_gamma_lanczos(z):
-    """
-    Lanczos 近似计算 ln Γ(z)，适用于 z > 0。
 
-    公式：
-        ln Γ(z) ≈ (z - 0.5) ln(z + g - 0.5) - (z + g - 0.5)
-                   + ln[ sqrt(2π) * (c_0 + Σ c_k / (z + k)) ]
-    """
+
+
+def log_gamma_lanczos(z):
     if z <= 0:
         raise ValueError("Gamma 函数的 log 要求正实数输入")
     g = 7.0
@@ -250,15 +181,10 @@ def log_gamma_lanczos(z):
     return 0.5 * np.log(2.0 * np.pi) + np.log(x) - t + (z + 0.5) * np.log(t)
 
 
-# ---------------------------------------------------------------------------
-# 球谐函数相关（源自 spherical_harmonic.m）
-# ---------------------------------------------------------------------------
-def spherical_harmonic_norm(l, m):
-    """
-    球谐函数归一化常数 N_l^m。
 
-    N_l^m = sqrt( (2l+1)/(4π) * (l-m)! / (l+m)! )
-    """
+
+
+def spherical_harmonic_norm(l, m):
     if abs(m) > l:
         return 0.0
     num = np.math.factorial(l - abs(m))
@@ -267,14 +193,9 @@ def spherical_harmonic_norm(l, m):
 
 
 def associated_legendre(l, m, x):
-    """
-    连带 Legendre 函数 P_l^m(x)。
-
-    采用递推关系计算（源自 legendre_associated.m 思想）。
-    """
     if abs(m) > l or abs(x) > 1.0:
         return 0.0
-    # 使用 scipy 风格或直接递推（此处用简化递推）
+
     pmm = 1.0
     if m > 0:
         somx2 = np.sqrt((1.0 - x) * (1.0 + x))
@@ -295,29 +216,18 @@ def associated_legendre(l, m, x):
     return pll
 
 
-# ---------------------------------------------------------------------------
-# 统计力学配分函数相关
-# ---------------------------------------------------------------------------
+
+
+
 def partition_function_harmonic(omega, T, hbar=1.054571817e-34, kB=1.380649e-23):
-    """
-    一维谐振子配分函数：
-        Z = 1 / (2 sinh(ℏω / 2k_B T))
-    """
     x = hbar * omega / (2.0 * kB * T)
     if x < 1e-10:
-        # 高温极限
+
         return 1.0 / (2.0 * x)
     return 1.0 / (2.0 * np.sinh(x))
 
 
 def debeye_huckel_kappa(ionic_strength, T=300.0, eps_r=78.5):
-    """
-    Debye-Hückel 屏蔽长度倒数 κ（单位：m^{-1}）。
-
-        κ^2 = (2000 N_A e^2 I) / (ε_0 ε_r k_B T)
-
-    其中 I 为离子强度（mol/L）。
-    """
     NA = 6.02214076e23
     e_charge = 1.602176634e-19
     eps0 = 8.854187817e-12
@@ -327,9 +237,5 @@ def debeye_huckel_kappa(ionic_strength, T=300.0, eps_r=78.5):
 
 
 def boltzmann_factor(energy, T=300.0):
-    """
-    Boltzmann 因子 exp(-E / k_B T)。
-    能量单位为 J，返回无量纲因子。
-    """
     kB = 1.380649e-23
     return np.exp(-energy / (kB * T))

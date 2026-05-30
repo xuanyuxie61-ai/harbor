@@ -1,35 +1,9 @@
-"""
-network_pagerank.py
-基于 845_pagerank2 的稀疏图矩阵构造与 154_chain_letter_tree 的
-层次聚类/距离矩阵思想，构建血凝级联反应网络的拓扑分析工具。
-
-科学背景：
-    血凝级联包含数十种因子与数百条相互作用边。
-    使用 PageRank 算法可识别网络中的关键节点（Hubs），
-    使用层次聚类可发现功能模块（如内源性/外源性途径模块）。
-
-数学模型：
-    1. PageRank: 求解特征向量问题
-        π^T = π^T G,   G = α S + (1-α) (1/n) 1 1^T
-       其中 S 为随机冲浪矩阵，α 为阻尼因子。
-
-    2. 反应网络距离矩阵：
-        d_{ij} = 1 - J(A_i, A_j) / U(A_i, A_j)
-       其中 J 为共同邻居数，U 为并集邻居数（Jaccard距离）。
-
-    3. 层次聚类：
-        使用单连接（single linkage）对节点进行系统聚类。
-"""
 
 import numpy as np
 from scipy.sparse import csr_matrix
 
 
 class CoagulationNetworkGraph:
-    """
-    血凝级联反应网络的图表示。
-    节点为凝血因子/复合物，有向边为催化/抑制关系。
-    """
 
     def __init__(self):
         self.node_names = [
@@ -47,10 +21,6 @@ class CoagulationNetworkGraph:
         self._build_edges()
 
     def _build_edges(self):
-        """
-        构建血凝级联的有向边（催化关系）。
-        edge i→j 表示节点 i 催化/促进节点 j 的生成或活化。
-        """
         edges = [
             ("TF", "TF_VIIa"),
             ("VIIa", "TF_VIIa"),
@@ -80,31 +50,21 @@ class CoagulationNetworkGraph:
                 self.adj[i, j] = 1
 
     def build_sparse_matrix(self):
-        """
-        基于 845_pagerank2 的稀疏矩阵构造。
-        """
         rows, cols = np.where(self.adj > 0)
         data = np.ones(len(rows), dtype=int)
         return csr_matrix((data, (rows, cols)), shape=(self.n_nodes, self.n_nodes))
 
     def pagerank(self, alpha=0.85, max_iter=200, tol=1e-12):
-        """
-        幂迭代法求解 PageRank 向量。
-
-        算法：
-            π^{(k+1)} = α π^{(k)} S + (1-α) (1/n) 1^T
-        其中 S_{ij} = A_{ij} / outdegree(i) 为行随机矩阵。
-        """
         n = self.n_nodes
         A = self.adj.astype(float)
-        # 计算出度
+
         out_deg = A.sum(axis=1)
         S = np.zeros_like(A)
         for i in range(n):
             if out_deg[i] > 0:
                 S[i, :] = A[i, :] / out_deg[i]
             else:
-                S[i, :] = 1.0 / n  # 悬挂节点处理
+                S[i, :] = 1.0 / n
 
         pi = np.ones(n) / n
         for _ in range(max_iter):
@@ -115,12 +75,6 @@ class CoagulationNetworkGraph:
         return pi
 
     def jaccard_distance_matrix(self):
-        """
-        基于 154_chain_letter_tree 的距离矩阵思想，
-        计算节点间的 Jaccard 距离：
-            d(i,j) = 1 - |N(i) ∩ N(j)| / |N(i) ∪ N(j)|
-        其中 N(i) 为节点 i 的邻居集合。
-        """
         n = self.n_nodes
         dist = np.zeros((n, n))
         for i in range(n):
@@ -137,19 +91,10 @@ class CoagulationNetworkGraph:
                     d = 1.0 - inter / union
                 dist[i, j] = d
                 dist[j, i] = d
-        # 对称化（已对称）
+
         return dist
 
     def hierarchical_clustering(self, dist_matrix):
-        """
-        单连接层次聚类（single linkage）。
-        基于 154_chain_letter_tree 的层次聚类思想。
-
-        算法：
-            1. 每个节点初始为一类
-            2. 合并距离最近的两个类：
-               d(C_i, C_j) = min_{u∈C_i, v∈C_j} d(u,v)
-        """
         n = dist_matrix.shape[0]
         clusters = {i: [i] for i in range(n)}
         linkage = []
@@ -182,9 +127,6 @@ class CoagulationNetworkGraph:
 
 
 def analyze_network():
-    """
-    运行网络分析并返回关键节点排名。
-    """
     net = CoagulationNetworkGraph()
     pr = net.pagerank()
 

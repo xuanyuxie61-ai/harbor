@@ -1,24 +1,9 @@
-"""
-data_io.py — 自适应光学波前数据文件I/O库
-
-融合原项目: 1420_xy_io (2D几何数据文件读写) + 718_matlab_commandline (文件操作)
-
-功能:
-  - 波前相位数据 (XY格式) 的读写
-  - Zernike系数向量 (XYF格式关联) 的读写
-  - 子孔径斜率数据 (XYL格式关联) 的读写
-  - 系统参数日志记录
-"""
 
 import os
 import numpy as np
 
 
 def write_xy_data(filepath, x, y, header_comment="Wavefront phase data"):
-    """
-    写入二维坐标数据 (XY格式)
-    格式: 头部注释 + 每行 "x y"
-    """
     if len(x) != len(y):
         raise ValueError("x and y must have the same length.")
     if len(x) == 0:
@@ -31,10 +16,6 @@ def write_xy_data(filepath, x, y, header_comment="Wavefront phase data"):
 
 
 def read_xy_data(filepath):
-    """
-    读取二维坐标数据 (XY格式)
-    返回: x数组, y数组
-    """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
     x_list, y_list = [], []
@@ -54,10 +35,6 @@ def read_xy_data(filepath):
 
 
 def write_zernike_coefficients(filepath, coeffs, modes_labels=None):
-    """
-    写入Zernike系数向量 (类XYF格式: 系数 + 模式标签)
-    coeffs: 1D numpy array
-    """
     if coeffs.ndim != 1:
         raise ValueError("coeffs must be a 1D array.")
     n = len(coeffs)
@@ -70,10 +47,6 @@ def write_zernike_coefficients(filepath, coeffs, modes_labels=None):
 
 
 def read_zernike_coefficients(filepath):
-    """
-    读取Zernike系数向量
-    返回: coeffs数组
-    """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
     coeffs = []
@@ -92,10 +65,6 @@ def read_zernike_coefficients(filepath):
 
 
 def write_subaperture_slopes(filepath, sx, sy, subap_indices=None):
-    """
-    写入子孔径斜率数据 (类XYL格式: 斜率 + 子孔径索引)
-    sx, sy: 1D arrays of x- and y-slopes
-    """
     if len(sx) != len(sy):
         raise ValueError("sx and sy must have the same length.")
     if len(sx) == 0:
@@ -110,10 +79,6 @@ def write_subaperture_slopes(filepath, sx, sy, subap_indices=None):
 
 
 def read_subaperture_slopes(filepath):
-    """
-    读取子孔径斜率数据
-    返回: indices, sx, sy
-    """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
     indices, sx, sy = [], [], []
@@ -134,9 +99,6 @@ def read_subaperture_slopes(filepath):
 
 
 def log_system_parameters(filepath, params_dict):
-    """
-    记录系统参数到日志文件 (源自718_matlab_commandline的文件操作思想)
-    """
     with open(filepath, 'w') as f:
         f.write("# Adaptive Optics System Parameters Log\n")
         f.write("# ====================================\n")
@@ -150,9 +112,6 @@ def log_system_parameters(filepath, params_dict):
 
 
 def read_system_parameters(filepath):
-    """
-    读取系统参数字典
-    """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
     params = {}

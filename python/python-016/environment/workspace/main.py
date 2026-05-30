@@ -1,33 +1,13 @@
-"""
-MAIN: Twisted Bilayer Graphene Band-Structure Engineering Platform
-===================================================================
-Zero-parameter entry point for a comprehensive numerical study of
-twisted bilayer graphene (TBG) heterostructures.
-
-This script orchestrates:
-  1. Tight-binding Hamiltonian construction
-  2. Self-consistent Poisson solver for interlayer potential
-  3. Band-structure calculation along high-symmetry paths
-  4. Density of states (DOS) and Van Hove singularity identification
-  5. Semiclassical electron dynamics under E/B fields
-  6. K-Means clustering of moiré stacking regions
-  7. Topological invariant (Chern number, Z2) estimation
-  8. RCM bandwidth reduction for sparse matrices
-  9. Adaptive k-point sampling via CVT
-  10. Parameter fitting via least-squares approximation
-
-All parameters are set internally; no command-line arguments required.
-"""
 
 import sys
 import os
 import numpy as np
 import warnings
 
-# Suppress numpy warnings for cleaner output
+
 warnings.filterwarnings("ignore")
 
-# Import project modules
+
 import tight_binding as tb
 import band_solver as bs
 import poisson_solver as ps
@@ -43,7 +23,6 @@ import fitting as ft
 
 
 def print_section(title: str):
-    """Print a formatted section header."""
     line = "=" * 60
     print(f"\n{line}")
     print(f"  {title}")
@@ -51,23 +30,23 @@ def print_section(title: str):
 
 
 def main():
-    # =================================================================
-    # Global simulation parameters
-    # =================================================================
-    THETA_DEG = 1.05  # magic angle in degrees
-    N_SUPER = 3       # supercell size (3x3 ≈ 36 atoms per layer)
-    N_KPATH = 40      # k-points per high-symmetry segment
-    N_KCVT = 64       # number of CVT k-points
-    E_FIELD = np.array([0.0, 0.01])  # electric field (V/nm)
-    B_FIELD = 1.0     # magnetic field (Tesla)
+
+
+
+    THETA_DEG = 1.05
+    N_SUPER = 3
+    N_KPATH = 40
+    N_KCVT = 64
+    E_FIELD = np.array([0.0, 0.01])
+    B_FIELD = 1.0
 
     print("Twisted Bilayer Graphene Band-Structure Engineering")
     print(f"Twist angle: {THETA_DEG}° (magic angle)")
     print(f"Supercell: {N_SUPER}x{N_SUPER}")
 
-    # =================================================================
-    # 1. Build tight-binding Hamiltonian
-    # =================================================================
+
+
+
     print_section("1. Tight-Binding Hamiltonian Construction")
 
     H, positions, layer_index = tb.build_tight_binding_hamiltonian(
@@ -80,13 +59,13 @@ def main():
     print(f"  Layer 0 atoms: {np.sum(layer_index == 0)}")
     print(f"  Layer 1 atoms: {np.sum(layer_index == 1)}")
 
-    # Apply perpendicular electric field
+
     H_field = tb.apply_electric_field(H, positions, layer_index, field_strength=0.05)
     print(f"  Applied E-field: 0.05 V/nm")
 
-    # =================================================================
-    # 2. Self-consistent Poisson solver
-    # =================================================================
+
+
+
     print_section("2. Self-Consistent Poisson Solver")
 
     try:
@@ -108,9 +87,9 @@ def main():
         print("  Continuing with non-self-consistent Hamiltonian.")
         H_scf = H_field
 
-    # =================================================================
-    # 3. Band structure along high-symmetry path
-    # =================================================================
+
+
+
     print_section("3. Band Structure (Γ → M → K → Γ)")
 
     kpath, energies_path = bs.compute_band_structure_along_path(
@@ -124,22 +103,22 @@ def main():
     print(f"  Lowest energy:  {np.min(energies_path):.4f} eV")
     print(f"  Highest energy: {np.max(energies_path):.4f} eV")
 
-    # Fermi level and band gap
+
     e_fermi = bs.find_fermi_level(energies_path)
     gap, n_occ, n_unocc = bs.band_gap_at_fermi_level(energies_path, e_fermi)
     print(f"  Fermi level:    {e_fermi:.4f} eV")
     print(f"  Band gap:       {gap:.4f} eV")
     print(f"  Occupied bands: {n_occ}")
 
-    # Dirac point search
+
     dirac_points = bs.locate_dirac_points(kpath, energies_path, degeneracy_tol=5e-3)
     print(f"  Near-degeneracies found: {len(dirac_points)}")
     if dirac_points:
         print(f"  Smallest gap along path: {min(d[2] for d in dirac_points):.4e} eV")
 
-    # =================================================================
-    # 4. Density of states and Van Hove singularities
-    # =================================================================
+
+
+
     print_section("4. Density of States & Van Hove Singularities")
 
     E_min = np.min(energies_path) - 0.5
@@ -155,24 +134,24 @@ def main():
     for ev, dv in vhs[:5]:
         print(f"    E = {ev:+.4f} eV, DOS = {dv:.4e}")
 
-    # Fermi velocity estimate
+
     v_F = du.estimate_fermi_velocity_from_dos(E_grid, dos, e_fermi, fit_window=0.1)
     print(f"  Estimated Fermi velocity: {v_F:.4f} nm/fs")
 
-    # Blow-up metric
+
     blowup_ratio = du.blowup_divergence_metric(dos, sigma_broadening)
     print(f"  VHS divergence ratio: {blowup_ratio:.3f}")
 
-    # =================================================================
-    # 5. Semiclassical dynamics
-    # =================================================================
+
+
+
     print_section("5. Semiclassical Electron Dynamics")
 
-    # Use a simple band energy function for dynamics
+
     def simple_band_energy(k):
-        # Approximate linear Dirac cone near K point for dynamics demo
+
         k0 = np.array([0.0, 0.0])
-        return np.array([np.linalg.norm(k - k0) * 6.58])  # eV scale
+        return np.array([np.linalg.norm(k - k0) * 6.58])
 
     k0_init = np.array([0.01, 0.0])
     r0_init = np.array([0.0, 0.0])
@@ -190,13 +169,13 @@ def main():
     print(f"  Final k: ({k_array[-1, 0]:.4f}, {k_array[-1, 1]:.4f}) nm⁻¹")
     print(f"  Final r: ({r_array[-1, 0]:.4f}, {r_array[-1, 1]:.4f}) nm")
 
-    # Cyclotron frequency
+
     omega_c = sd.cyclotron_frequency(effective_mass=0.05, B_field=B_FIELD)
     print(f"  Cyclotron frequency (m*=0.05 m_e): {omega_c:.4f} rad/fs")
 
-    # =================================================================
-    # 6. K-Means clustering of stacking regions
-    # =================================================================
+
+
+
     print_section("6. Moiré Stacking Region Clustering")
 
     labels, centroids, features = cl.classify_stacking_regions(
@@ -207,20 +186,20 @@ def main():
         count = int(np.sum(labels == k))
         print(f"    Cluster {k}: {count} atoms")
 
-    # Cluster energy analysis (using diagonal elements as proxy)
+
     local_energies = np.diag(H_scf)
-    # Shift to make values more informative
+
     local_energies = local_energies - np.mean(local_energies)
     stats = cl.cluster_energy_analysis(labels, local_energies, positions)
     for k, s in stats.items():
         print(f"    Cluster {k} mean energy: {s['mean_energy']:.4f} eV")
 
-    # =================================================================
-    # 7. Topological invariants
-    # =================================================================
+
+
+
     print_section("7. Topological Invariants")
 
-    # Wilson loop around a small circle in k-space
+
     theta_circle = np.linspace(0, 2 * np.pi, 20)
     radius = 0.05
     k_circle = np.column_stack([radius * np.cos(theta_circle),
@@ -246,34 +225,34 @@ def main():
     except Exception as e:
         print(f"  Wilson loop calculation: {e}")
 
-    # Lights-out matrix for moiré grid
+
     lo_mat = tp.lights_out_matrix_moire(3, 3)
     rank_f2 = tp.mod2_matrix_rank(lo_mat)
     print(f"  Lights-Out matrix rank (F_2): {rank_f2}/{lo_mat.shape[0]}")
 
-    # =================================================================
-    # 8. Mesh processing and RCM bandwidth reduction
-    # =================================================================
+
+
+
     print_section("8. Sparse Matrix Bandwidth Reduction (RCM)")
 
-    # Build a simple triangular mesh from atom positions projected to 2D
+
     pos_2d = positions[:, :2]
-    # Use Delaunay triangulation if scipy is available
+
     try:
         from scipy.spatial import Delaunay
         tri = Delaunay(pos_2d)
         elements = tri.simplices
     except Exception:
-        # Fallback: no triangulation
+
         elements = np.zeros((0, 3), dtype=int)
 
     if elements.size > 0:
-        # Upgrade to quadratic
+
         new_nodes, new_elements = mu.linear_to_quadratic_triangles(pos_2d, elements)
         print(f"  Linear mesh: {pos_2d.shape[0]} nodes, {elements.shape[0]} triangles")
         print(f"  Quadratic mesh: {new_nodes.shape[0]} nodes, {new_elements.shape[0]} triangles")
 
-        # RCM on Hamiltonian adjacency
+
         adj = mu.build_adjacency_from_elements(elements, pos_2d.shape[0], "triangle")
         H_rcm, perm, bw_old, bw_new = mu.apply_rcm_to_sparse_matrix(H_scf, adj)
         print(f"  Bandwidth before RCM: {bw_old}")
@@ -282,13 +261,13 @@ def main():
     else:
         print("  Triangulation not available; skipping mesh operations.")
 
-    # =================================================================
-    # 9. Adaptive k-point sampling (CVT)
-    # =================================================================
+
+
+
     print_section("9. Adaptive k-Point Sampling (CVT)")
 
     def dos_weight(k):
-        # Approximate DOS weight: higher near K points
+
         return 1.0 + 2.0 * np.exp(-np.linalg.norm(k) ** 2 / 0.01)
 
     k_cvt = ks.mbz_cvt_kpoints(
@@ -299,21 +278,21 @@ def main():
     )
     print(f"  CVT k-points generated: {k_cvt.shape[0]}")
 
-    # Irreducible wedge reduction
+
     k_wedge = ks.irreducible_wedge_kpoints(k_cvt)
     print(f"  Points in irreducible wedge: {k_wedge.shape[0]}")
 
-    # =================================================================
-    # 10. Parameter fitting
-    # =================================================================
+
+
+
     print_section("10. Tight-Binding Parameter Fitting")
 
-    # Synthetic reference data
+
     k_ref = kpath[::5]
     e_ref = energies_path[::5, :]
 
     def tb_calculator(params, kpts):
-        # Simplified calculator for demonstration
+
         t0 = params.get("t0", -2.7)
         w0 = params.get("w0", 0.11)
         Nk = kpts.shape[0]
@@ -332,15 +311,15 @@ def main():
     for k, v in fitted.items():
         print(f"    {k} = {v:.4f}")
 
-    # Cross-validation for polynomial fit quality
+
     x_demo = np.linspace(-1.0, 1.0, 50)
     y_demo = np.sin(3.0 * x_demo) + 0.1 * np.random.randn(50)
     cv_err = ft.cross_validation_error(x_demo, y_demo, degree=4, n_folds=5)
     print(f"  Cross-validation MSE (demo fit): {cv_err:.4e}")
 
-    # =================================================================
-    # 11. Tridiagonal solver demonstration
-    # =================================================================
+
+
+
     print_section("11. Tridiagonal Solver (Thomas Algorithm)")
 
     n_chain = 20
@@ -353,14 +332,14 @@ def main():
     print(f"  Chain length: {n_chain}")
     print(f"  Residual norm: {residual:.3e}")
 
-    # Layer potential 1D
+
     layer_dens = np.array([0.01, -0.005, 0.0, 0.005, -0.01])
     V_layer = td.solve_layer_potential_1d(layer_dens, 0.1, 1.0)
     print(f"  Layer potential: {V_layer}")
 
-    # =================================================================
-    # 12. Root finding for band degeneracies
-    # =================================================================
+
+
+
     print_section("12. Root Finding (Band-Crossing Detection)")
 
     def band_gap_at_k(k):
@@ -384,9 +363,9 @@ def main():
     except Exception as e:
         print(f"  Band-crossing search: {e}")
 
-    # =================================================================
-    # Summary
-    # =================================================================
+
+
+
     print_section("SIMULATION COMPLETE")
     print("All 15 seed-project algorithms have been integrated:")
     print("  [015] approx_leastsquares  → parameter fitting (fitting.py)")

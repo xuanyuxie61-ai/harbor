@@ -1,21 +1,8 @@
-"""
-main.py
-智能电网潮流优化与暂态稳定性分析综合平台 — 统一入口
-
-零参数运行，自动执行：
-    1. 环形-径向混合电网拓扑生成与 Delaunay 三角剖分质量评估
-    2. 导纳矩阵构建与牛顿-拉夫逊潮流计算
-    3. 暂态稳定性时域仿真（单机及多机摇摆方程）
-    4. 经济调度（等微增率准则）与机组组合动态规划
-    5. 负荷马尔可夫预测与熵率分析
-    6. 状态估计（WLS）与可观测性分析
-    7. 可靠性分析、电压稳定裕度与三相不平衡度计算
-"""
 
 import numpy as np
 import sys
 
-# 确保模块路径
+
 sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.abspath(__file__)))
 
 from grid_topology import GridTopology
@@ -41,9 +28,9 @@ def main():
     print("  Integrated Smart Grid Power Flow & Transient Stability Platform")
     print("=" * 70)
 
-    # ============================================================
-    # 1. 电网拓扑生成与 Delaunay 三角剖分
-    # ============================================================
+
+
+
     print_section("1. 电网拓扑生成与 Delaunay 三角剖分质量评估")
 
     grid = GridTopology.generate_ring_radial_topology(
@@ -58,50 +45,50 @@ def main():
     for k, v in quality.items():
         print(f"      {k}: {v:.6f}")
 
-    # 利用 circle_arc_grid 生成额外的中间馈线节点并展示
+
     extra_nodes = circle_arc_grid(0.0, 0.0, 7.5, 0.0, 360.0, 6)[:-1]
     print(f"   附加中间环节点数: {len(extra_nodes)}")
 
-    # ============================================================
-    # 2. 导纳矩阵与潮流计算
-    # ============================================================
+
+
+
     print_section("2. 导纳矩阵构建与牛顿-拉夫逊潮流计算")
 
     edges = grid.get_edge_list()
     n = grid.n_nodes
     n_edges = len(edges)
-    # 线路参数（典型配电网参数）
+
     r_line = np.full(n_edges, 0.02)
     x_line = np.full(n_edges, 0.08)
     b_shunt = np.full(n_edges, 0.01)
 
     y_bus = build_y_bus(n, edges, r_line, x_line, b_shunt)
 
-    # 定义节点类型：0=PQ, 1=PV, 2=Slack
+
     bus_types = np.zeros(n, dtype=np.int32)
-    bus_types[0] = 2  # Slack
-    # 设置部分节点为 PV 发电机
+    bus_types[0] = 2
+
     gen_indices = [1, 4, 8, 11]
     for gi in gen_indices:
         if gi < n:
             bus_types[gi] = 1
 
-    # 初始电压与功率注入
+
     vm0 = np.ones(n, dtype=np.float64)
     va0 = np.zeros(n, dtype=np.float64)
     p_spec = np.zeros(n, dtype=np.float64)
     q_spec = np.zeros(n, dtype=np.float64)
 
-    # 负荷：PQ 节点（除 slack 和 PV 外），小负荷保证收敛
+
     for i in range(n):
         if bus_types[i] == 0:
             p_spec[i] = -0.06 - 0.02 * ((i * 7) % 5)
             q_spec[i] = -0.02 - 0.01 * ((i * 3) % 4)
 
-    # 计算总负荷
+
     total_load_p = np.sum(np.abs(p_spec))
     n_pv = int(np.sum(bus_types == 1))
-    # PV 节点注入 = 总负荷 / PV数 + 网损裕度
+
     gen_p = total_load_p / max(n_pv, 1) + 0.03
     for i in range(n):
         if bus_types[i] == 1:
@@ -118,9 +105,9 @@ def main():
     print(f"   PV 节点电压: {result_pf['vm'][1]:.4f} p.u.")
     print(f"   电压范围: [{result_pf['vm'].min():.4f}, {result_pf['vm'].max():.4f}] p.u.")
 
-    # ============================================================
-    # 3. 暂态稳定性分析
-    # ============================================================
+
+
+
     print_section("3. 暂态稳定性时域仿真（摇摆方程）")
 
     swing = SwingEquation(H=5.0, D=2.0, f_base=50.0,
@@ -129,7 +116,7 @@ def main():
     delta_0 = np.arcsin(P_m * swing.X / (swing.E_prime * swing.V_inf))
     omega_0 = swing.omega_s
 
-    # 无故障仿真
+
     res_stable = swing.simulate(
         t_span=(0.0, 5.0), dt=0.01, P_m=P_m,
         delta0=delta_0, omega0=omega_0
@@ -137,7 +124,7 @@ def main():
     print(f"   稳态运行: δ_0 = {np.degrees(delta_0):.2f}°, ω_s = {swing.omega_s:.2f} rad/s")
     print(f"   无故障仿真终点 δ = {np.degrees(res_stable['delta'][-1]):.2f}°")
 
-    # 三相短路故障仿真（0.1s 故障，0.2s 切除）
+
     res_fault = swing.simulate(
         t_span=(0.0, 5.0), dt=0.01, P_m=P_m,
         delta0=delta_0, omega0=omega_0,
@@ -146,12 +133,12 @@ def main():
     print(f"   故障后仿真终点 δ = {np.degrees(res_fault['delta'][-1]):.2f}°")
     print(f"   暂态稳定判定: {res_fault['stable']}")
 
-    # 临界切除角
+
     delta_cr = swing.critical_clearing_angle(P_m)
     if delta_cr is not None:
         print(f"   临界切除角 δ_cr = {np.degrees(delta_cr):.2f}°")
 
-    # 多机系统仿真
+
     print("   --- 多机系统暂态仿真 ---")
     n_gen = 3
     H_mm = np.array([5.0, 4.0, 6.0])
@@ -172,12 +159,12 @@ def main():
     )
     print(f"   3机系统仿真完成，最终 δ = {res_mm['delta'][-1]}")
 
-    # ============================================================
-    # 4. 经济调度与机组组合
-    # ============================================================
+
+
+
     print_section("4. 最优经济调度与机组组合动态规划")
 
-    # 3台机组
+
     a = np.array([0.02, 0.015, 0.025])
     b = np.array([10.0, 12.0, 8.0])
     c = np.array([100.0, 120.0, 90.0])
@@ -192,7 +179,7 @@ def main():
     print(f"   系统 λ: {res_ed['lambda']:.4f} $/MWh")
     print(f"   总发电成本: {res_ed['total_cost']:.2f} $/h")
 
-    # 动态规划机组组合
+
     uc = UnitCommitmentDP(
         n_gen=3, T=6,
         startup_cost=np.array([50.0, 60.0, 40.0]),
@@ -205,18 +192,18 @@ def main():
     print(f"   单机组 DP 最优启停序列: {res_uc['schedule']}")
     print(f"   单机组 DP 最小成本: {res_uc['total_cost']:.2f}")
 
-    # 聚合 DP 卷积法
+
     demand_series = np.array([120.0, 140.0, 160.0, 150.0, 130.0, 110.0])
     res_agg = uc.solve_aggregated_dp(demand_series, ed)
     print(f"   多机组聚合 DP 可行性: {res_agg['all_feasible']}")
 
-    # 多项式卷积演示
+
     poly_demo = polynomial_multiply(np.array([1, 1, 1]), np.array([1, 2, 3]))
     print(f"   生成函数卷积示例: {poly_demo}")
 
-    # ============================================================
-    # 5. 负荷马尔可夫预测
-    # ============================================================
+
+
+
     print_section("5. 负荷马尔可夫预测模型")
 
     lf = load_forecast_example()
@@ -230,12 +217,12 @@ def main():
     pred = model.predict(current_state=2, n_steps=5)
     print(f"   从状态2出发的5步预测分布: {pred}")
 
-    # ============================================================
-    # 6. 状态估计与可观测性
-    # ============================================================
+
+
+
     print_section("6. WLS 状态估计与可观测性分析")
 
-    # 为验证状态估计算法，使用标准 5-bus 测试系统
+
     n_se = 5
     lines_se = [
         (0, 1, 0.02, 0.06, 0.0), (0, 2, 0.08, 0.24, 0.0),
@@ -250,7 +237,7 @@ def main():
     y_bus_se = build_y_bus(n_se, edges_se, r_se, x_se, b_se)
     bus_types_se = np.array([2, 1, 0, 0, 0], dtype=np.int32)
 
-    # 先执行潮流计算获得优质初值，再运行状态估计
+
     p_spec_se = np.array([0.0, 0.4, -0.45, -0.4, -0.6])
     q_spec_se = np.array([0.0, 0.0, -0.15, -0.05, -0.1])
     vm_se0 = np.array([1.06, 1.0, 1.0, 1.0, 1.0])
@@ -261,7 +248,7 @@ def main():
     print(f"   潮流预计算收敛: {res_pf_se['converged']} (为状态估计提供初值)")
 
     se = WeightedLeastSquaresSE(n_se, y_bus_se, bus_types_se)
-    # 构造精确量测（验证算法在无噪声理想条件下的收敛性）
+
     measurements = []
     for i in range(n_se):
         measurements.append(('V_mag', i, float(res_pf_se['vm'][i]), 0.01))
@@ -277,7 +264,7 @@ def main():
     print(f"   估计电压范围: [{res_se['vm'].min():.4f}, {res_se['vm'].max():.4f}]")
     print(f"   估计相角范围(deg): [{np.degrees(res_se['va']).min():.2f}, {np.degrees(res_se['va']).max():.2f}]")
 
-    # 可观测性分析
+
     obs = ObservabilityAnalysis(n_se)
     H_test = np.random.randn(2 * n_se, 2 * n_se)
     obs_res = obs.check_observability(H_test)
@@ -285,19 +272,19 @@ def main():
     print(f"   可观测性: {obs_res['observable']}")
     print(f"   秩亏: {obs_res['deficiency']}")
 
-    # ============================================================
-    # 7. 可靠性、电压稳定与三相不平衡
-    # ============================================================
+
+
+
     print_section("7. 可靠性分析与电压稳定性评估")
 
-    # 线路可靠性
+
     line_lengths = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0])
     rel = LineReliability(line_lengths, lambda0=0.05, mu=8760.0)
     print(f"   线路可用率均值: {rel.availability.mean():.6f}")
     series_r = rel.series_reliability([0, 1, 2, 3])
     print(f"   示例串联路径可靠性: {series_r:.6f}")
 
-    # 电压稳定裕度
+
     vsm = VoltageStabilityMargin(E=1.1, X=0.5, Q=0.2)
     p_max = vsm.max_power_limit()
     margin = vsm.voltage_margin(P_operating=0.8)
@@ -306,7 +293,7 @@ def main():
     pv = vsm.pv_curve(n_points=20)
     print(f"   PV 曲线采样: P_max={pv['P_max']:.4f}, V_nose={pv['V_high'][-1]:.4f}")
 
-    # 三相不平衡
+
     tpu = ThreePhaseUnbalance(
         Va=complex(1.0, 0.0),
         Vb=complex(-0.49, -0.87),
@@ -316,9 +303,9 @@ def main():
     tri = tpu.phasor_triangle_analysis()
     print(f"   相量三角形最小角: {tri['min_angle_deg']:.2f}°")
 
-    # ============================================================
-    # 8. 数值工具验证
-    # ============================================================
+
+
+
     print_section("8. 数值工具验证")
 
     def test_func(x):

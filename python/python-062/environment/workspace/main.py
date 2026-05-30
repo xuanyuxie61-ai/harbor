@@ -1,20 +1,3 @@
-"""
-main.py
-================================================================================
-边界层湍流与大涡模拟（PBL-LES）统一入口
-================================================================================
-
-本项目围绕大气科学前沿领域——边界层湍流与大涡模拟（LES），
-融合15个种子项目的核心算法，构建了一个具备博士级复杂度的
-科研计算框架。
-
-运行方式
---------
-    python main.py
-
-无需任何命令行参数，程序自动执行完整的 LES 初始化、
-时间步进、统计分析与后处理流程。
-"""
 
 import numpy as np
 import sys
@@ -33,26 +16,26 @@ def run_simulation():
     print_banner()
     t0_total = time.time()
 
-    # ------------------------------------------------------------------
-    # 1. 参数设置
-    # ------------------------------------------------------------------
+
+
+
     print("[1/8] 初始化物理参数与计算网格 ...")
     nx, ny, nz = 24, 24, 16
-    Lx, Ly, Lz = 1000.0, 1000.0, 500.0  # 米
+    Lx, Ly, Lz = 1000.0, 1000.0, 500.0
     dx, dy, dz = Lx / nx, Ly / ny, Lz / nz
 
-    dt = 0.2  # 固定时间步长（秒）
+    dt = 0.2
     n_steps = 5
-    rho = 1.225  # 空气密度 kg/m³
-    nu_mol = 1.5e-5  # 运动粘性 m²/s
-    g = 9.81  # 重力加速度
+    rho = 1.225
+    nu_mol = 1.5e-5
+    g = 9.81
 
     print(f"      网格: {nx} x {ny} x {nz}, 分辨率: {dx:.1f}m x {dy:.1f}m x {dz:.1f}m")
     print(f"      时间步长: {dt}s, 总步数: {n_steps}")
 
-    # ------------------------------------------------------------------
-    # 2. 初始化速度场与温度场
-    # ------------------------------------------------------------------
+
+
+
     print("[2/8] 初始化湍流场（对数风剖面 + 随机脉动）...")
     from les_core import initialize_turbulent_field
     u, v, w, theta = initialize_turbulent_field(
@@ -62,14 +45,14 @@ def run_simulation():
         theta_mean=298.0, theta_gradient=0.005
     )
 
-    # ------------------------------------------------------------------
-    # 3. 网格拓扑与边界识别
-    # ------------------------------------------------------------------
+
+
+
     print("[3/8] 构建网格拓扑与识别边界 ...")
     from mesh_topology import build_mesh_graph, mesh_quality_metrics
     from mesh_boundary import extract_boundary_nodes_3d, apply_surface_layer_bc
 
-    # 生成简化四面体网格（用于 FEM 算子演示）
+
     nodes = np.zeros((nx * ny * nz, 3), dtype=np.float64)
     idx = 0
     for k in range(nz):
@@ -78,8 +61,8 @@ def run_simulation():
                 nodes[idx] = [i * dx, j * dy, k * dz]
                 idx += 1
 
-    # 构建六面体到四面体的简单映射（仅演示拓扑）
-    # 每个六面体拆分为 5 个或 6 个四面体
+
+
     element_nodes = []
     for k in range(nz - 1):
         for j in range(ny - 1):
@@ -92,7 +75,7 @@ def run_simulation():
                 n101 = (i + 1) + nx * (j + ny * (k + 1))
                 n011 = i + nx * ((j + 1) + ny * (k + 1))
                 n111 = (i + 1) + nx * ((j + 1) + ny * (k + 1))
-                # 简化为 5 个四面体
+
                 element_nodes.append([n000, n100, n010, n001])
                 element_nodes.append([n111, n011, n101, n110])
                 element_nodes.append([n100, n010, n110, n001])
@@ -110,7 +93,7 @@ def run_simulation():
     lower_nodes = bdry_info['lower']
     print(f"      下边界节点数: {len(lower_nodes)}")
 
-    # 应用近地层边界条件
+
     u, v, w = apply_surface_layer_bc(
         u.flatten(), v.flatten(), w.flatten(), theta.flatten(),
         nodes, lower_nodes, u_star=0.4, z0=0.1
@@ -119,16 +102,16 @@ def run_simulation():
     v = v.reshape((nx, ny, nz))
     w = w.reshape((nx, ny, nz))
 
-    # ------------------------------------------------------------------
-    # 4. 时间步进（LES 核心循环）
-    # ------------------------------------------------------------------
+
+
+
     print("[4/8] LES 时间步进（对流-扩散-SGS-投影）...")
     from les_core import convection_term, laplacian_3d, projection_step
     from sgs_model import smagorinsky_model, dynamic_smagorinsky_model
     from time_integrator import adaptive_timestep
 
     for step in range(n_steps):
-        # 数值检查：若出现 NaN/Inf，回退到标准 Smagorinsky 模型
+
         if not (np.all(np.isfinite(u)) and np.all(np.isfinite(v)) and np.all(np.isfinite(w))):
             print(f"      [警告] 步 {step} 检测到非有限值，重新初始化速度场")
             u, v, w, theta = initialize_turbulent_field(
@@ -138,24 +121,24 @@ def run_simulation():
                 theta_mean=298.0, theta_gradient=0.005
             )
 
-        # 自适应时间步长
+
         dt = adaptive_timestep(u, v, w, dx, dy, dz, nu_mol + 0.1, cfl=0.3)
         if dt < 1e-6:
             dt = 1e-6
 
-        # === HOLE 2 BEGIN ===
-        # 此处应完成 LES 时间步进的核心步骤：
-        # 1. 调用 smagorinsky_model 计算 SGS 涡粘性 nu_sgs 与应力 tau_sgs
-        # 2. 计算有效粘性 nu_eff = nu_mol + nu_sgs
-        # 3. 调用 convection_term 计算对流项 conv_u, conv_v, conv_w
-        # 4. 调用 laplacian_3d 计算扩散项 diff_u, diff_v, diff_w
-        # 5. 显式前向欧拉预测步，得到 u_star, v_star, w_star
-        # 6. 调用 projection_step 进行压力修正，得到无散速度场
-        # 注意：此处的实现必须与 sgs_model.py (HOLE 1) 和 les_core.py (HOLE 3) 协同修复
-        raise NotImplementedError("HOLE 2: 请实现 LES 时间步进核心循环")
-        # === HOLE 2 END ===
 
-        # 重新施加边界条件（防止数值漂移）
+
+
+
+
+
+
+
+
+        raise NotImplementedError("HOLE 2: 请实现 LES 时间步进核心循环")
+
+
+
         u, v, w = apply_surface_layer_bc(
             u.flatten(), v.flatten(), w.flatten(), theta.flatten(),
             nodes, lower_nodes, u_star=0.4, z0=0.1
@@ -164,7 +147,7 @@ def run_simulation():
         v = v.reshape((nx, ny, nz))
         w = w.reshape((nx, ny, nz))
 
-        # 数值限幅（防止极端值）
+
         u = np.clip(u, -50.0, 50.0)
         v = np.clip(v, -50.0, 50.0)
         w = np.clip(w, -20.0, 20.0)
@@ -175,9 +158,9 @@ def run_simulation():
 
     print(f"      时间步进完成，最终 CFL 约束 dt={dt:.4f}s")
 
-    # ------------------------------------------------------------------
-    # 5. 湍流统计量计算
-    # ------------------------------------------------------------------
+
+
+
     print("[5/8] 计算湍流统计量 ...")
     from turbulence_stats import (
         compute_tke, compute_reynolds_stresses, compute_heat_flux,
@@ -201,9 +184,9 @@ def run_simulation():
     print(f"      Kolmogorov 尺度: η={eta:.4e}m, τ_η={tau_eta:.4e}s, u_η={u_eta:.4e}m/s")
     print(f"      Taylor Reynolds 数 Re_λ = {Re_lambda:.1f}")
 
-    # ------------------------------------------------------------------
-    # 6. 拉格朗日粒子追踪与随机扩散
-    # ------------------------------------------------------------------
+
+
+
     print("[6/8] 拉格朗日粒子追踪与随机 Langevin 扩散 ...")
     from stochastic_model import initialize_particles, langevin_step_euler, ensemble_concentration
     from particle_tracker import track_particles_rk2
@@ -216,7 +199,7 @@ def run_simulation():
         release_height=20.0
     )
 
-    # 插值网格速度到粒子
+
     x_grid = np.arange(nx) * dx
     y_grid = np.arange(ny) * dy
     z_grid = np.arange(nz) * dz
@@ -225,7 +208,7 @@ def run_simulation():
         particles, (x_grid, y_grid, z_grid), u, v, w, order=3
     )
 
-    # 执行 Langevin 随机步
+
     sigma_w_field = np.sqrt(np.maximum(R['ww'], 1e-6))
     sigma_w_p = np.full(n_particles, sigma_w_field)
     epsilon_p = np.full(n_particles, epsilon)
@@ -237,18 +220,18 @@ def run_simulation():
     print(f"      粒子数: {n_particles}")
     print(f"      平均垂直位移: {np.mean(particles_new[:, 2] - particles[:, 2]):.3f} m")
 
-    # ------------------------------------------------------------------
-    # 7. 分形分析与谱分析
-    # ------------------------------------------------------------------
+
+
+
     print("[7/8] 分形维数与间歇性分析 ...")
     from fractal_analysis import box_counting, compute_intermittency_factor, richardson_cascade_spectrum
 
-    # 取水平切片进行分形分析
+
     u_slice = u[:, :, nz // 2]
     D_f, scales, counts = box_counting(u_slice, threshold=np.mean(u_slice), max_level=4)
     mu = compute_intermittency_factor(u_slice, window_size=4)
 
-    # 一维能谱
+
     k_spec = np.linspace(1, nx // 2, nx // 2)
     E_k = richardson_cascade_spectrum(k_spec, epsilon, C=1.5, mu=mu)
 
@@ -256,16 +239,16 @@ def run_simulation():
     print(f"      间歇性因子 μ = {mu:.3f}")
     print(f"      能谱峰值波数 k_max = {k_spec[np.argmax(E_k)]:.1f}")
 
-    # ------------------------------------------------------------------
-    # 8. 波数空间三波相互作用
-    # ------------------------------------------------------------------
+
+
+
     print("[8/8] 波数空间三波相互作用枚举 ...")
     from wave_interactions import enumerate_triads, shell_energy_flux
 
     triads = enumerate_triads(k_max=3, dim=2)
     print(f"      截断球内三波组数: {len(triads)}")
 
-    # 构造简化的谱速度场
+
     np.random.seed(7)
     velocities_spec = {}
     for k1 in range(-3, 4):
@@ -275,7 +258,7 @@ def run_simulation():
             k_mag = np.sqrt(k1**2 + k2**2)
             if k_mag > 3:
                 continue
-            # 复速度振幅（近似 Kolmogorov 标度）
+
             amp = (epsilon ** (1.0 / 3.0)) * (k_mag ** (-1.0 / 3.0))
             phase = np.random.rand(2) * 2 * np.pi
             velocities_spec[(k1, k2)] = amp * np.array([
@@ -288,9 +271,9 @@ def run_simulation():
     print(f"      能量通量 Π(k): {Pi}")
     print(f"      理论惯性子区通量应近似为常数 ε = {epsilon:.4e}")
 
-    # ------------------------------------------------------------------
-    # 9. 球谐函数展开演示
-    # ------------------------------------------------------------------
+
+
+
     print("[附加] 球谐函数基展开演示 ...")
     from spherical_harmonics import spherical_harmonic_basis
 
@@ -301,26 +284,26 @@ def run_simulation():
     Y_2_1_c, Y_2_1_s = spherical_harmonic_basis(2, 1, TH, PH)
     print(f"      Y_2^1 实部积分: {np.mean(Y_2_1_c):.6f} (应 ≈ 0)")
 
-    # ------------------------------------------------------------------
-    # 10. 高斯-帕特森求积演示
-    # ------------------------------------------------------------------
+
+
+
     print("[附加] Gauss-Patterson 高精度求积演示 ...")
     from quadrature_rules import patterson_integrate_1d, patterson_integrate_3d
 
-    # 一维积分测试：∫_0^1 x² dx = 1/3
+
     result_1d = patterson_integrate_1d(lambda x: x**2, 0.0, 1.0, order=7)
     print(f"      ∫_0^1 x² dx = {result_1d:.10f} (精确值 1/3 = 0.3333333333)")
 
-    # 三维积分测试：∫_0^1∫_0^1∫_0^1 x*y*z dxdydz = 1/8
+
     result_3d = patterson_integrate_3d(
         lambda x, y, z: x * y * z,
         (0.0, 1.0), (0.0, 1.0), (0.0, 1.0), order=7
     )
     print(f"      ∫_0^1 x*y*z dV = {result_3d:.10f} (精确值 1/8 = 0.1250000000)")
 
-    # ------------------------------------------------------------------
-    # 11. FEM 基函数与 Laplacian 矩阵组装演示
-    # ------------------------------------------------------------------
+
+
+
     print("[附加] 有限元基函数与 Laplacian 矩阵组装演示 ...")
     from fem_basis import basis_mn_tet4, basis_gradient_tet4, fem_laplacian_matrix
 
@@ -337,9 +320,9 @@ def run_simulation():
     print(f"      测试点基函数值: {phi_test[:, 0]}")
     print(f"      基函数梯度范数: {[np.linalg.norm(g) for g in grad_test]}")
 
-    # ------------------------------------------------------------------
-    # 完成
-    # ------------------------------------------------------------------
+
+
+
     t_total = time.time() - t0_total
     print()
     print("=" * 78)

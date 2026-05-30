@@ -1,33 +1,10 @@
-"""
-main.py
-=======
-非线性声学冲击波传播模拟的统一入口。
-
-项目主题：声学工程 — 非线性声学 shock wave 传播的高阶数值模拟
-
-本程序执行以下完整流程：
-1. 初始化非线性声学物理参数（Burgers/KZK方程）
-2. 生成六边形/CVT自适应计算网格
-3. 构造 NACA 翼型声学边界
-4. 使用谱方法求解 1D Burgers 方程（冲击波形成）
-5. 使用 Strang 分裂求解 KZK 方程（轴对称非线性声束）
-6. 使用 Godunov 有限体积格式进行激波捕捉校验
-7. 使用 Romberg/Monte Carlo 积分计算声能量
-8. SVD 降阶模型分析时空主导模态
-9. 传感器阵列 CVT+TSP 优化布局
-10. 三角形自适应细分与网格质量评估
-11. 矩阵链运算顺序优化
-12. 数值完整性校验
-
-所有参数内嵌，零命令行参数可运行。
-"""
 
 import numpy as np
 import sys
 
-# ---------------------------------------------------------------------------
-# 导入项目模块
-# ---------------------------------------------------------------------------
+
+
+
 from shock_physics import NonlinearAcousticsPhysics
 from mesh_generator import AcousticMesh, hex_grid_points, hex_grid_approximate_n
 from spectral_solver import solve_burgers_spectral_1d, VandermondeSolver
@@ -61,14 +38,13 @@ def print_banner():
 
 
 def stage1_physics_initialization():
-    """阶段1：物理参数初始化"""
     print("[阶段 1] 初始化非线性声学物理参数")
     print("-" * 48)
 
     physics = NonlinearAcousticsPhysics(
         medium='water',
-        f0=1.0e6,      # 1 MHz
-        p0=5.0e5,      # 500 kPa 峰值压力
+        f0=1.0e6,
+        p0=5.0e5,
         geometry='planar'
     )
 
@@ -88,23 +64,22 @@ def stage1_physics_initialization():
 
 
 def stage2_mesh_generation(physics):
-    """阶段2：网格生成（融合 hex_grid, CVT）"""
     print("[阶段 2] 生成声学计算网格")
     print("-" * 48)
 
-    # 计算域：2个波长 x 1个波长
+
     lx = 2.0 * physics.wavelength
     ly = 1.0 * physics.wavelength
     box = np.array([[0.0, lx], [0.0, ly]])
 
-    # 六边形网格
+
     nodes_per_layer = 16
     layers = 12
     n_est = hex_grid_approximate_n(nodes_per_layer, layers)
     hex_pts = hex_grid_points(nodes_per_layer, layers, box)
     print(f"  六边形网格: {hex_pts.shape[0]} 个节点 (预估 {n_est})")
 
-    # CVT 优化网格
+
     mesh_cvt = AcousticMesh(
         box=box,
         method='cvt',
@@ -122,7 +97,6 @@ def stage2_mesh_generation(physics):
 
 
 def stage3_geometry_boundary():
-    """阶段3：NACA翼型边界生成（融合 NACA, triangle_analyze）"""
     print("[阶段 3] 生成 NACA 翼型声学边界")
     print("-" * 48)
 
@@ -130,7 +104,7 @@ def stage3_geometry_boundary():
     surf = boundary.generate_naca_boundary(t=0.12, c=0.05, n_points=100)
     print(f"  NACA 0012 翼型表面点: {surf.shape[0]} 个")
 
-    # 三角形质量分析（取前三个点构成示例三角形）
+
     if surf.shape[0] >= 3:
         tri = surf[:3, :]
         area = triangle_area(tri)
@@ -148,20 +122,15 @@ def stage3_geometry_boundary():
 
 
 def stage4_burgers_spectral(physics):
-    """阶段4：谱方法求解 Burgers 方程（融合 r8vm Vandermonde）"""
     print("[阶段 4] 谱方法求解 1D Burgers 方程")
     print("-" * 48)
 
-    # 使用 Ricker 小波作为初始条件（冲击波形成典型初值）
+
     f0 = physics.f0
     c0 = physics.c0
     wavelength = physics.wavelength
 
     def ricker_pulse(x, x0, sigma):
-        r"""
-        Ricker 子波：
-        .. math:: u(x) = (1 - 2 \pi^2 f^2 (x-x_0)^2) \exp(-\pi^2 f^2 (x-x_0)^2)
-        """
         t = (x - x0) / sigma
         return (1.0 - 2.0 * np.pi ** 2 * t ** 2) * np.exp(-np.pi ** 2 * t ** 2)
 
@@ -169,17 +138,17 @@ def stage4_burgers_spectral(physics):
     sigma = wavelength / 4.0
     u0_func = lambda x: 0.1 * c0 * ricker_pulse(x, x0, sigma)
 
-    # Vandermonde 验证（使用 Legendre 节点）
+
     from numpy.polynomial.legendre import leggauss
     nodes_1d, _ = leggauss(8)
     vand = VandermondeSolver(nodes_1d)
     det_v = vand.determinant()
     print(f"  Vandermonde 矩阵 (n=8) 行列式 = {det_v:.6e}")
 
-    # 谱方法求解
+
     N = 64
     t_final = 3.0 * physics.shock_formation_distance / c0
-    # TODO: 修复有效粘性系数（包含热粘滞吸收贡献）
+
     nu_eff = physics.nu
 
     try:
@@ -197,7 +166,7 @@ def stage4_burgers_spectral(physics):
         print(f"  解矩阵 shape = {U.shape}")
     except Exception as e:
         print(f"  警告: Burgers 谱求解遇到异常: {e}")
-        # 备用：生成一个合理的测试解
+
         x = np.linspace(0.0, wavelength, N)
         t_vec = np.linspace(0.0, t_final, 501)
         U = np.zeros((501, N), dtype=float)
@@ -210,7 +179,6 @@ def stage4_burgers_spectral(physics):
 
 
 def stage5_kzk_solver(physics):
-    """阶段5：Strang分裂求解 KZK 方程"""
     print("[阶段 5] Strang 分裂求解 KZK 方程")
     print("-" * 48)
 
@@ -228,9 +196,9 @@ def stage5_kzk_solver(physics):
         diffraction=True, absorption=True, nonlinearity=True
     )
 
-    # 初始条件：高斯声束
+
     p0 = physics.p0
-    w0 = 0.1 * physics.wavelength  # 束腰半径
+    w0 = 0.1 * physics.wavelength
     p_init = np.zeros((Nr, Ntau), dtype=float)
     for i in range(Nr):
         r = solver.r_grid[i]
@@ -260,7 +228,6 @@ def stage5_kzk_solver(physics):
 
 
 def stage6_finite_volume_shock(physics):
-    """阶段6：Godunov 有限体积激波捕捉"""
     print("[阶段 6] Godunov 有限体积激波捕捉格式")
     print("-" * 48)
 
@@ -269,7 +236,7 @@ def stage6_finite_volume_shock(physics):
     x_max = physics.wavelength
     dx = (x_max - x_min) / Nx
 
-    # 初始条件：方波（强间断）
+
     u0 = np.zeros(Nx, dtype=float)
     u0[Nx // 4:3 * Nx // 4] = 0.05 * physics.c0
 
@@ -287,28 +254,27 @@ def stage6_finite_volume_shock(physics):
 
 
 def stage7_energy_integration(physics, P_history, z_vec, solver):
-    """阶段7：Romberg / Monte Carlo 声能量积分（融合 nintlib）"""
     print("[阶段 7] 高维数值积分计算声能量")
     print("-" * 48)
 
     integrator = AcousticEnergyIntegrator(physics)
 
-    # 使用最终 z 截面的压力场构造插值函数
+
     p_final = P_history[-1, :, :]
     Nr, Ntau = p_final.shape
     r_max = solver.r_max
     tau_max = solver.tau_max
 
     def p_func(r, z, tau):
-        # 双线性插值简化
+
         if r < 0.0 or z < 0.0 or abs(tau) > tau_max:
             return 0.0
-        # 最近邻插值（用于积分足够）
+
         ir = min(int(r / r_max * (Nr - 1)), Nr - 1)
         it = min(int((tau + tau_max) / (2.0 * tau_max) * (Ntau - 1)), Ntau - 1)
         return float(p_final[ir, it])
 
-    # Monte Carlo 积分
+
     energy_mc = integrator.beam_energy_3d(
         p_func, r_max, z_vec[-1], tau_max,
         n_samples=5000, method='monte_carlo'
@@ -316,7 +282,7 @@ def stage7_energy_integration(physics, P_history, z_vec, solver):
     print(f"  Monte Carlo 积分:")
     print(f"    声能量 E = {energy_mc:.6e} J")
 
-    # Romberg 积分
+
     energy_rom = integrator.beam_energy_3d(
         p_func, r_max, z_vec[-1], tau_max,
         n_samples=1000, method='romberg'
@@ -324,7 +290,7 @@ def stage7_energy_integration(physics, P_history, z_vec, solver):
     print(f"  Romberg 积分:")
     print(f"    声能量 E = {energy_rom:.6e} J")
 
-    # 直接演示 romberg_nd 和 monte_carlo_nd
+
     def demo_func(x):
         return np.sin(x[0]) * np.cos(x[1]) * np.exp(-x[2])
 
@@ -339,12 +305,11 @@ def stage7_energy_integration(physics, P_history, z_vec, solver):
 
 
 def stage8_svd_rom(U_burgers):
-    """阶段8：SVD 降阶模型（融合 svd_fingerprint）"""
     print("[阶段 8] SVD 降阶模型 (POD) 分析")
     print("-" * 48)
 
-    # Burgers 解作为快照矩阵
-    compressor = SVDRomCompressor(U_burgers.T)  # (space, time)
+
+    compressor = SVDRomCompressor(U_burgers.T)
     compressor.decompose()
 
     cum_energy = compressor.cumulative_energy()
@@ -362,7 +327,7 @@ def stage8_svd_rom(U_burgers):
     print(f"  5 阶近似: 相对误差 = {err_5:.6e}, 压缩比 = {comp_5:.6e}")
     print(f"  10 阶近似: 相对误差 = {err_10:.6e}, 压缩比 = {comp_10:.6e}")
 
-    # 低秩近似重构演示
+
     U_approx, _, _ = compressor.low_rank_approximation(rank_95)
     print(f"  {rank_95} 阶 POD 重构完成，shape = {U_approx.shape}")
     print()
@@ -370,11 +335,10 @@ def stage8_svd_rom(U_burgers):
 
 
 def stage9_sensor_optimization():
-    """阶段9：传感器阵列 CVT+TSP 优化（融合 tsp_greedy, cvt_iterate）"""
     print("[阶段 9] 传感器阵列优化布局")
     print("-" * 48)
 
-    region_box = np.array([[0.0, 0.05], [0.0, 0.05]])  # 5cm x 5cm 区域
+    region_box = np.array([[0.0, 0.05], [0.0, 0.05]])
     result = optimize_sensor_array(
         n_sensors=12,
         region_box=region_box,
@@ -390,7 +354,7 @@ def stage9_sensor_optimization():
     print(f"  TSP 路径长度 = {result['tsp_cost']:.6f} m")
     print(f"  TSP 最优路径 = {result['tsp_path'][:6]}...")
 
-    # 模拟测量
+
     def true_field(x):
         return np.sin(20.0 * np.pi * x[0]) * np.cos(20.0 * np.pi * x[1])
 
@@ -402,39 +366,38 @@ def stage9_sensor_optimization():
 
 
 def stage10_triangle_refinement():
-    """阶段10：三角形自适应细分（融合 triangle_refine, triangulation_q2l）"""
     print("[阶段 10] 三角形自适应细分与网格细化")
     print("-" * 48)
 
-    # 示例三角形
+
     tri = np.array([[0.0, 0.0], [0.05, 0.0], [0.025, 0.04]], dtype=float)
 
-    # 基于高斯函数的被积函数
+
     def f_gauss(pts):
         pts = np.atleast_2d(pts)
         return np.exp(-((pts[:, 0] - 0.025) ** 2 + (pts[:, 1] - 0.015) ** 2) / (0.01 ** 2))
 
-    # 不同细分层数的积分
+
     for c in range(3):
         quad = triangle_refine_quad(c, tri, f_gauss)
         n_sub = 4 ** c
         print(f"  细分层数 c={c}: {n_sub} 个子三角形, 积分 = {quad:.8e}")
 
-    # 二次到线性转换演示
+
     quad_triangles = np.array([
-        [0, 1, 2, 3, 4, 5],   # 6节点二次三角形
+        [0, 1, 2, 3, 4, 5],
         [2, 5, 8, 6, 7, 3]
     ], dtype=int).T
     linear_triangles = triangulation_q2l_to_linear(quad_triangles)
     print(f"  二次三角形数 = {quad_triangles.shape[1]}")
     print(f"  转换后线性三角形数 = {linear_triangles.shape[1]}")
 
-    # 自适应细分
+
     base_nodes = np.array([[0, 0], [0.05, 0], [0.05, 0.05], [0, 0.05]], dtype=float)
     base_tris = np.array([[0, 1, 2], [0, 2, 3]], dtype=int)
     amr = AdaptiveMeshRefinement(base_nodes, base_tris, max_level=2)
 
-    # 基于梯度指示器细分
+
     field = np.array([1.0, 0.5, 0.1, 0.8], dtype=float)
     refined, levels = amr.refine_by_gradient(field, gradient_threshold=0.3)
     print(f"  基础三角形数 = {len(base_tris)}")
@@ -445,13 +408,12 @@ def stage10_triangle_refinement():
 
 
 def stage11_matrix_chain():
-    """阶段11：矩阵链动态规划优化（融合 matrix_chain_dynamic）"""
     print("[阶段 11] 矩阵链乘法最优顺序优化")
     print("-" * 48)
 
-    # 声学算子链示例：
-    # D: 64x64 (微分矩阵), M: 64x64 (质量矩阵), K: 64x64 (刚度矩阵)
-    # P: 64x12 (POD模态), Q: 12x64 (POD转置)
+
+
+
     dims = [64, 64, 64, 64, 12, 64]
     cost, s = matrix_chain_optimal_order(dims)
 
@@ -462,7 +424,7 @@ def stage11_matrix_chain():
     print(f"  最优标量乘法次数 = {cost}")
     print(f"  最优括号化 = {order_str}")
 
-    # 验证最优顺序与实际运算
+
     np.random.seed(42)
     A1 = np.random.randn(64, 64)
     A2 = np.random.randn(64, 64)
@@ -477,7 +439,7 @@ def stage11_matrix_chain():
     diff = np.linalg.norm(result_opt - result_naive, 'fro')
     print(f"  最优顺序与顺序乘积的 Frobenius 差 = {diff:.6e}")
 
-    # 算子链封装
+
     chain = AcousticOperatorChain(matrices)
     vec = np.random.randn(64)
     out = chain.apply(vec)
@@ -488,29 +450,28 @@ def stage11_matrix_chain():
 
 
 def stage12_random_and_checksum(physics, U_burgers):
-    """阶段12：随机数生成与数值完整性校验（融合 rng_cliff, luhn）"""
     print("[阶段 12] 随机采样与数值完整性校验")
     print("-" * 48)
 
-    # Cliff 随机数生成器
+
     cliff = CliffGenerator(seed=0.2718281828)
     cliff_samples = np.array([cliff.next() for _ in range(10)])
     print(f"  Cliff RNG 前10个样本 = {cliff_samples[:5]}")
     print(f"  Cliff RNG 均值 = {np.mean(cliff_samples):.4f}")
 
-    # Latin Hypercube 采样
+
     lhs_samples = latin_hypercube_sampling(20, 2, a=0.0, b=physics.wavelength)
     print(f"  LHS 采样点数 = {lhs_samples.shape[0]}")
     print(f"  LHS 均值 = [{np.mean(lhs_samples[:, 0]):.4e}, {np.mean(lhs_samples[:, 1]):.4e}]")
 
-    # Luhn 校验和
+
     checker = NumericalIntegrityChecker(scale=1e6)
     checker.checkpoint("burgers_solution", U_burgers)
     passed, details = checker.verify("burgers_solution", U_burgers)
     print(f"  数值完整性校验 (Burgers解): {'通过' if passed else '失败'}")
     print(f"  校验详情: {details}")
 
-    # 网格拓扑校验
+
     from luhn_checksum_adapter import mesh_topology_checksum
     base_nodes = np.array([[0, 0], [0.05, 0], [0.05, 0.05], [0, 0.05]], dtype=float)
     base_tris = np.array([[0, 1, 2], [0, 2, 3]], dtype=int)
@@ -520,46 +481,45 @@ def stage12_random_and_checksum(physics, U_burgers):
 
 
 def main():
-    """统一入口，零参数运行。"""
     print_banner()
 
-    # 阶段1：物理初始化
+
     physics = stage1_physics_initialization()
 
-    # 阶段2：网格生成
+
     mesh = stage2_mesh_generation(physics)
 
-    # 阶段3：几何边界
+
     boundary = stage3_geometry_boundary()
 
-    # 阶段4：Burgers 谱求解
+
     U_burgers, x_burgers, t_burgers = stage4_burgers_spectral(physics)
 
-    # 阶段5：KZK 求解
+
     P_history, z_vec, kzk_solver = stage5_kzk_solver(physics)
 
-    # 阶段6：有限体积激波捕捉
+
     U_fv, t_fv = stage6_finite_volume_shock(physics)
 
-    # 阶段7：能量积分
+
     energy = stage7_energy_integration(physics, P_history, z_vec, kzk_solver)
 
-    # 阶段8：SVD 降阶
+
     compressor = stage8_svd_rom(U_burgers)
 
-    # 阶段9：传感器优化
+
     sensor_result = stage9_sensor_optimization()
 
-    # 阶段10：三角形细分
+
     refined_mesh = stage10_triangle_refinement()
 
-    # 阶段11：矩阵链优化
+
     flops = stage11_matrix_chain()
 
-    # 阶段12：随机数与校验
+
     stage12_random_and_checksum(physics, U_burgers)
 
-    # 最终总结
+
     print("=" * 72)
     print("  模拟完成 summary")
     print("=" * 72)

@@ -1,20 +1,3 @@
-"""
-main.py
-=======
-格点 QCD 强子谱学博士级合成项目入口。
-
-运行方式：
-    python main.py
-
-无需任何参数，程序自动执行完整的强子谱学计算流程：
-1. 生成热化规范场构型
-2. Wilson 梯度流平滑
-3. Wilson-Dirac 传播子求解
-4. 介子/重子关联函数构造
-5. 变分法提取质量
-6. 高阶积分计算衰变常数与自能
-7. 手征动力学与 RG 流分析
-"""
 
 import numpy as np
 import sys
@@ -56,9 +39,9 @@ def print_section(title: str):
 def main():
     np.random.seed(42)
 
-    # ============================================================
-    # 0. 格点参数设置（使用较小格点以保证运行速度）
-    # ============================================================
+
+
+
     print_section("格点 QCD 强子谱学：博士级合成计算")
     print("科学领域：粒子物理 — 格点 QCD 强子谱学")
     print("模拟参数：4³ × 8 格点，SU(2) 规范群（简化示范）")
@@ -72,9 +55,9 @@ def main():
     n_sources = 2
     flow_time = 0.3
 
-    # ============================================================
-    # 1. 规范场生成与热化
-    # ============================================================
+
+
+
     print_section("1. 规范场构型生成与 IFS 热化")
     gauge = GaugeConfig(lat)
     gauge.randomize()
@@ -83,26 +66,26 @@ def main():
     ifs_thermalize_gauge(gauge, n_iter=50)
     print(f"热化后平均 plaquette: {gauge.average_plaquette():.6f}")
 
-    # ============================================================
-    # 2. DG 谱方法规范场演化（冷却预处理）
-    # ============================================================
+
+
+
     print_section("2. DG 谱方法规范场 fictitious-time 演化")
     print("使用间断 Galerkin 方法 + LSERK 时间推进")
     gauge = dg_gauge_evolve(gauge, beta=beta_lat, final_time=0.2, cfl=0.3)
     print(f"DG 演化后平均 plaquette: {gauge.average_plaquette():.6f}")
 
-    # ============================================================
-    # 3. Wilson 梯度流平滑
-    # ============================================================
+
+
+
     print_section("3. Wilson 梯度流平滑（自适应隐式中点法）")
     print(f"目标流时间: {flow_time}")
     gauge = wilson_flow_run(gauge, flow_time=flow_time, dt_init=0.05, method="midpoint")
     print(f"梯度流后平均 plaquette: {gauge.average_plaquette():.6f}")
     print(f"Wilson 作用量: {gauge.wilson_action(beta_lat):.4f}")
 
-    # ============================================================
-    # 4. Wilson-Dirac 传播子求解
-    # ============================================================
+
+
+
     print_section("4. Wilson-Dirac 传播子 CG 求解")
     print(f"夸克质量 m_q = {mass_quark}, κ = {1.0 / (2.0 * mass_quark + 8.0):.6f}")
     wd = WilsonDiracOperator(lat, gauge, mass=mass_quark)
@@ -118,9 +101,9 @@ def main():
     propagators = solve_all_propagators(wd, sources)
     print("传播子求解完成。")
 
-    # ============================================================
-    # 5. 关联函数构造
-    # ============================================================
+
+
+
     print_section("5. 强子关联函数构造")
     print("计算 π 介子关联函数（赝标量通道）...")
     corr_pion = meson_correlator_pion(lat, propagators, source_positions)
@@ -130,19 +113,19 @@ def main():
     corr_nucleon = baryon_correlator_nucleon(lat, propagators, soliton_enhance=True)
     print(f"N 关联函数: {np.round(corr_nucleon[:5], 6)}")
 
-    # 有效质量
+
     m_eff_pion = correlator_effective_mass(corr_pion, dt=1)
     m_eff_nucleon = correlator_effective_mass(corr_nucleon, dt=1)
-    # 取中间 plateau 值
+
     plateau_slice = slice(nt // 4, 3 * nt // 4)
     mpi_est = np.nanmedian(m_eff_pion[plateau_slice])
     mn_est = np.nanmedian(m_eff_nucleon[plateau_slice])
     print(f"π 有效质量估计: {mpi_est:.6f} (格点单位)")
     print(f"N 有效质量估计: {mn_est:.6f} (格点单位)")
 
-    # ============================================================
-    # 6. 变分法能谱提取
-    # ============================================================
+
+
+
     print_section("6. 变分广义本征值分析 (GEVP)")
     nop = 3
     corr_matrix = np.zeros((nt, nop, nop))
@@ -160,16 +143,16 @@ def main():
         m_est = np.nanmedian(masses_var[:, n])
         print(f"  能级 {n}: m_{n} = {m_est:.6f}")
 
-    # Hooke-Jeeves 优化 smearing 参数
+
     print("\n使用 Hooke-Jeeves 直接搜索优化 smearing 参数...")
     def corr_func(alpha):
         return np.array([corr_pion[t] * np.exp(-alpha * t / nt) for t in range(nt)])
     alpha_opt, obj_val = optimize_smearing_parameter(corr_func, (0.1, 3.0), t0=2)
     print(f"最优 smearing 参数: α = {alpha_opt:.4f}, 目标函数值 = {obj_val:.6e}")
 
-    # ============================================================
-    # 7. 样条插值平滑
-    # ============================================================
+
+
+
     print_section("7. 关联函数样条插值平滑")
     t_nodes = np.arange(0, nt, 2, dtype=float)
     if len(t_nodes) < 4:
@@ -190,9 +173,9 @@ def main():
     corr_spline = np.array([spline_eval(breaks, coefs, tt) for tt in t_fine])
     print(f"样条平滑后关联函数中值: {np.median(corr_spline):.6f}")
 
-    # ============================================================
-    # 8. 高阶积分：衰变常数与自能
-    # ============================================================
+
+
+
     print_section("8. Gegenbauer 与 Alpert 高阶积分")
     print("计算 π 介子衰变常数 f_π...")
     f_pi = decay_constant_integral(mpi_est, mpi_est, lattice_spacing=1.0)
@@ -202,9 +185,9 @@ def main():
     sigma_self = self_energy_integral(mass_quark, cutoff=np.pi)
     print(f"自能 Σ(m) ≈ {sigma_self:.6f}")
 
-    # ============================================================
-    # 9. 手征动力学
-    # ============================================================
+
+
+
     print_section("9. 手征动力学与 Goldstone 玻色子")
     print("求解手征振子（Van der Pol 型非线性方程）...")
     t_chiral, y_chiral = solve_chiral_oscillator(
@@ -224,9 +207,9 @@ def main():
     f_pi_gmor = pion_decay_constant_from_dynamics(mpi_est * 500.0)
     print(f"GMOR 关系 f_π ≈ {f_pi_gmor:.2f} MeV (使用 m_π={mpi_est*500:.1f} MeV)")
 
-    # ============================================================
-    # 10. 重整化群流
-    # ============================================================
+
+
+
     print_section("10. 重整化群流方程")
     g0 = lattice_coupling_from_beta(beta_lat)
     mq0 = mass_quark
@@ -246,9 +229,9 @@ def main():
     t_net, g_net = coupled_rg_reaction_network(g0_vec, (-1.0, 1.0), n_points=100)
     print(f"网络终态耦合中值: {np.median(g_net[:, -1]):.4f}")
 
-    # ============================================================
-    # 11. 结果汇总
-    # ============================================================
+
+
+
     print_section("结果汇总")
     print(f"{'物理量':<30} {'数值':<20} {'单位/说明'}")
     print("-" * 70)

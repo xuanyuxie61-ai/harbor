@@ -1,26 +1,3 @@
-"""
-stroud_integrator.py
-基于项目 1174_stroud_rule 的多维求积规则库。
-用于高维量子期望值积分计算。
-
-核心数学模型:
-1. N维高斯权重空间积分 (EN_R2):
-   w(x) = exp(-||x||^2),  x in R^N
-   单项式精确积分: 对奇次单项式积分为0，偶次为 prod(Gamma((alpha_i+1)/2))
-
-2. N维超立方体 Legendre 权重积分 (CN_LEG):
-   w(x) = 1,  x in [-1,1]^N
-   单项式精确积分: 对 x^alpha 在 [-1,1]^N 上的积分为
-   prod( (1 - (-1)^{alpha_i+1}) / (alpha_i + 1) )
-
-3. Stroud 规则精度: 使用 2*N 个点的 3次精度规则 (Stroud 3-1):
-   节点位于坐标轴上 ±r 处，r = sqrt(N/2)
-   权重 w = V_N / (2*N), V_N = 2^N 为超立方体体积
-
-4. 量子期望值积分:
-   <O> = integral_{R^N} O(x) |psi(x)|^2 dx
-   通过变量变换 x = sqrt(2)*t 转化为标准高斯权重积分。
-"""
 
 import numpy as np
 from typing import Callable, Tuple, List
@@ -28,12 +5,6 @@ from scipy.special import gamma as Gamma_func
 
 
 def en_r2_monomial_integral(exponents: Tuple[int, ...]) -> float:
-    """
-    N维全空间高斯权重 e^{-||x||^2} 下的单项式精确积分。
-    integral_{R^N} prod(x_i^{alpha_i}) * exp(-sum(x_i^2)) dx_1...dx_N
-    = prod( Gamma((alpha_i + 1)/2) )  若所有 alpha_i 为偶数
-    = 0                               若任一 alpha_i 为奇数
-    """
     result = 1.0
     for alpha in exponents:
         if alpha < 0:
@@ -45,11 +16,6 @@ def en_r2_monomial_integral(exponents: Tuple[int, ...]) -> float:
 
 
 def cn_leg_monomial_integral(exponents: Tuple[int, ...]) -> float:
-    """
-    N维超立方体 [-1,1]^N (Legendre 权重 w=1) 下的单项式精确积分。
-    integral_{[-1,1]^N} prod(x_i^{alpha_i}) dx
-    = prod( (1 - (-1)^{alpha_i+1}) / (alpha_i + 1) )
-    """
     result = 1.0
     for alpha in exponents:
         if alpha < 0:
@@ -59,17 +25,6 @@ def cn_leg_monomial_integral(exponents: Tuple[int, ...]) -> float:
 
 
 def stroud_cn_leg_03_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    N维超立方体 [-1,1]^N 上的 3次精度 Stroud 规则 (CN:3-1)。
-    使用 2*N 个节点，位于各坐标轴正负方向上。
-
-    节点: (±r, 0, ..., 0), (0, ±r, ..., 0), ..., (0, ..., 0, ±r)
-    其中 r = sqrt(2/3)  (对于 3次精度)
-
-    权重: 所有节点权重相等, w = V / (2*N), V = 2^N
-
-    数学验证: 对 x_i^2 的积分应为 2^N / 3
-    """
     if n_dim <= 0:
         raise ValueError("Dimension must be positive")
 
@@ -91,16 +46,6 @@ def stroud_cn_leg_03_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def stroud_en_r2_03_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    N维全空间高斯权重 e^{-||x||^2} 下的 3次精度 Stroud 规则 (EN_R2:3-1)。
-    使用 2*N 个节点。
-
-    节点: (±r, 0, ..., 0), ..., (0, ..., 0, ±r)
-    其中 r = sqrt((N+2)/2)  (对于高斯权重)
-
-    权重: w = V_N / (2*N)
-    V_N = pi^{N/2} 为积分 1 的精确值 (高斯权重下的"体积")
-    """
     if n_dim <= 0:
         raise ValueError("Dimension must be positive")
 
@@ -122,15 +67,10 @@ def stroud_en_r2_03_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def stroud_en_r2_05_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    N维全空间高斯权重下的 5次精度 Stroud 规则 (EN_R2:5-1)。
-    使用 2^N + 2*N 个节点 (原点 + 轴上点 + 对角点)。
-    对于量子计算中的多体期望值，5次精度通常足够。
-    """
     if n_dim <= 0:
         raise ValueError("Dimension must be positive")
 
-    # 简化实现: 对 n_dim <= 6 使用 3次规则，更高维使用简化版本
+
     if n_dim > 6:
         return stroud_en_r2_03_1(n_dim)
 
@@ -140,7 +80,7 @@ def stroud_en_r2_05_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
 
     volume = np.pi ** (n_dim / 2.0)
 
-    # 对角点: (±s, ±s, ..., ±s), 共 2^N 个
+
     s = np.sqrt((n_dim + 2.0) / 4.0)
     idx = 0
     for i in range(2 ** n_dim):
@@ -149,7 +89,7 @@ def stroud_en_r2_05_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
             nodes[idx, j] = s if sign_pattern[j] == 0 else -s
         idx += 1
 
-    # 轴上点: (±r, 0, ..., 0), ..., 共 2*N 个
+
     r = np.sqrt((n_dim + 2.0) / 2.0)
     for i in range(n_dim):
         nodes[idx, i] = r
@@ -157,7 +97,7 @@ def stroud_en_r2_05_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
         nodes[idx, i] = -r
         idx += 1
 
-    # 权重分配 (简化版)
+
     w_diag = volume * (4.0 - n_dim) / (2.0 ** (n_dim + 2) * (n_dim + 2.0))
     w_axis = volume * n_dim / (2.0 * n_dim * (n_dim + 2.0))
 
@@ -170,9 +110,6 @@ def stroud_en_r2_05_1(n_dim: int) -> Tuple[np.ndarray, np.ndarray]:
 
 
 class StroudIntegrator:
-    """
-    Stroud 多维求积积分器，用于量子期望值的高维数值积分。
-    """
 
     def __init__(self, n_dim: int, rule_type: str = "en_r2_03"):
         if n_dim <= 0:
@@ -190,10 +127,6 @@ class StroudIntegrator:
             raise ValueError(f"Unknown rule_type: {rule_type}")
 
     def integrate(self, f: Callable[[np.ndarray], float]) -> float:
-        """
-        对函数 f: R^N -> R 进行数值积分。
-        integral ≈ sum_i w_i * f(x_i)
-        """
         if len(self.nodes) != len(self.weights):
             raise ValueError("Nodes and weights must have same length")
 
@@ -203,9 +136,6 @@ class StroudIntegrator:
         return result
 
     def integrate_vectorized(self, f: Callable[[np.ndarray], np.ndarray]) -> float:
-        """
-        向量化版本的积分，f 接受所有节点并返回各点函数值。
-        """
         values = f(self.nodes)
         return np.dot(self.weights, values)
 
@@ -216,11 +146,6 @@ def gaussian_quadrature_kernel_expectation(
     n_dim: int,
     rule_type: str = "en_r2_03"
 ) -> float:
-    """
-    使用 Stroud 求积规则计算量子核期望值:
-    E[k(x_point, X)] = integral k(x_point, x) * p(x) dx
-    其中 p(x) 为高斯分布 (通过 en_r2 规则隐式处理)。
-    """
     if len(x_point) != n_dim:
         raise ValueError("x_point dimension must match n_dim")
 

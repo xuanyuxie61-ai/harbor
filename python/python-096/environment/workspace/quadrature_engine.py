@@ -1,17 +1,3 @@
-"""
-quadrature_engine.py
-====================
-高精度数值积分引擎
-
-核心算法来源：
-  - 1148_square_minimal_rule：正方形上最小阶代数精度求积公式
-  - 1406_wedge_exactness：楔形体上多项式精确性检验
-
-在电磁学波束赋形中的角色：
-  1. 正方形最小规则用于二维口径面上电流/磁流分布的数值积分
-     （计算远场辐射方向图时的离散求和等价于求积）
-  2. 楔形体积分精确性检验用于验证三维近场体积分算法的收敛阶
-"""
 
 import numpy as np
 import math
@@ -19,30 +5,6 @@ from typing import List, Tuple
 
 
 def square_minimal_rule(deg: int) -> np.ndarray:
-    """
-    返回正方形 [-1,1]^2 上给定代数精度的最小求积规则。
-
-    来源：1148_square_minimal_rule（Festa & Sommariva, 2012）
-
-    数学背景：
-      求积公式形式：
-        \int_{[-1,1]^2} f(x,y) dx dy \approx \sum_{i=1}^{N} w_i f(x_i, y_i)
-
-      代数精度（Algebraic Degree of Exactness, ADE）定义为使得所有
-      二元多项式 x^p y^q （其中 p+q \leq ADE）被精确积分的最大阶数。
-
-      Moeller-Rasputin 下界（奇数 ade）：
-        N_{lower} = \lfloor (ade+1)(ade+3)/8 \rfloor + \lfloor (ade+1)/4 \rfloor
-
-      Xiao-Gimbutas 上界猜想：
-        N_{upper} = \lceil m / (d+1) \rceil,  m = (ade+1)(ade+2)/2, d=2
-
-    参数：
-        deg: 代数精度（1 <= deg <= 20，本实现提供 1~20）
-
-    返回：
-        xw: (N, 3) 数组，每行为 [x_i, y_i, w_i]
-    """
     if deg < 1 or deg > 20:
         raise ValueError("square_minimal_rule 仅支持 1 <= deg <= 20")
 
@@ -674,13 +636,6 @@ def square_minimal_rule(deg: int) -> np.ndarray:
 
 
 def integrate_square_minimal(f: callable, deg: int = 10) -> float:
-    """
-    使用正方形最小规则对函数 f(x,y) 在 [-1,1]^2 上积分。
-
-    参数：
-        f: 二元函数，接受 (N,) x 和 (N,) y 返回 (N,) 值
-        deg: 代数精度（1~20）
-    """
     xw = square_minimal_rule(deg)
     x = xw[:, 0]
     y = xw[:, 1]
@@ -690,37 +645,23 @@ def integrate_square_minimal(f: callable, deg: int = 10) -> float:
 
 
 def wedge01_volume() -> float:
-    """单位楔形体体积 = 1.0（三角形底面积 1/2 * 高 2）。"""
     return 1.0
 
 
 def wedge01_integral(exponents: Tuple[int, int, int]) -> float:
-    """
-    计算单位楔形体上单项式 x^e1 * y^e2 * z^e3 的精确积分。
-
-    来源：1406_wedge_exactness
-
-    楔形体区域：
-      0 <= x, 0 <= y, x + y <= 1, -1 <= z <= 1
-
-    解析公式：
-      I = \int_0^1 \int_0^{1-x} x^{e1} y^{e2} dy dx * \int_{-1}^{1} z^{e3} dz
-
-      对于 z 部分：若 e3 为奇数则结果为 0；否则为 2/(e3+1)。
-    """
     e1, e2, e3 = exponents
     if e3 == -1:
         raise ValueError("e3 = -1 不合法")
-    # x-y 三角形部分
+
     value = 1.0
     k = e1
     for _ in range(e2):
         k += 1
-        value *= e2 / k  # 这里要注意：原代码逻辑是 value *= i/k，其中 i 从 1 到 e2
-    # 修正：原代码实现是迭代的，这里用直接公式更稳定
-    # 但为保持与原代码一致，我们使用 Beta 函数公式
+        value *= e2 / k
+
+
     value = float(math.factorial(e1) * math.factorial(e2)) / math.factorial(e1 + e2 + 2)
-    # z 部分
+
     if e3 % 2 == 1:
         value = 0.0
     else:
@@ -730,11 +671,6 @@ def wedge01_integral(exponents: Tuple[int, int, int]) -> float:
 
 def monomial_value_3d(exponents: Tuple[int, int, int],
                       points: np.ndarray) -> np.ndarray:
-    """
-    在多个三维点上求单项式值。
-
-    来源：1406_wedge_exactness 中的 monomial_value
-    """
     e1, e2, e3 = exponents
     x = points[:, 0]
     y = points[:, 1]
@@ -752,24 +688,11 @@ def monomial_value_3d(exponents: Tuple[int, int, int],
 def test_wedge_quadrature_exactness(points: np.ndarray,
                                     weights: np.ndarray,
                                     degree_max: int = 5) -> dict:
-    """
-    检验给定的三维求积公式在楔形体上的多项式精确性。
-
-    来源：1406_wedge_exactness
-
-    参数：
-        points:  (N, 3) 求积节点
-        weights: (N,)   求积权重
-        degree_max: 检验的最大多项式总次数
-
-    返回：
-        dict: 各阶误差统计
-    """
     dim = 3
     results = {}
     for degree in range(degree_max + 1):
         max_err = 0.0
-        # 遍历所有 e1+e2+e3 = degree 的组合
+
         for e1 in range(degree + 1):
             for e2 in range(degree - e1 + 1):
                 e3 = degree - e1 - e2

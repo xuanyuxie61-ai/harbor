@@ -1,41 +1,13 @@
-"""
-mesh_io.py
-网格数据与稀疏矩阵 I/O 模块
-
-科学背景:
-海洋数值模拟需要处理大规模网格数据和稀疏矩阵:
-  - 三维海洋网格 (ICE/NETCDF 格式) 存储顶点、边、面、体信息
-  - 稀疏矩阵 (Harwell-Boeing / Matrix Market) 存储离散算子
-
-本模块实现:
-  - 简化版 NETCDF-like 网格数据读写
-  - 稀疏矩阵 CSC 格式与坐标格式转换
-  - 矩阵属性存储与读取
-
-融合来源:
-- 570_ice_io: NETCDF 网格数据 I/O 思想
-- 508_hb_to_mm: Harwell-Boeing / Matrix Market 格式转换
-"""
 
 import numpy as np
 from typing import Dict, Tuple, Optional, List
 
 
-# ============================================================
-# 1. 简化网格数据结构
-# ============================================================
+
+
+
 
 class OceanGrid:
-    """
-    简化版三维海洋网格数据结构.
-
-    存储:
-      - vertices: (n_v, 3) 顶点坐标
-      - edges: (n_e, 2) 边连接
-      - triangles: (n_t, 3) 三角形面
-      - tetrahedra: (n_tet, 4) 四面体单元
-      - labels: 单元标签 (用于标识不同区域)
-    """
 
     def __init__(self):
         self.vertices = np.zeros((0, 3))
@@ -58,7 +30,6 @@ class OceanGrid:
         return np.min(self.vertices, axis=0), np.max(self.vertices, axis=0)
 
     def cell_volumes(self) -> np.ndarray:
-        """计算四面体单元体积."""
         if self.tetrahedra.shape[0] == 0:
             return np.array([])
         vols = []
@@ -95,12 +66,11 @@ class OceanGrid:
         return g
 
 
-# ============================================================
-# 2. 网格数据 I/O (简化 NETCDF 风格)
-# ============================================================
+
+
+
 
 def write_grid_to_file(grid: OceanGrid, filename: str):
-    """将网格数据写入 numpy .npz 文件 (轻量级替代 NETCDF)."""
     np.savez(filename,
              vertices=grid.vertices,
              edges=grid.edges,
@@ -111,7 +81,6 @@ def write_grid_to_file(grid: OceanGrid, filename: str):
 
 
 def read_grid_from_file(filename: str) -> OceanGrid:
-    """从 .npz 文件读取网格数据."""
     data = np.load(filename)
     grid = OceanGrid()
     grid.vertices = data["vertices"]
@@ -125,31 +94,24 @@ def read_grid_from_file(filename: str) -> OceanGrid:
 
 def create_cylinder_grid(n_r: int = 8, n_theta: int = 16, n_z: int = 4,
                          radius: float = 1.0, height: float = 2.0) -> OceanGrid:
-    """
-    创建简化圆柱体四面体网格 (模拟海底地形/边界).
-
-    结构:
-      - 底部和顶部各一个三角形扇
-      - 侧面为三角柱, 细分为四面体
-    """
     grid = OceanGrid()
     vertices = []
-    # 底部中心
+
     vertices.append([0.0, 0.0, 0.0])
-    # 底部圆周
+
     for i in range(n_theta):
         theta = 2.0 * np.pi * i / n_theta
         vertices.append([radius * np.cos(theta), radius * np.sin(theta), 0.0])
-    # 顶部中心
+
     vertices.append([0.0, 0.0, height])
-    # 顶部圆周
+
     for i in range(n_theta):
         theta = 2.0 * np.pi * i / n_theta
         vertices.append([radius * np.cos(theta), radius * np.sin(theta), height])
 
     grid.vertices = np.array(vertices)
 
-    # 三角形面 (底部和顶部)
+
     bottom_tri = []
     top_tri = []
     for i in range(n_theta):
@@ -158,7 +120,7 @@ def create_cylinder_grid(n_r: int = 8, n_theta: int = 16, n_z: int = 4,
 
     grid.triangles = np.array(bottom_tri + top_tri)
 
-    # 四面体 (简化为底部扇区)
+
     tets = []
     for i in range(n_theta):
         v0 = 0
@@ -171,19 +133,11 @@ def create_cylinder_grid(n_r: int = 8, n_theta: int = 16, n_z: int = 4,
     return grid
 
 
-# ============================================================
-# 3. 稀疏矩阵格式 (from 508_hb_to_mm)
-# ============================================================
+
+
+
 
 class SparseMatrix:
-    """
-    稀疏矩阵 CSC (Compressed Sparse Column) 格式.
-
-    存储:
-      data: 非零元素值
-      row_ind: 行索引
-      col_ptr: 列指针 (每列起始位置)
-    """
 
     def __init__(self, data: np.ndarray, row_ind: np.ndarray, col_ptr: np.ndarray,
                  shape: Tuple[int, int]):
@@ -193,7 +147,6 @@ class SparseMatrix:
         self.shape = shape
 
     def to_dense(self) -> np.ndarray:
-        """转换为稠密矩阵 (仅用于小矩阵)."""
         A = np.zeros(self.shape)
         for j in range(self.shape[1]):
             for idx in range(self.col_ptr[j], self.col_ptr[j + 1]):
@@ -203,7 +156,6 @@ class SparseMatrix:
 
     @classmethod
     def from_dense(cls, A: np.ndarray, tol: float = 1e-15):
-        """从稠密矩阵构造 CSC."""
         A = np.asarray(A)
         m, n = A.shape
         data = []
@@ -218,21 +170,11 @@ class SparseMatrix:
         return cls(np.array(data), np.array(row_ind), np.array(col_ptr), (m, n))
 
     def transpose(self):
-        """转置 (CSR → CSC)."""
         dense = self.to_dense()
         return SparseMatrix.from_dense(dense.T)
 
 
 def write_matrix_market(A: SparseMatrix, filename: str, symmetry: str = "general"):
-    """
-    写入 Matrix Market 坐标格式.
-
-    格式:
-      %%MatrixMarket matrix coordinate real general
-      M N NNZ
-      i j value
-      ...
-    """
     m, n = A.shape
     nnz = len(A.data)
     with open(filename, 'w') as f:
@@ -246,10 +188,9 @@ def write_matrix_market(A: SparseMatrix, filename: str, symmetry: str = "general
 
 
 def read_matrix_market(filename: str) -> SparseMatrix:
-    """读取 Matrix Market 坐标格式."""
     with open(filename, 'r') as f:
         lines = f.readlines()
-    # 跳过注释
+
     data_lines = [l for l in lines if not l.startswith('%')]
     header = data_lines[0].strip().split()
     m, n, nnz = int(header[0]), int(header[1]), int(header[2])
@@ -264,7 +205,7 @@ def read_matrix_market(filename: str) -> SparseMatrix:
             cols.append(int(parts[1]) - 1)
             vals.append(float(parts[2]))
 
-    # 转换为 CSC
+
     A_dense = np.zeros((m, n))
     for i, j, v in zip(rows, cols, vals):
         A_dense[i, j] = v
@@ -273,20 +214,11 @@ def read_matrix_market(filename: str) -> SparseMatrix:
 
 def write_harwell_boeing(A: SparseMatrix, filename: str,
                          title: str = "SPARSE MATRIX", key: str = "(1I14)"):
-    """
-    简化版 Harwell-Boeing 格式写入.
-
-    头部包含:
-      Line 1: Title (72 chars) + Key (8 chars)
-      Line 2: Totcrd, Ptrcrd, Indcrd, Valcrd, Rhscrd
-      Line 3: MXTYPE, NROW, NCOL, NNZERO, NELTVL
-      Line 4: Ptrfmt, Indfmt, Valfmt, Rhsfmt
-    """
     m, n = A.shape
     nnz = len(A.data)
-    ptrcrd = (n + 1 + 7) // 8  # 每行8个整数
+    ptrcrd = (n + 1 + 7) // 8
     indcrd = (nnz + 7) // 8
-    valcrd = (nnz + 2) // 3    # 每行3个浮点数
+    valcrd = (nnz + 2) // 3
     totcrd = 3 + ptrcrd + indcrd + valcrd
 
     with open(filename, 'w') as f:
@@ -295,31 +227,23 @@ def write_harwell_boeing(A: SparseMatrix, filename: str,
         f.write(f"{'RUA':<14}{m:14d}{n:14d}{nnz:14d}{0:14d}\n")
         f.write(f"{'(8I10)':<16}{'(8I10)':<16}{'(3E26.18)':<20}{'(3E26.18)':<20}\n")
 
-        # 列指针
+
         ptr_strs = [f"{v:10d}" for v in A.col_ptr]
         for i in range(0, len(ptr_strs), 8):
             f.write("".join(ptr_strs[i:i + 8]) + "\n")
 
-        # 行索引
+
         ind_strs = [f"{v:10d}" for v in (A.row_ind + 1)]
         for i in range(0, len(ind_strs), 8):
             f.write("".join(ind_strs[i:i + 8]) + "\n")
 
-        # 数值
+
         val_strs = [f"{v:26.18e}" for v in A.data]
         for i in range(0, len(val_strs), 3):
             f.write("".join(val_strs[i:i + 3]) + "\n")
 
 
 def construct_laplacian_csc(Nx: int, Ny: int, dx: float, dy: float) -> SparseMatrix:
-    """
-    构造二维五点 Laplacian 算子的 CSC 稀疏矩阵.
-
-    离散格式:
-      \nabla^2 u ≈ (u_{i+1,j} - 2u_{i,j} + u_{i-1,j})/dx^2 + (u_{i,j+1} - 2u_{i,j} + u_{i,j-1})/dy^2
-
-    矩阵维度: (Nx*Ny) x (Nx*Ny)
-    """
     n = Nx * Ny
     data = []
     row_ind = []
@@ -343,7 +267,7 @@ def construct_laplacian_csc(Nx: int, Ny: int, dx: float, dy: float) -> SparseMat
             if j < Ny - 1:
                 entries.append((idx(i, j + 1), inv_dy2))
 
-            # 排序并存储
+
             entries.sort(key=lambda x: x[0])
             for r, v in entries:
                 data.append(v)
@@ -354,18 +278,18 @@ def construct_laplacian_csc(Nx: int, Ny: int, dx: float, dy: float) -> SparseMat
 
 
 if __name__ == "__main__":
-    # 测试网格
+
     grid = create_cylinder_grid(n_r=4, n_theta=8, n_z=2)
     print("Cylinder grid vertices:", grid.n_vertices())
     print("Tetrahedra:", grid.tetrahedra.shape[0])
 
-    # 测试稀疏矩阵
+
     A = construct_laplacian_csc(4, 4, 0.1, 0.1)
     print("Laplacian shape:", A.shape, "nnz:", len(A.data))
     Ad = A.to_dense()
     print("Row sum (should be ~0 for interior):", np.sum(Ad, axis=1))
 
-    # 测试 MM 格式
+
     write_matrix_market(A, "/tmp/test_matrix.mtx")
     A2 = read_matrix_market("/tmp/test_matrix.mtx")
     print("MM roundtrip max diff:", np.max(np.abs(A.to_dense() - A2.to_dense())))

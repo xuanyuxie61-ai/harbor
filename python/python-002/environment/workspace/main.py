@@ -1,12 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-main.py
-恒星演化与核合成多物理耦合模拟器 (Stellar Evolution & Nucleosynthesis Simulator)
-统一入口，零参数可运行。
-
-科学问题：模拟一颗 1 M_sun 恒星从主序到红巨星分支的早期演化，
-包括核燃烧网络、对流混合、星震学模式分析与不确定性量化。
-"""
 
 import numpy as np
 import time
@@ -23,45 +15,40 @@ from composition_analysis import CompositionAnalysis
 from io_utils import IOUtils
 from numerical_utils import safe_divide
 
-# 太阳参数 CGS
+
 M_SUN = 1.98847e33
 R_SUN = 6.957e10
 L_SUN = 3.828e33
 
 
 def initialize_stellar_model(M_star: float, N_shells: int = 200) -> StellarGrid:
-    """
-    初始化恒星模型。
-    使用多方球指数 n=3 (Eddington 标准模型) 作为初始猜测。
-    密度分布：ρ = ρ_c * (sin(ξ)/ξ)^3, 其中 ξ = π r / R
-    """
     grid = StellarGrid(M_star, N_shells, core_fraction=0.05, envelope_fraction=0.95)
-    R_init = R_SUN * (M_star / M_SUN) ** 0.8  # 质量-半径关系近似
+    R_init = R_SUN * (M_star / M_SUN) ** 0.8
 
-    # 多方球 n=3 密度分布
+
     xi = np.pi * np.linspace(0.0, 1.0, N_shells)
-    xi[0] = 1e-6  # 避免除零
+    xi[0] = 1e-6
     theta = np.sin(xi) / xi
-    rho_c = 54.18 * M_star / (4.0 / 3.0 * np.pi * R_init ** 3)  # n=3 中心密度近似
+    rho_c = 54.18 * M_star / (4.0 / 3.0 * np.pi * R_init ** 3)
     rho = rho_c * theta ** 3
     rho = np.maximum(rho, 1e-10)
 
-    # 积分求半径
+
     m = grid.mass
     r = np.zeros(N_shells, dtype=np.float64)
-    r[0] = 1e5  # 避免中心除零 [cm]
+    r[0] = 1e5
     for i in range(1, N_shells):
         dm = m[i] - m[i - 1]
         rho_avg = 0.5 * (rho[i] + rho[i - 1])
         r[i] = (r[i - 1] ** 3 + 3.0 * dm / (4.0 * np.pi * rho_avg)) ** (1.0 / 3.0)
     r = np.maximum(r, 1e3)
 
-    # 初始温度（粗略估计：T ∝ ρ^{1/3}）
+
     T_c = 1.5e7 * (M_star / M_SUN) ** 0.5
     T = T_c * (rho / rho_c) ** (1.0 / 3.0)
     T = np.maximum(T, 1e4)
 
-    # 初始组成
+
     X_h1 = 0.7
     X_he4 = 0.28
     X_c12 = 0.01
@@ -71,7 +58,7 @@ def initialize_stellar_model(M_star: float, N_shells: int = 200) -> StellarGrid:
     X_mg24 = 0.001
     composition = np.array([X_h1, 0.0, X_he4, X_c12, X_n14, X_o16, X_ne20, X_mg24])
 
-    # 物态方程初始化压强
+
     struct = StellarStructure(M_star, R_init, composition)
     P = np.zeros(N_shells, dtype=np.float64)
     for i in range(N_shells):
@@ -86,24 +73,20 @@ def initialize_stellar_model(M_star: float, N_shells: int = 200) -> StellarGrid:
 
 def solve_hydrostatic_equilibrium(grid: StellarGrid, composition: np.ndarray,
                                   struct: StellarStructure, max_iter: int = 30) -> StellarGrid:
-    """
-    迭代求解流体静力学平衡。
-    使用 Henyey 方法思想：交替更新 P(rho,T) 和 dP/dm = -Gm/(4πr⁴)。
-    """
     n = grid.N_shells
     for iteration in range(max_iter):
         r_old = grid.radius.copy()
         P_old = grid.pressure.copy()
         rho_old = grid.density.copy()
 
-        # 阶段1: 从中心向外积分半径
+
         for i in range(n - 1):
             dm = grid.mass[i + 1] - grid.mass[i]
             rho_avg = max(0.5 * (grid.density[i] + grid.density[i + 1]), 1e-10)
             r_cubed = grid.radius[i] ** 3 + 3.0 * dm / (4.0 * np.pi * rho_avg)
             grid.radius[i + 1] = max(r_cubed, 0.0) ** (1.0 / 3.0)
 
-        # 阶段2: 从中心向外积分压强（使用已更新的半径）
+
         for i in range(n - 1):
             dm = grid.mass[i + 1] - grid.mass[i]
             m_avg = 0.5 * (grid.mass[i] + grid.mass[i + 1])
@@ -111,14 +94,14 @@ def solve_hydrostatic_equilibrium(grid: StellarGrid, composition: np.ndarray,
             dP = -struct.G * m_avg * dm / (4.0 * np.pi * r_avg ** 4)
             grid.pressure[i + 1] = max(grid.pressure[i] + dP, 1e-5)
 
-        # 阶段3: 从 P, T 更新 rho（理想气体近似）
+
         mu = struct.mean_molecular_weight(composition)
         for i in range(n):
             P_gas = max(grid.pressure[i] - struct.A_RAD / 3.0 * grid.temperature[i] ** 4, 1e-5)
             grid.density[i] = P_gas * mu / (struct.R_GAS * grid.temperature[i])
             grid.density[i] = max(grid.density[i], 1e-10)
 
-        # 收敛检查
+
         dr_rel = safe_divide(np.abs(grid.radius - r_old), r_old, 1e10)
         dP_rel = safe_divide(np.abs(grid.pressure - P_old), P_old, 1e10)
         if np.max(dr_rel) < 1e-4 and np.max(dP_rel) < 1e-4:
@@ -131,34 +114,30 @@ def evolve_stellar_model(grid: StellarGrid, composition: np.ndarray,
                          struct: StellarStructure, network: NuclearNetwork,
                          rates: NuclearReactionRates, n_steps: int = 50,
                          dt_years: float = 1e6) -> dict:
-    """
-    恒星演化主循环。
-    每步更新：核燃烧 -> 能量产生 -> 光度 -> 温度 -> 流体静力学平衡。
-    """
     n = grid.N_shells
-    dt = dt_years * 3.154e7  # 转换为秒
+    dt = dt_years * 3.154e7
 
-    # 存储演化轨迹
+
     track_times = []
     track_lum = []
     track_radius = []
     track_teff = []
 
     Y_current = composition.copy()
-    # 转换为摩尔丰度 (粗略: Y_i = X_i / A_i)
+
     Y_molar = Y_current / network.MASS_NUMBERS
-    Y_molar = Y_molar / np.sum(Y_molar) * 1e-3  # 归一化到合理量级
+    Y_molar = Y_molar / np.sum(Y_molar) * 1e-3
 
     for step in range(n_steps):
-        # TODO: Hole 3 - 实现核网络演化与能量产生率计算
-        # 1. 对每个壳层调用 network.solve_network_rk4 演化核素丰度
-        # 2. 调用 network.energy_generation_rate 计算局部核能源产生率 epsilon_nuc
-        # 3. 注意 Y_molar 的单位转换与子步进策略（核心区域需加密）
-        # 4. 将 epsilon_nuc 传递给 struct.solve_luminosity_profile 计算光度剖面
-        # 需确保与 nuclear_network.py 和 reaction_rates.py 的接口一致
+
+
+
+
+
+
         raise NotImplementedError("Hole 3: 待实现恒星演化主循环中的核网络调用与能量产生率积分")
 
-        # 3. 温度梯度与对流判定
+
         convection_mask = np.zeros(n, dtype=bool)
         for i in range(n):
             X_shell = network.abundances_to_mass_fractions(Y_molar)
@@ -167,7 +146,7 @@ def evolve_stellar_model(grid: StellarGrid, composition: np.ndarray,
                 grid.temperature[i], L[i], grid.density[i], X_shell
             )
             convection_mask[i] = is_conv
-            # 更新温度
+
             if i > 0:
                 dm = grid.mass[i] - grid.mass[i - 1]
                 dT = nabla_actual * grid.temperature[i] / grid.pressure[i] * (
@@ -176,7 +155,7 @@ def evolve_stellar_model(grid: StellarGrid, composition: np.ndarray,
                 grid.temperature[i] += dT
             grid.temperature[i] = max(grid.temperature[i], 1e3)
 
-        # 4. 对流区混合（仅对对流壳层）
+
         if np.any(convection_mask):
             conv_idx = np.where(convection_mask)[0]
             if len(conv_idx) > 2:
@@ -191,15 +170,15 @@ def evolve_stellar_model(grid: StellarGrid, composition: np.ndarray,
                     r_conv, rho_conv, T_conv, P_conv,
                     nabla=0.4, nabla_ad=0.25, alpha_mlt=1.5
                 )
-                # 简单的均匀化混合（扩散系数极大时）
+
                 D_mean = np.mean(D_mix)
                 if D_mean > 1e12:
                     X_shell = np.mean(X_shell) * np.ones_like(X_shell)
 
-        # 5. 流体静力学平衡更新
+
         grid = solve_hydrostatic_equilibrium(grid, composition, struct, max_iter=5)
 
-        # 6. 记录演化轨迹
+
         R_surf = grid.radius[-1]
         L_surf = L[-1]
         T_eff = (L_surf / (4.0 * np.pi * struct.A_RAD / 3.0 * R_surf ** 2)) ** 0.25
@@ -210,7 +189,7 @@ def evolve_stellar_model(grid: StellarGrid, composition: np.ndarray,
         track_radius.append(R_surf / R_SUN)
         track_teff.append(T_eff)
 
-        # 每10步打印状态
+
         if step % 10 == 0:
             print(f"[Step {step:3d}] t={step*dt_years:.2e} yr, "
                   f"L={L_surf/L_SUN:.3f} L_sun, R={R_surf/R_SUN:.3f} R_sun, "
@@ -229,9 +208,6 @@ def evolve_stellar_model(grid: StellarGrid, composition: np.ndarray,
 
 def run_seismic_analysis(grid: StellarGrid, struct: StellarStructure,
                          composition: np.ndarray) -> dict:
-    """
-    星震学分析：计算振动模式频率与 FFT 功率谱。
-    """
     seismic = SeismicAnalysis(n_modes=30)
     cs = np.array([struct.sound_speed(grid.density[i], grid.temperature[i], composition)
                    for i in range(grid.N_shells)])
@@ -239,20 +215,20 @@ def run_seismic_analysis(grid: StellarGrid, struct: StellarStructure,
     dnu = seismic.large_frequency_separation(grid.radius, cs)
     dnu02 = seismic.small_frequency_separation(grid.radius, grid.density, cs)
 
-    # p-模式频率
+
     p_modes = seismic.compute_p_mode_frequencies(n_max=15, l_max=2, dnu=dnu, epsilon=1.5)
 
-    # g-模式频率（简化的 Brunt-Väisälä 频率）
+
     N_brunt = np.sqrt(struct.G * np.mean(grid.density) / np.max(grid.radius))
     g_modes = seismic.compute_g_mode_frequencies(n_g=5, l=1, N_brunt=N_brunt, R=np.max(grid.radius))
 
-    # 模拟光变曲线并做 FFT
-    time = np.linspace(0, 100 * 86400, 4096)  # 100天，4096点
-    # 构造包含 p-模式频率的合成光变
+
+    time = np.linspace(0, 100 * 86400, 4096)
+
     flux = np.ones_like(time)
     if len(p_modes) > 0:
         for row in p_modes[:10]:
-            nu_hz = row['nu'] * 1e-6  # μHz -> Hz
+            nu_hz = row['nu'] * 1e-6
             amp = 1e-4
             flux += amp * np.sin(2.0 * np.pi * nu_hz * time)
     freqs, power = seismic.frequency_spectrum_fft(flux, dt=time[1] - time[0])
@@ -268,18 +244,15 @@ def run_seismic_analysis(grid: StellarGrid, struct: StellarStructure,
 
 
 def run_uncertainty_analysis() -> dict:
-    """
-    不确定性量化：IMF 采样与核反应参数蒙特卡洛传播。
-    """
     uq = UncertaintyQuantification(seed=42)
 
-    # IMF 采样
+
     masses = uq.sample_stellar_masses(n_stars=1000, m_min=0.5, m_max=25.0, imf_type='kroupa')
     mass_mean = np.mean(masses)
     mass_std = np.std(masses)
 
-    # 核反应参数不确定性传播
-    base_params = np.array([1.0, 1.0, 1.5])  # [S_pp, S_CNO, alpha_MLT]
+
+    base_params = np.array([1.0, 1.0, 1.5])
     param_cov = np.array([
         [0.01, 0.002, 0.0],
         [0.002, 0.02, 0.0],
@@ -304,9 +277,6 @@ def run_uncertainty_analysis() -> dict:
 
 
 def run_composition_analysis(initial_comp: np.ndarray, final_comp: np.ndarray) -> dict:
-    """
-    化学丰度分析：Jaccard 距离、CNO 比值、熵等。
-    """
     analyzer = CompositionAnalysis()
 
     jaccard = analyzer.jaccard_index(initial_comp, final_comp, threshold=1e-4)
@@ -335,23 +305,20 @@ def run_composition_analysis(initial_comp: np.ndarray, final_comp: np.ndarray) -
 
 
 def run_integration_tests(grid: StellarGrid, struct: StellarStructure) -> dict:
-    """
-    数值积分测试：Newton-Cotes、三角形求积、引力结合能等。
-    """
     integrator = StellarIntegrator()
 
-    # 测试 Newton-Cotes
+
     f_test = lambda x: np.exp(-x ** 2)
     x_nodes, w_nodes = integrator.newton_cotes_weights(5, 0.0, 2.0)
     ncc_result = np.dot(w_nodes, f_test(x_nodes))
 
-    # 测试三角形求积
+
     f_tri = lambda x, y: x ** 2 + y ** 2
     tri_result = integrator.integrate_triangle(
         f_tri, (0.0, 0.0), (1.0, 0.0), (0.0, 1.0), degree=5
     )
 
-    # 引力结合能
+
     Omega = integrator.gravitational_binding_energy(grid.mass, grid.radius)
     I_rot = integrator.moment_of_inertia(grid.radius, grid.density, grid.dm)
 
@@ -371,9 +338,9 @@ def main():
     print("=" * 70)
     t_start = time.time()
 
-    # ---------------------------------------------------------------
-    # 1. 初始化恒星模型
-    # ---------------------------------------------------------------
+
+
+
     print("\n[1/6] 初始化恒星模型 (1 M_sun, 200 shells)...")
     M_star = 1.0 * M_SUN
     grid, composition = initialize_stellar_model(M_star, N_shells=200)
@@ -383,9 +350,9 @@ def main():
     print(f"      初始中心密度: {grid.density[0]:.3e} g/cm³")
     print(f"      初始中心温度: {grid.temperature[0]:.3e} K")
 
-    # ---------------------------------------------------------------
-    # 2. 恒星演化
-    # ---------------------------------------------------------------
+
+
+
     print("\n[2/6] 运行恒星演化 (50 步 × 1 Myr)...")
     rates = NuclearReactionRates()
     network = NuclearNetwork(rates)
@@ -397,9 +364,9 @@ def main():
     print(f"      最终半径: {evolution['radii'][-1]:.3f} R_sun")
     print(f"      最终有效温度: {evolution['temperatures'][-1]:.0f} K")
 
-    # ---------------------------------------------------------------
-    # 3. 星震学分析
-    # ---------------------------------------------------------------
+
+
+
     print("\n[3/6] 星震学模式分析...")
     seismic = run_seismic_analysis(evolution['grid'], struct, evolution['composition'])
     print(f"      大频率分离 Δν: {seismic['dnu']:.2f} μHz")
@@ -407,9 +374,9 @@ def main():
     print(f"      p-模式数量: {len(seismic['p_modes'])}")
     print(f"      g-模式数量: {len(seismic['g_modes'])}")
 
-    # ---------------------------------------------------------------
-    # 4. 不确定性量化
-    # ---------------------------------------------------------------
+
+
+
     print("\n[4/6] 不确定性量化 (IMF 采样 + MC 传播)...")
     uq_results = run_uncertainty_analysis()
     print(f"      IMF 平均质量: {uq_results['imf_mean']:.3f} M_sun")
@@ -418,9 +385,9 @@ def main():
     print(f"      MC 输出标准差: {uq_results['mc_stats'][1]:.4f}")
     print(f"      95% 置信区间: [{uq_results['mc_stats'][4]:.4f}, {uq_results['mc_stats'][5]:.4f}]")
 
-    # ---------------------------------------------------------------
-    # 5. 化学丰度分析
-    # ---------------------------------------------------------------
+
+
+
     print("\n[5/6] 化学丰度分析...")
     initial_comp = np.array([0.7, 0.0, 0.28, 0.01, 0.005, 0.003, 0.001, 0.001])
     comp_results = run_composition_analysis(initial_comp, evolution['composition'])
@@ -432,9 +399,9 @@ def main():
     print(f"      [Fe/H] 最终: {comp_results['feh_final']:.3f}")
     print(f"      化学熵: {comp_results['entropy']:.4f}")
 
-    # ---------------------------------------------------------------
-    # 6. 数值积分验证
-    # ---------------------------------------------------------------
+
+
+
     print("\n[6/6] 数值积分与物理量计算...")
     integ_results = run_integration_tests(evolution['grid'], struct)
     print(f"      Newton-Cotes 积分 exp(-x²)|₀²: {integ_results['newton_cotes_gaussian']:.6f}")
@@ -442,9 +409,9 @@ def main():
     print(f"      引力结合能: {integ_results['gravitational_binding_energy']:.3e} erg")
     print(f"      转动惯量: {integ_results['moment_of_inertia']:.3e} g cm²")
 
-    # ---------------------------------------------------------------
-    # 7. 保存结果
-    # ---------------------------------------------------------------
+
+
+
     print("\n[保存] 序列化演化数据...")
     IOUtils.write_evolution_track(
         evolution['times'], evolution['luminosities'],
@@ -461,7 +428,7 @@ def main():
     }
     IOUtils.serialize_stellar_model(model_data, 'stellar_model.npz')
 
-    # 测试矩阵条件数
+
     M_test, cond_test = IOUtils.test_matrix_condition(n=5)
     print(f"      5阶魔方阵条件数: {cond_test:.2e}")
 

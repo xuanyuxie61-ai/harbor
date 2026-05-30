@@ -1,40 +1,10 @@
-"""
-spatial_mesh.py
-===============
-Spatial mesh generation and refinement for swarm operation environments.
-
-Incorporates:
-  - tet_mesh_refine (from 1238_tet_mesh_refine)
-  - mesh_read (from 747_medit_mesh_io)
-
-Scientific role:
-  The 3-D workspace is discretized by a tetrahedral mesh that supports
-  adaptive refinement around obstacles and high-activity zones. The mesh
-  refinement follows an 8-fold subdivision rule: each tetrahedron is split
-  into 8 children by introducing mid-edge nodes. This yields a hierarchy
-  of nested meshes used for:
-    (a) fast collision queries via point-in-tet tests,
-    (b) finite-element interpolation of scalar fields (temperature, gas),
-    (c) path-planning potential fields with spatially varying resolution.
-"""
 
 import numpy as np
 
 
 class TetMesh:
-    """
-    Tetrahedral mesh in 3D with adaptive refinement support.
-    """
 
     def __init__(self, nodes: np.ndarray, elements: np.ndarray):
-        """
-        Parameters
-        ----------
-        nodes : ndarray, shape (N_n, 3)
-            Node coordinates.
-        elements : ndarray, shape (N_e, 4)
-            Tetrahedral element connectivity (0-based).
-        """
         self.nodes = np.asarray(nodes, dtype=float)
         self.elements = np.asarray(elements, dtype=int)
         if self.elements.shape[1] != 4:
@@ -43,7 +13,6 @@ class TetMesh:
         self._build_edge_map()
 
     def _build_edge_map(self):
-        """Build a map from sorted edge pairs to edge index."""
         self._edge_map = {}
         edge_idx = 0
         for elem in self.elements:
@@ -56,22 +25,10 @@ class TetMesh:
         self.num_edges = edge_idx
 
     def refine(self):
-        """
-        Perform one level of 8-to-1 tetrahedral refinement.
-
-        Each tetrahedron is refined by inserting mid-edge nodes and
-        subdividing into 8 sub-tetrahedra following the standard
-        Freudenthal subdivision pattern.
-
-        Returns
-        -------
-        refined_mesh : TetMesh
-            New refined mesh.
-        """
         Nn = self.nodes.shape[0]
         Ne = self.elements.shape[0]
 
-        # edge midpoints
+
         edge_nodes = {}
         new_nodes = [self.nodes.copy()]
         for (i, j), eidx in self._edge_map.items():
@@ -82,16 +39,16 @@ class TetMesh:
                                     for (i, j), eidx in sorted(self._edge_map.items(), key=lambda kv: kv[1])]))
         all_nodes = np.vstack(new_nodes)
 
-        # Each tetrahedron is split into 8 children.
-        # Vertices: v0..v3, edge midpoints: m01, m02, m03, m12, m13, m23
-        # Standard subdivision into 8 tets (following Freudenthal):
+
+
+
         new_elements = []
         for elem in self.elements:
             v = list(elem)
             m = [edge_nodes[tuple(sorted((v[i], v[j])))]
                  for i in range(4) for j in range(i + 1, 4)]
             m01, m02, m03, m12, m13, m23 = m
-            # 8 sub-tetrahedra
+
             new_elements.append([v[0], m01, m02, m03])
             new_elements.append([m01, v[1], m12, m13])
             new_elements.append([m02, m12, v[2], m23])
@@ -105,24 +62,6 @@ class TetMesh:
         return TetMesh(all_nodes, new_elements)
 
     def point_in_tet(self, p: np.ndarray, tet_idx: int, tol: float = 1e-10):
-        """
-        Barycentric test for point p inside tetrahedron tet_idx.
-
-        Parameters
-        ----------
-        p : ndarray, shape (3,)
-            Query point.
-        tet_idx : int
-            Tetrahedron index.
-        tol : float
-            Tolerance for boundary inclusion.
-
-        Returns
-        -------
-        inside : bool
-        bary : ndarray, shape (4,)
-            Barycentric coordinates (all >= -tol if inside).
-        """
         elem = self.elements[tet_idx]
         v0 = self.nodes[elem[0]]
         v1 = self.nodes[elem[1]]
@@ -141,14 +80,6 @@ class TetMesh:
         return inside, bary
 
     def locate_point(self, p: np.ndarray, tol: float = 1e-10):
-        """
-        Brute-force locate which tetrahedron contains point p.
-
-        Returns
-        -------
-        tet_idx : int or None
-        bary : ndarray or None
-        """
         p = np.asarray(p, dtype=float)
         for idx in range(self.elements.shape[0]):
             inside, bary = self.point_in_tet(p, idx, tol)
@@ -157,21 +88,6 @@ class TetMesh:
         return None, None
 
     def interpolate_nodal_field(self, p: np.ndarray, field_values: np.ndarray):
-        """
-        Interpolate a nodal scalar field at point p via barycentric coords.
-
-        Parameters
-        ----------
-        p : ndarray, shape (3,)
-            Query point.
-        field_values : ndarray, shape (N_n,)
-            Field at mesh nodes.
-
-        Returns
-        -------
-        value : float
-            Interpolated value. Returns NaN if point is outside mesh.
-        """
         tet_idx, bary = self.locate_point(p)
         if tet_idx is None:
             return np.nan
@@ -180,20 +96,6 @@ class TetMesh:
 
 
 def generate_simple_tet_mesh(scale: float = 1.5):
-    """
-    Generate a minimal tetrahedral mesh of the cube [-scale, scale]^3.
-
-    The cube is subdivided into 6 tetrahedra (Kuhn triangulation).
-
-    Parameters
-    ----------
-    scale : float
-        Half side length of the cube.
-
-    Returns
-    -------
-    mesh : TetMesh
-    """
     s = scale
     nodes = np.array([
         [-s, -s, -s], [ s, -s, -s], [ s,  s, -s], [-s,  s, -s],
@@ -211,18 +113,6 @@ def generate_simple_tet_mesh(scale: float = 1.5):
 
 
 def read_mesh_medit(filename: str):
-    """
-    Minimal MEDIT mesh file reader supporting vertices and tetrahedra.
-
-    Parameters
-    ----------
-    filename : str
-        Path to .mesh file.
-
-    Returns
-    -------
-    mesh : TetMesh or None
-    """
     try:
         with open(filename, 'r') as f:
             lines = f.readlines()
@@ -265,7 +155,7 @@ def read_mesh_medit(filename: str):
             if read_so_far < count:
                 parts = line.split()
                 if len(parts) >= 4:
-                    # 1-based to 0-based
+
                     tetrahedra.append([int(parts[0]) - 1, int(parts[1]) - 1,
                                        int(parts[2]) - 1, int(parts[3]) - 1])
                 read_so_far += 1

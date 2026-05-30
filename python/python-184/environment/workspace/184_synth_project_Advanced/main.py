@@ -1,37 +1,9 @@
-"""
-================================================================================
-博士级科研代码合成项目：时间序列预测与异常检测的多物理场耦合计算框架
-================================================================================
-
-本项目基于 15 个种子项目的核心算法，融合构造了一个面向
-"数据科学：时间序列预测与异常检测" 的前沿博士级计算项目。
-
-核心科学问题：
-    针对具有非线性动力学、多尺度耦合与未知噪声结构的复杂时间序列，
-    构建一个集预测、平滑、重构、验证于一体的多物理场计算框架。
-    框架涵盖：
-    - 自回归建模与特征根稳定性分析（Toeplitz + Newton-Maehly）
-    - 图结构异常检测（邻接矩阵谱分析 + PageRank）
-    - RBF 非均匀插值重建（核方法）
-    - PDE 时空平滑（热方程 FEM + 反应-扩散）
-    - 生化非线性 ODE 动力学建模
-    - 广义 Gauss-Hermite 贝叶斯积分
-    - 时延嵌入几何质量分析
-    - 数值鲁棒性评估与 Monte Carlo 概率界
-    - 制造解方法（MMS）验证
-    - GF(2) 离散模式检测
-    - 三角形对称求积特征提取
-
-运行方式：
-    python main.py    （零参数运行）
-================================================================================
-"""
 
 import numpy as np
 import sys
 import time
 
-# 确保模块导入路径
+
 sys.path.insert(0, __file__.rsplit('/', 1)[0] if '/' in __file__ else '.')
 
 from toeplitz_solver import ToeplitzSolver
@@ -49,39 +21,33 @@ from triangular_feature_integrator import TriangularFeatureIntegrator
 
 
 def generate_synthetic_series(n: int = 512, seed: int = 42) -> tuple[np.ndarray, np.ndarray]:
-    """
-    生成合成时间序列：
-    - 基础信号：Brusselator 振荡器 + 线性趋势 + 季节性
-    - 注入结构性异常：突变、漂移、振荡频率变化
-    - 加性高斯噪声
-    """
     np.random.seed(seed)
     t = np.linspace(0.0, 20.0, n)
 
-    # 基础动力学：Brusselator 振荡
+
     bruss = ExtendedBrusselator(a=1.0, b=2.8, D1=0.0, D2=0.0)
     y0 = np.array([1.0, 1.0])
     _, traj = bruss.integrate(y0, (0.0, 20.0), n - 1)
-    base = traj[:, 0]  # 取 x1 分量
+    base = traj[:, 0]
 
-    # 线性趋势 + 季节性
+
     trend = 0.05 * t
     seasonal = 0.3 * np.sin(2.0 * np.pi * t / 3.0)
     signal = base + trend + seasonal
 
-    # 注入异常
+
     anomaly_mask = np.zeros(n, dtype=bool)
-    # 异常 1：突发尖峰
+
     anomaly_mask[120:125] = True
     signal[120:125] += 3.5
-    # 异常 2：水平漂移
+
     anomaly_mask[250:270] = True
     signal[250:270] += 1.8
-    # 异常 3：频率突变（替换为高频信号）
+
     anomaly_mask[380:390] = True
     signal[380:390] = 2.0 * np.sin(8.0 * np.pi * t[380:390]) + np.mean(signal)
 
-    # 加性噪声
+
     noise = np.random.normal(0.0, 0.15, n)
     series = signal + noise
 
@@ -94,17 +60,17 @@ def main():
     print("=" * 80)
     start_time = time.time()
 
-    # ============================================================
-    # 1. 数据生成
-    # ============================================================
+
+
+
     print("\n[阶段 1] 生成合成复杂时间序列...")
     t, series, true_anomalies = generate_synthetic_series(n=512, seed=42)
     print(f"  序列长度: {len(series)}")
     print(f"  注入异常点数: {np.sum(true_anomalies)}")
 
-    # ============================================================
-    # 2. Toeplitz + Levinson-Durbin AR 建模与预测
-    # ============================================================
+
+
+
     print("\n[阶段 2] Toeplitz 系统求解与 AR(p) 建模...")
     ar_order = 8
     ar_model = ARPredictor(order=ar_order)
@@ -112,7 +78,7 @@ def main():
     print(f"  AR({ar_order}) 系数: {np.round(ar_model.ar_coefs, 4)}")
     print(f"  噪声标准差估计: {ar_model.sigma_e:.4f}")
 
-    # 特征根分析（Newton-Maehly）
+
     stability = ar_model.stability_analysis()
     print(f"  系统稳定性: {'稳定' if stability['stable'] else '不稳定'}")
     print(f"  检测到 {len(stability['modes'])} 个动力学模态:")
@@ -120,40 +86,40 @@ def main():
         print(f"    模态 {idx+1}: |z|={mode['modulus']:.4f}, "
               f"τ={mode['time_constant']:.2f}, f={mode['frequency']:.4f}, ζ={mode['damping_ratio']:.4f}")
 
-    # 多步预测
+
     forecast_steps = 20
     pred, lower, upper = ar_model.forecast_interval(series, steps=forecast_steps, confidence=0.95)
     print(f"  {forecast_steps} 步预测完成，预测区间覆盖率待验证")
 
-    # ============================================================
-    # 3. 图结构异常检测
-    # ============================================================
+
+
+
     print("\n[阶段 3] 图邻接矩阵谱异常检测...")
-    # 构造滑动窗口特征用于图分析
+
     window = 10
     X_graph = np.array([series[i:i+window] for i in range(len(series) - window + 1)])
     graph_det = GraphAnomalyDetector(k_neighbors=5)
     graph_scores = graph_det.detect(X_graph, method="pagerank")
-    # 将窗口得分映射回原始序列
+
     graph_scores_full = np.zeros(len(series))
     for i, score in enumerate(graph_scores):
         graph_scores_full[i:i+window] += score
     graph_scores_full /= window
     graph_scores_full = (graph_scores_full - graph_scores_full.min()) / (graph_scores_full.max() - graph_scores_full.min() + 1e-12)
 
-    # 连通分量分析
+
     n_comp, labels = graph_det.connected_components()
     print(f"  相似度图连通分量数: {n_comp}")
     print(f"  最大分量占比: {np.max(np.bincount(labels)) / len(labels) * 100:.1f}%")
     print(f"  图异常得分范围: [{graph_scores_full.min():.4f}, {graph_scores_full.max():.4f}]")
 
-    # ============================================================
-    # 4. RBF 重建与异常评分
-    # ============================================================
+
+
+
     print("\n[阶段 4] RBF 径向基函数重建与留一法异常评分...")
     rbf = RBFReconstructor(kernel="gaussian", shape_param=0.5, regularization=1e-8)
     rbf_scores = rbf.anomaly_score(t, series)
-    # 重建完整序列（用于缺失值插补演示）
+
     missing_idx = np.array([100, 200, 300, 400])
     observed_t = np.delete(t, missing_idx)
     observed_v = np.delete(series, missing_idx)
@@ -162,9 +128,9 @@ def main():
     print(f"  RBF 重建误差 (L2): {np.sqrt(np.mean(recon_error**2)):.4f}")
     print(f"  RBF 异常得分范围: [{rbf_scores.min():.4f}, {rbf_scores.max():.4f}]")
 
-    # ============================================================
-    # 5. PDE 时空平滑
-    # ============================================================
+
+
+
     print("\n[阶段 5] PDE 时空平滑（热方程 FEM + 反应-扩散）...")
     heat_solver = PDE1DHeatExplicit(kappa=0.5)
     u_smoothed = heat_solver.solve(t, series.copy(), dt=0.01, n_steps=50)
@@ -174,9 +140,9 @@ def main():
     u_rd = rd_solver.solve(t, series.copy(), dt=0.005, n_steps=40, scheme="heun")
     print(f"  反应-扩散演化后范围: [{u_rd.min():.4f}, {u_rd.max():.4f}]")
 
-    # ============================================================
-    # 6. 非线性生化 ODE 动力学
-    # ============================================================
+
+
+
     print("\n[阶段 6] 生化反应网络 ODE 动力学建模...")
     bio = BiochemicalODE(kf=1.0, kr=0.1, kcat=0.5)
     y0_bio = np.array([1.0, 2.0, 0.0, 0.0])
@@ -187,38 +153,38 @@ def main():
     print(f"  最终守恒量: E_tot={h_final[0]:.4f}, S_tot={h_final[1]:.4f}")
     print(f"  守恒偏差: {np.abs(h_final - h_initial)}")
 
-    # Brusselator Lyapunov 指数
+
     bruss = ExtendedBrusselator(a=1.0, b=2.8)
     y0_bruss = np.array([1.0, 1.0])
     lyap = bruss.lyapunov_exponent_numerical(y0_bruss, (0.0, 50.0), 5000)
     print(f"  Brusselator 最大 Lyapunov 指数: {lyap:.4f} ({'混沌' if lyap > 0.01 else '规则'})")
 
-    # ============================================================
-    # 7. 广义 Gauss-Hermite 贝叶斯积分
-    # ============================================================
+
+
+
     print("\n[阶段 7] 广义 Gauss-Hermite 贝叶斯预测积分...")
     gh = GenHermiteQuadrature(alpha=0.0, a=0.0, b=1.0, n=16)
     nodes, weights = gh.compute_rule()
     print(f"  求积节点数: {len(nodes)}")
 
-    # 预测分布矩计算：假设参数后验为 N(μ, σ²)
+
     post_mean = np.mean(series)
     post_std = np.std(series)
-    pred_func = lambda theta: theta + 0.1 * np.sin(theta)  # 非线性预测函数
+    pred_func = lambda theta: theta + 0.1 * np.sin(theta)
     m1, m2 = gh.predictive_moments(post_mean, post_std, pred_func)
     pred_var = m2 - m1**2
     print(f"  预测均值 E[f(θ)]: {m1:.4f}")
     print(f"  预测方差 Var[f(θ)]: {pred_var:.4f}")
 
-    # 验证标准正态矩
+
     gh_std = GenHermiteQuadrature(alpha=0.0, a=0.0, b=1.0, n=20)
     gh_std.compute_rule()
     moment2 = gh_std.integrate(lambda x: x**2) / np.sqrt(np.pi)
     print(f"  二阶矩验证 (应为 0.5): {moment2:.6f}")
 
-    # ============================================================
-    # 8. 时延嵌入几何质量分析
-    # ============================================================
+
+
+
     print("\n[阶段 8] 时延嵌入几何质量分析与 FNN 维度估计...")
     geom = EmbeddingGeometry(embedding_dim=3, delay=2)
     X_embed = geom.delay_embed(series)
@@ -230,20 +196,20 @@ def main():
     est_dim = geom.embedding_dimension_estimate(series, max_dim=8, threshold=0.1)
     print(f"  FNN 估计最小嵌入维度: {est_dim}")
 
-    # ============================================================
-    # 9. 数值鲁棒性分析
-    # ============================================================
+
+
+
     print("\n[阶段 9] 数值鲁棒性与 Monte Carlo 概率界...")
     nr = NumericalRobustness()
 
-    # 机器精度分析
+
     x_test = 1.0
     x_next = nr.next_float(x_test)
     x_prev = nr.prev_float(x_test)
     print(f"  nextafter(1.0) = {x_next:.16e}, gap = {x_next - 1.0:.2e}")
     print(f"  prevfloat(1.0) = {x_prev:.16e}, gap = {1.0 - x_prev:.2e}")
 
-    # Regula Falsi 求异常阈值（对齐长度）
+
     n_scores = len(series)
     embed_scores_aligned = np.zeros(n_scores)
     embed_off = (n_scores - len(embed_scores)) // 2
@@ -255,19 +221,19 @@ def main():
     threshold = nr.threshold_by_quantile_root(combined_scores, target_fpr=0.05)
     print(f"  Regula Falsi 求得异常阈值 (FPR=5%): {threshold:.4f}")
 
-    # 矩阵条件数分析
+
     sample_cov = np.cov(X_embed.T)
     sens = nr.condition_number_sensitivity(sample_cov)
     print(f"  嵌入协方差条件数: {sens['condition_number']:.2e}")
     print(f"  双精度可解性: {sens['solvable_in_double_precision']}")
 
-    # 高维球 Monte Carlo
+
     mc_val = nr.ball_monte_carlo_integral(lambda x: np.exp(-np.sum(x**2)), dim=5, n_samples=20000)
     print(f"  5 维球 Monte Carlo 积分估计: {mc_val:.6f}")
 
-    # ============================================================
-    # 10. 制造解方法 (MMS) 验证
-    # ============================================================
+
+
+
     print("\n[阶段 10] 制造解方法 (MMS) PDE 验证...")
     mms = ManufacturedVerification(kappa=0.5)
     x_test = np.linspace(0.0, 1.0, 41)
@@ -281,9 +247,9 @@ def main():
     rd_mms = mms.verify_reaction_diffusion(x_test, dt=0.001, n_steps=100, D=0.1)
     print(f"  反应-扩散 MMS 验证通过: {rd_mms['verified']}")
 
-    # ============================================================
-    # 11. GF(2) 离散模式检测
-    # ============================================================
+
+
+
     print("\n[阶段 11] GF(2) 离散卷积异常模式检测...")
     dpk = DiscretePatternKernel(window_size=5)
     binary = dpk.binarize(series, threshold=threshold)
@@ -298,17 +264,17 @@ def main():
     print(f"  Markov 转移矩阵:\n{np.round(P_markov, 4)}")
     print(f"  熵率: {H_rate:.4f} bits/symbol")
 
-    # ============================================================
-    # 12. 三角形对称求积特征提取
-    # ============================================================
+
+
+
     print("\n[阶段 12] 三角形对称求积 2D 特征提取...")
     tfi = TriangularFeatureIntegrator(order=5)
 
-    # 验证求积精度
+
     verif = tfi.verify_monomial(2, 1)
     print(f"  单项式 x^2 y 积分验证: 精确={verif['exact']:.6f}, 数值={verif['numerical']:.6f}, 误差={verif['error']:.2e}")
 
-    # 三元组特征提取
+
     triplets = np.array([
         [series[i], series[i+1], series[i+2]]
         for i in range(0, len(series)-4, 3)
@@ -316,19 +282,19 @@ def main():
     tri_features = tfi.extract_triangular_features(triplets)
     print(f"  三角形积分特征范围: [{tri_features.min():.4f}, {tri_features.max():.4f}]")
 
-    # ============================================================
-    # 13. 综合异常评分与性能评估
-    # ============================================================
+
+
+
     print("\n[阶段 13] 综合异常检测性能评估...")
-    # 多方法融合得分
+
     n = len(series)
-    # 对齐长度（embed_scores 较短，其余截断或填充）
+
     min_len = min(len(graph_scores_full), len(rbf_scores), len(embed_scores))
-    # 使用原始长度的索引，对 embed_scores 进行边界填充
+
     embed_scores_full = np.zeros(n)
     embed_offset = (n - len(embed_scores)) // 2
     embed_scores_full[embed_offset:embed_offset + len(embed_scores)] = embed_scores
-    # 对边缘做简单延拓
+
     if embed_offset > 0:
         embed_scores_full[:embed_offset] = embed_scores[0]
         embed_scores_full[embed_offset + len(embed_scores):] = embed_scores[-1]
@@ -337,14 +303,14 @@ def main():
     r_s = rbf_scores
     e_s = embed_scores_full
 
-    # Z-score 标准化后加权融合
+
     def zscore(x):
         return (x - np.mean(x)) / (np.std(x) + 1e-12)
 
     fused = 0.25 * zscore(g_s) + 0.35 * zscore(r_s) + 0.40 * zscore(e_s)
     fused = (fused - fused.min()) / (fused.max() - fused.min() + 1e-12)
 
-    # 基于阈值判定异常
+
     detected = fused > threshold
     true_pos = np.sum(detected & true_anomalies)
     false_pos = np.sum(detected & (~true_anomalies))
@@ -360,7 +326,7 @@ def main():
     print(f"  Recall:    {recall:.4f}")
     print(f"  F1-Score:  {f1:.4f}")
 
-    # AUC-ROC 近似（通过遍历阈值）
+
     thresholds = np.linspace(0.0, 1.0, 101)
     tprs = []
     fprs = []
@@ -372,22 +338,22 @@ def main():
         tn = np.sum((~det) & (~true_anomalies))
         tprs.append(tp / (tp + fn + 1e-12))
         fprs.append(fp / (fp + tn + 1e-12))
-    # 确保 fprs 单调递增以正确计算 AUC
+
     fprs_arr = np.array(fprs)
     tprs_arr = np.array(tprs)
     sort_idx = np.argsort(fprs_arr)
     auc = np.trapezoid(tprs_arr[sort_idx], fprs_arr[sort_idx])
     print(f"  AUC-ROC:   {auc:.4f}")
 
-    # ============================================================
-    # 完成
-    # ============================================================
+
+
+
     elapsed = time.time() - start_time
     print("\n" + "=" * 80)
     print(f"全部计算完成，耗时: {elapsed:.2f} 秒")
     print("=" * 80)
 
-    # 返回关键结果字典（便于外部调用）
+
     return {
         "ar_coefs": ar_model.ar_coefs,
         "stability": stability['stable'],

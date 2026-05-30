@@ -1,33 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-geometry_io.py
-基于 xyz_io（XYZ 点云 I/O），实现超表面 meta-atom 三维几何数据的读写与管理。
-
-核心科学问题：
-  超表面由大量亚波长介电/金属纳米柱（nanopillars）组成。
-  每个柱体的空间坐标 (x,y,z) 及相位标签构成点云数据。
-  XYZ 格式是点云交换的标准格式之一：
-      x y z [额外属性]
-
-关键公式：
-  1. 点云重心:
-       C = (1/N) Σ_{i=1}^N r_i
-  2. 点云协方差矩阵:
-       Cov = (1/N) Σ (r_i - C)(r_i - C)^T
-  3. 主成分分析（PCA）用于估计 meta-atom 主轴方向。
-  4. 最近邻距离统计用于评估制造可行性:
-       d_min = min_{i≠j} ||r_i - r_j||
-"""
 
 import numpy as np
 
 
 def read_xyz_data(filename):
-    """
-    读取标准 XYZ 点云文件（参考 xyz_data_read）。
-    忽略 '#' 开头的注释行与空行。
-    返回 N×3 的坐标数组。
-    """
     points = []
     with open(filename, 'r') as f:
         for line in f:
@@ -48,9 +24,6 @@ def read_xyz_data(filename):
 
 
 def write_xyz_data(filename, points):
-    """
-    写出标准 XYZ 点云文件（参考 xyz_data_write）。
-    """
     points = np.asarray(points, dtype=float)
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError("points 必须为 N×3 数组")
@@ -62,10 +35,6 @@ def write_xyz_data(filename, points):
 
 
 def read_xyz_with_phases(filename):
-    """
-    读取带相位标签的扩展 XYZ 文件：x y z phase
-    返回坐标数组与相位数组。
-    """
     points = []
     phases = []
     with open(filename, 'r') as f:
@@ -91,9 +60,6 @@ def read_xyz_with_phases(filename):
 
 
 def write_xyz_with_phases(filename, points, phases):
-    """
-    写出带相位标签的 XYZ 文件。
-    """
     points = np.asarray(points, dtype=float)
     phases = np.asarray(phases, dtype=float)
     if points.shape[0] != phases.shape[0]:
@@ -107,10 +73,6 @@ def write_xyz_with_phases(filename, points, phases):
 
 def generate_meta_atom_cloud(n, x_range=(-1.0, 1.0), y_range=(-1.0, 1.0),
                              z_range=(0.0, 1.0), radius=0.05, seed=42):
-    """
-    生成随机分布的 meta-atom 点云（纳米柱中心坐标），
-    确保柱体间最小距离大于 2*radius（制造可行性约束）。
-    """
     np.random.seed(seed)
     points = []
     max_attempts = n * 100
@@ -130,7 +92,7 @@ def generate_meta_atom_cloud(n, x_range=(-1.0, 1.0), y_range=(-1.0, 1.0),
         attempts += 1
 
     if len(points) < n:
-        # 若随机撒点不足，退化为规则网格补充
+
         n_extra = n - len(points)
         grid_n = int(np.ceil(np.sqrt(n_extra)))
         xs = np.linspace(x_range[0], x_range[1], grid_n)
@@ -150,9 +112,6 @@ def generate_meta_atom_cloud(n, x_range=(-1.0, 1.0), y_range=(-1.0, 1.0),
 
 
 def compute_point_cloud_stats(points):
-    """
-    计算点云的统计量：重心、协方差、最小间距、包围盒。
-    """
     points = np.asarray(points, dtype=float)
     if points.shape[0] == 0:
         return {
@@ -164,7 +123,7 @@ def compute_point_cloud_stats(points):
     centroid = np.mean(points, axis=0)
     centered = points - centroid
     covariance = (centered.T @ centered) / points.shape[0]
-    # 最小间距（简单 O(N²)，小数据量适用）
+
     min_dist = float('inf')
     for i in range(min(points.shape[0], 500)):
         for j in range(i + 1, min(points.shape[0], 500)):

@@ -1,50 +1,13 @@
-"""
-special_functions.py
-
-博士级科学计算特殊函数库
-
-基于种子项目:
-  - 1084_sine_integral: 正弦积分 Si(x) 的级数展开与渐近计算
-  - 081_besselzero: 贝塞尔函数零点计算的Halley迭代法
-  - 1267_toms179: 不完全Beta函数的高精度级数求值
-
-科学应用:
-  这些特殊函数在强化学习策略梯度中承担以下角色:
-  1. Si(x) 用于设计振荡系统的 reward shaping 函数:
-     R(s,a) = ∫_0^{||s||} sin(t)/t dt  提供平滑的饱和奖励
-  2. 贝塞尔零点用于物理系统的特征模态分析:
-     J_n(ω_k) = 0 给出圆柱/球形边界条件下控制系统的共振频率
-  3. 不完全Beta函数 I_x(p,q) 用于策略的信任区域约束:
-     P(δ ≤ x) = I_x(α,β) 为随机策略的置信边界提供解析表达
-"""
 
 import numpy as np
 from math import gamma, lgamma, log, exp, sqrt, cos, sin, floor, fabs, pi, isinf
 
 
-# ---------------------------------------------------------------------------
-# 正弦积分 Si(x)
-# ---------------------------------------------------------------------------
+
+
+
 
 def sine_integral(x: float) -> float:
-    """
-    计算正弦积分 Si(x) = ∫_0^x sin(t)/t dt
-
-    数学定义:
-        Si(x) = ∫_0^x (sin t)/t dt
-        当 x → +∞ 时, Si(x) → π/2
-
-    算法:
-        - |x| ≤ 16:  切比雪夫型级数展开
-        - 16 < |x| ≤ 32: 贝塞尔函数辅助展开
-        - |x| > 32:  渐近展开
-
-    参数:
-        x: 实数自变量
-
-    返回:
-        Si(x) 的数值
-    """
     if not np.isfinite(x):
         raise ValueError("sine_integral: x must be finite")
 
@@ -119,45 +82,21 @@ def sine_integral(x: float) -> float:
         return val
 
 
-# ---------------------------------------------------------------------------
-# 贝塞尔函数零点计算 (Halley 迭代)
-# ---------------------------------------------------------------------------
+
+
+
 
 def _besselj(n, x):
-    """SciPy 不可用时使用近似; 这里用 NumPy 的近似展开或简单回退."""
     from scipy.special import jv
     return jv(n, x)
 
 
 def _bessely(n, x):
-    """SciPy 不可用时使用近似."""
     from scipy.special import yv
     return yv(n, x)
 
 
 def bessel_zero(n: float, k: int, kind: int = 1, max_iter: int = 100) -> float:
-    """
-    计算第 k 个正零点 of Bessel function J_n(x) (kind=1) 或 Y_n(x) (kind=2)
-
-    数学背景:
-        圆柱坐标系下波动方程分离变量后得到贝塞尔方程:
-            x^2 y'' + x y' + (x^2 - n^2) y = 0
-        其解 J_n(x) 的零点对应于径向边界条件 J_n(ω a) = 0,
-        即系统的特征频率 ω_k = z_{nk} / a
-
-    物理意义:
-        在策略梯度中, 这些零点用于设计振荡控制系统的谱滤波器,
-        提取与环境动力学共振频率匹配的状态特征.
-
-    参数:
-        n:   贝塞尔函数阶数 (实数)
-        k:   零点序号 (正整数, k=1,2,3,...)
-        kind: 1 为 J_n, 2 为 Y_n
-        max_iter: Halley迭代最大次数
-
-    返回:
-        第 k 个正零点估计值
-    """
     if not np.isfinite(n):
         raise ValueError("bessel_zero: n must be finite")
     if k < 1 or not isinstance(k, int):
@@ -173,7 +112,7 @@ def bessel_zero(n: float, k: int, kind: int = 1, max_iter: int = 100) -> float:
     if n_abs > order_max:
         raise ValueError(f"bessel_zero: |n| too large for kind={kind}")
 
-    # 初始猜测 (最小二乘拟合公式, n=0:10000)
+
     if kind == 1:
         if k == 1:
             c = [0.411557013144507, 0.999986723293410,
@@ -188,7 +127,7 @@ def bessel_zero(n: float, k: int, kind: int = 1, max_iter: int = 100) -> float:
                  2.66926179799040, -0.174925559314932]
             e = [0.429702214054531, 0.633480051735955]
         else:
-            # 线性外推猜测
+
             z2 = bessel_zero(n, 2, kind)
             z3 = bessel_zero(n, 3, kind)
             return 2.0 * z3 - z2
@@ -217,7 +156,7 @@ def bessel_zero(n: float, k: int, kind: int = 1, max_iter: int = 100) -> float:
         z3 = bessel_zero(n, k - 2, kind)
         x0 = 2.0 * z2 - z3
 
-    # Halley 迭代
+
     x = float(x0)
     tol_relative = 1.0e4
     for _ in range(max_iter):
@@ -239,42 +178,20 @@ def bessel_zero(n: float, k: int, kind: int = 1, max_iter: int = 100) -> float:
 
 
 def bessel_zeros(n: float, k_max: int, kind: int = 1) -> np.ndarray:
-    """计算前 k_max 个正零点."""
     return np.array([bessel_zero(n, k, kind) for k in range(1, k_max + 1)])
 
 
-# ---------------------------------------------------------------------------
-# 不完全 Beta 函数 I_x(p,q)
-# ---------------------------------------------------------------------------
+
+
+
 
 def log_gamma(z: float) -> float:
-    """计算 ln Γ(z) 的 Lanczos 近似."""
     if z <= 0.0:
         raise ValueError("log_gamma: z must be positive")
     return lgamma(z)
 
 
 def incomplete_beta(x: float, p: float, q: float) -> tuple:
-    """
-    计算正则化不完全Beta函数 I_x(p,q) = B(x;p,q) / B(p,q)
-
-    数学定义:
-        B(x; p, q) = ∫_0^x t^{p-1} (1-t)^{q-1} dt
-        B(p, q)    = Γ(p) Γ(q) / Γ(p+q)
-        I_x(p,q)   = B(x; p,q) / B(p,q)
-
-    在策略梯度中的应用:
-        信任区域优化中, 策略参数更新 Δθ 的置信概率:
-            P(||Δθ||_F ≤ ε) = I_{ε^2/(σ^2+ε^2)}(d/2, (ν-d)/2)
-        其中 F 为Fisher信息度量, ν 为自由度, d 为参数维度.
-
-    参数:
-        x: [0,1] 区间内的积分上限
-        p, q: 正形状参数
-
-    返回:
-        (prob, ier)  其中 ier=0 正常, 1 表示 x 越界, 2 表示 p≤0 或 q≤0
-    """
     if x < 0.0 or x > 1.0:
         return 0.0, 1
     if p <= 0.0 or q <= 0.0:
@@ -289,7 +206,7 @@ def incomplete_beta(x: float, p: float, q: float) -> tuple:
     eps = 2.2e-16
     eps1 = 1.0e-78
 
-    # 对称化
+
     if x <= 0.5:
         interval = 0
         y = x
@@ -370,7 +287,6 @@ def incomplete_beta(x: float, p: float, q: float) -> tuple:
 
 
 def beta_cdf(x: float, p: float, q: float) -> float:
-    """Beta分布累积分布函数."""
     prob, ier = incomplete_beta(x, p, q)
     if ier != 0:
         if ier == 1:

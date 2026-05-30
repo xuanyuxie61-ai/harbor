@@ -1,47 +1,14 @@
-"""
-sparse_linear_algebra.py
-稀疏矩阵CRS（Compressed Row Storage）格式线性代数运算模块。
-
-融合原始项目：978_r8crs（稀疏矩阵CRS存储与运算）
-
-在天体物理光谱反演中，辐射传输的有限元离散化产生大型稀疏线性系统，
-CRS格式是存储和求解这类系统的标准方法。
-"""
 
 import numpy as np
 from typing import Tuple, Optional
 
 
 class CRSMatrix:
-    """
-    双精度稀疏矩阵CRS格式封装。
-
-    数学定义：
-    给定稀疏矩阵 A ∈ R^{m×n}，其非零元集合为
-        NZ = {(i, j, a_{ij}) | a_{ij} ≠ 0}
-    CRS格式用三个一维数组表示：
-        - val: 长度为 nz 的数组，存储非零元值
-        - col: 长度为 nz 的数组，存储非零元列索引
-        - row_ptr: 长度为 m+1 的数组，row_ptr[i] 表示第 i 行第一个
-                   非零元在 val 中的位置，row_ptr[m] = nz
-
-    矩阵-向量乘法公式：
-        y_i = Σ_{k=row_ptr[i]}^{row_ptr[i+1]-1} val[k] * x[col[k]]
-    """
 
     def __init__(self, m: int, n: int, nz: int,
                  row_ptr: np.ndarray,
                  col: np.ndarray,
                  val: np.ndarray):
-        """
-        参数:
-            m: 矩阵行数
-            n: 矩阵列数
-            nz: 非零元个数
-            row_ptr: 行指针数组，形状 (m+1,)
-            col: 列索引数组，形状 (nz,)
-            val: 非零元值数组，形状 (nz,)
-        """
         if m <= 0 or n <= 0:
             raise ValueError(f"矩阵维度必须为正，得到 m={m}, n={n}")
         if nz < 0:
@@ -65,18 +32,6 @@ class CRSMatrix:
         self.val = val.astype(np.float64)
 
     def multiply(self, x: np.ndarray) -> np.ndarray:
-        """
-        计算 y = A @ x。
-
-        公式:
-            y_i = Σ_{k=row_ptr[i]}^{row_ptr[i+1]-1} val[k] * x[col[k]]
-
-        参数:
-            x: 输入向量，形状 (n,) 或 (n, 1)
-
-        返回:
-            y: 结果向量，形状 (m,)
-        """
         x = np.asarray(x).reshape(-1)
         if x.shape[0] != self.n:
             raise ValueError(f"向量维度不匹配: x 长度 {x.shape[0]}，矩阵列数 {self.n}")
@@ -88,18 +43,6 @@ class CRSMatrix:
         return y
 
     def transpose_multiply(self, x: np.ndarray) -> np.ndarray:
-        """
-        计算 y = A^T @ x。
-
-        公式:
-            y_j = Σ_{i: a_{ij}≠0} a_{ij} * x_i
-
-        参数:
-            x: 输入向量，形状 (m,)
-
-        返回:
-            y: 结果向量，形状 (n,)
-        """
         x = np.asarray(x).reshape(-1)
         if x.shape[0] != self.m:
             raise ValueError(f"向量维度不匹配: x 长度 {x.shape[0]}，矩阵行数 {self.m}")
@@ -112,7 +55,6 @@ class CRSMatrix:
         return y
 
     def to_dense(self) -> np.ndarray:
-        """转换为稠密矩阵（主要用于调试）。"""
         A = np.zeros((self.m, self.n), dtype=np.float64)
         for i in range(self.m):
             for k in range(self.row_ptr[i], self.row_ptr[i + 1]):
@@ -121,13 +63,6 @@ class CRSMatrix:
 
     @staticmethod
     def from_dense(A_dense: np.ndarray, drop_tolerance: float = 0.0) -> "CRSMatrix":
-        """
-        从稠密矩阵构建CRS格式。
-
-        参数:
-            A_dense: 输入稠密矩阵
-            drop_tolerance: 低于此阈值的元素视为零
-        """
         A_dense = np.asarray(A_dense, dtype=np.float64)
         m, n = A_dense.shape
         row_ptr = [0]
@@ -153,33 +88,6 @@ class CRSMatrix:
 
 def crs_gmres(crs_A: CRSMatrix, b: np.ndarray, x0: Optional[np.ndarray] = None,
               tol: float = 1e-10, max_iter: int = 1000, restart: int = 50) -> Tuple[np.ndarray, int, float]:
-    """
-    使用GMRES算法求解稀疏线性系统 A x = b。
-
-    GMRES（Generalized Minimal RESidual）通过Krylov子空间
-        K_k(A, r_0) = span{r_0, A r_0, A^2 r_0, ..., A^{k-1} r_0}
-    寻找使残差最小的近似解。
-
-    数学推导：
-    在 Arnoldi 过程中，构造正交基 V_k 和上 Hessenberg 矩阵 H_k 满足
-        A V_k = V_{k+1} H_k
-    求解最小二乘问题:
-        min_{y} || β e_1 - H_k y ||_2
-    其中 β = ||r_0||_2, r_0 = b - A x_0。
-
-    参数:
-        crs_A: CRS格式稀疏矩阵
-        b: 右端项
-        x0: 初始猜测
-        tol: 收敛容差
-        max_iter: 最大迭代次数
-        restart: 重启周期
-
-    返回:
-        x: 解向量
-        iters: 实际迭代次数
-        residual: 最终残差范数
-    """
     b = np.asarray(b, dtype=np.float64).reshape(-1)
     n = crs_A.n
     if b.shape[0] != crs_A.m:
@@ -263,20 +171,6 @@ def crs_gmres(crs_A: CRSMatrix, b: np.ndarray, x0: Optional[np.ndarray] = None,
 
 
 def crs_ilu_preconditioner(crs_A: CRSMatrix, fill_level: int = 0) -> CRSMatrix:
-    """
-    构造不完全LU分解预条件子（ILU(0)）。
-
-    对于矩阵 A = L U 的精确分解，ILU(0) 只在 A 的非零元模式位置
-    保留 L 和 U 的填充元。
-
-    公式：
-        A ≈ M = L̃ Ũ
-    其中 L̃ 为单位下三角，Ũ 为上三角，且 fill(L̃ + Ũ) ⊆ fill(A)。
-
-    前向/后向替换公式用于预条件子求解 M z = r：
-        1. 解 L̃ y = r  （前向替换）
-        2. 解 Ũ z = y  （后向替换）
-    """
     if crs_A.m != crs_A.n:
         raise ValueError("ILU仅适用于方阵")
     n = crs_A.m

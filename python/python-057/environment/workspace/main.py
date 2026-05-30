@@ -1,30 +1,9 @@
-"""
-main.py
-海洋内波破碎与混合参数化综合模拟系统
-
-统一入口，零参数可运行。
-
-科学问题:
-本项目研究海洋密度分层中内波的生成、传播、破碎及其导致的湍流混合过程。
-通过融合15个基础算法的核心思想，构建了一个多尺度、多物理过程耦合的
-博士级海洋内波参数化系统。
-
-核心物理过程:
-1. 内波非线性动力学 (Duffing型方程 + KdV方程)
-2. 谱元数值求解 (间断Galerkin方法)
-3. 小波时频分析 (Haar小波)
-4. 三维空间索引 (Hilbert曲线)
-5. 最优空间离散化 (CVT + Delaunay三角剖分)
-6. 蒙特卡洛破碎模拟 (随机相位 + 乘法随机过程 + IFS分形)
-7. 最优能量传播路径 (Dijkstra + 置换循环 + 射线追踪)
-8. 湍流混合参数化 (Wishart采样 + 不动点迭代 + 波数对称化)
-"""
 
 import numpy as np
 import sys
 import os
 
-# 将当前目录加入路径
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from ocean_physics import (
@@ -69,14 +48,12 @@ from turbulence_parameterization import (
 
 
 def print_section(title):
-    """打印章节分隔符"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_ocean_physics():
-    """海洋物理参数计算"""
     print_section("模块 1: 海洋物理参数")
     
     z = np.linspace(-200, 0, 101)
@@ -87,19 +64,19 @@ def run_ocean_physics():
     print(f"  密度范围: [{rho.min():.3f}, {rho.max():.3f}] kg/m³")
     print(f"  浮力频率范围: [{N.min():.6f}, {N.max():.6f}] rad/s")
     
-    # Richardson数
+
     dudz = 0.01 * np.sin(np.pi * z / 200)
     dvdz = 0.005 * np.cos(np.pi * z / 200)
     Ri = richardson_number(dudz, dvdz, N)
     print(f"  Richardson数范围: [{Ri.min():.3f}, {Ri.max():.1f}]")
     
-    # 色散关系
+
     kh = np.linspace(0.001, 0.1, 50)
     m = 2.0 * np.pi / 200.0
     omega = internal_wave_dispersion(kh, m, 0.01)
     print(f"  内波频率范围: [{omega.min():.6f}, {omega.max():.6f}] rad/s")
     
-    # 破碎判据
+
     is_breaking, steepness, crit = breaking_criterion(
         amplitude=20.0, wavelength=500.0, N=0.01, depth=200.0
     )
@@ -109,10 +86,9 @@ def run_ocean_physics():
 
 
 def run_nonlinear_dynamics():
-    """非线性内波动力学"""
     print_section("模块 2: 非线性内波动力学")
     
-    # Duffing型内波方程
+
     wave = NonlinearInternalWave(
         alpha=1.0, beta=5.0, gamma=8.0, delta=0.02,
         omega=0.5, N=0.01, f=1.0e-4, depth=200.0
@@ -128,7 +104,7 @@ def run_nonlinear_dynamics():
     action = wave.compute_wave_action(t, xi, xi_dot)
     print(f"  波作用量范围: [{action.min():.6f}, {action.max():.6f}]")
     
-    # KdV孤立波
+
     x_kdv, t_kdv, eta_kdv = kdv_internal_wave(
         xi0=2.0, c=1.0, alpha_kdv=0.1, beta_kdv=0.01,
         t_span=(0, 20), nx=128
@@ -140,7 +116,6 @@ def run_nonlinear_dynamics():
 
 
 def run_spectral_solver():
-    """DG谱元求解"""
     print_section("模块 3: DG谱元求解内波传播")
     
     solver = DGInternalWaveSolver(
@@ -159,10 +134,9 @@ def run_spectral_solver():
 
 
 def run_wavelet_analysis():
-    """小波分析"""
     print_section("模块 4: Haar小波时频分析")
     
-    # 生成测试信号 (内波+噪声)
+
     t = np.linspace(0, 100, 256)
     signal = 2.0 * np.sin(0.1 * t) + 0.5 * np.sin(0.5 * t) + \
              0.3 * np.random.randn(256)
@@ -182,7 +156,6 @@ def run_wavelet_analysis():
 
 
 def run_spatial_indexing():
-    """空间索引"""
     print_section("模块 5: 3D Hilbert空间索引")
     
     hc = HilbertCurve3D(r=3)
@@ -192,7 +165,7 @@ def run_spatial_indexing():
     print(f"  总点数: {len(points)}")
     print(f"  坐标范围: [0, {hc.N-1}]³")
     
-    # 测试双向转换
+
     test_h = 100
     x, y, z = hc.h_to_xyz(test_h)
     h_back = hc.xyz_to_h(x, y, z)
@@ -205,10 +178,9 @@ def run_spatial_indexing():
 
 
 def run_mesh_generation():
-    """网格生成"""
     print_section("模块 6: CVT与三角网格")
     
-    # CVT垂向节点
+
     cvt = CVT1D(n_generators=20, z_min=-200.0, z_max=0.0,
                 density_type='thermocline')
     generators, energy_history = cvt.lloyd_iteration(
@@ -220,7 +192,7 @@ def run_mesh_generation():
     print(f"  CVT能量 (初始/最终): {energy_history[0]:.6f} / {energy_history[-1]:.6f}")
     print(f"  Lloyd迭代次数: {len(energy_history)}")
     
-    # 2D三角剖分
+
     nodes, triangles = triangulate_ocean_domain(
         x_range=(0, 5000), y_range=(0, 5000), n_points=30
     )
@@ -232,10 +204,9 @@ def run_mesh_generation():
 
 
 def run_monte_carlo():
-    """蒙特卡洛模拟"""
     print_section("模块 7: 蒙特卡洛破碎模拟")
     
-    # 随机相位叠加
+
     z = np.linspace(-200, 0, 101)
     u, shear, Ri = random_phase_superposition(
         n_modes=15, z=z, t=0.0, N=0.01
@@ -244,21 +215,21 @@ def run_monte_carlo():
     print(f"  剪切范围: [{shear.min():.4f}, {shear.max():.4f}] 1/s")
     print(f"  Richardson数 < 0.25 的点数: {np.sum(Ri < 0.25)}")
     
-    # 破碎概率
+
     P_break, P_break_z, z_out = monte_carlo_breaking_probability(
         n_realizations=200, n_modes=15, n_depths=51, N=0.01
     )
     print(f"  破碎概率: {P_break:.4f}")
     print(f"  最大深度破碎概率: {P_break_z.max():.4f}")
     
-    # 能量级联
+
     E_hist, breaking_events = energy_cascade_simulation(
         E0=1.0, n_steps=500, growth_factor=1.03, dissipation_factor=0.98
     )
     print(f"  能量级联: 最终能量={E_hist[-1]:.4f}")
     print(f"  破碎事件数: {len(breaking_events)}")
     
-    # IFS分形混合斑块
+
     x_ifs, y_ifs, intensities = mixing_patch_ifs(n_points=2000)
     print(f"  IFS混合斑块: 点数={len(x_ifs)}")
     print(f"  混合强度范围: [{intensities.min():.4f}, {intensities.max():.4f}]")
@@ -267,10 +238,9 @@ def run_monte_carlo():
 
 
 def run_optimal_path():
-    """最优路径"""
     print_section("模块 8: 最优能量传播路径")
     
-    # 构建能量传播图
+
     depths = np.linspace(-200, 0, 10)
     horiz = np.linspace(0, 5000, 10)
     N_prof = 0.01 * np.ones_like(depths)
@@ -282,7 +252,7 @@ def run_optimal_path():
     print(f"  图节点数: {len(node_coords)}")
     print(f"  图边密度: {np.sum(graph < np.inf) / (len(graph)**2):.4f}")
     
-    # Dijkstra最短路径
+
     source = 0
     target = len(node_coords) - 1
     distances, previous = dijkstra_shortest_path(graph, source)
@@ -291,7 +261,7 @@ def run_optimal_path():
     print(f"  最短路径长度: {distances[target]:.2f} s")
     print(f"  路径节点数: {len(path)}")
     
-    # 置换循环分析
+
     cycles, cycle_lengths, success_rate = permutation_cycle_analysis(
         n_lockers=50, n_tries=25
     )
@@ -299,7 +269,7 @@ def run_optimal_path():
     print(f"  平均循环长度: {np.mean(cycle_lengths):.2f}")
     print(f"  能量传递成功率: {success_rate:.4f}")
     
-    # 射线追踪
+
     z_ray = np.linspace(-200, 0, 101)
     N_ray = 0.01 * (1.0 + 0.5 * np.exp(-(z_ray + 100)**2 / 2000.0))
     x_path, z_path, theta_path = ray_tracing_cycle(
@@ -313,17 +283,16 @@ def run_optimal_path():
 
 
 def run_turbulence():
-    """湍流参数化"""
     print_section("模块 9: 湍流混合参数化")
     
-    # Wishart采样雷诺应力
+
     tau = sample_reynolds_stress_tensor(
         shear_magnitude=0.01, buoyancy_flux=1.0e-7, m=3, df=10
     )
     print(f"  雷诺应力张量:\n{tau}")
     print(f"  应力迹: {np.trace(tau):.4f} Pa")
     
-    # 不动点混合效率
+
     Ri_values = np.array([0.1, 0.2, 0.5, 1.0, 2.0, 5.0])
     results = cobweb_iteration_analysis(Ri_values)
     
@@ -332,7 +301,7 @@ def run_turbulence():
         print(f"  Ri={Ri:.1f}: Γ={r['gamma']:.4f}, "
               f"收敛={r['converged']}, 迭代={r['n_iter']}")
     
-    # 波数谱对称化
+
     kx = np.linspace(-0.1, 0.1, 16)
     kz = np.linspace(-0.1, 0.1, 16)
     KX, KZ = np.meshgrid(kx, kz)
@@ -340,7 +309,7 @@ def run_turbulence():
     
     E_sym = symmetrize_wave_spectrum(E_spec)
     
-    # 对称性检验
+
     asymmetry = np.max(np.abs(E_sym - E_sym[::-1, :]))
     print(f"  能量谱对称化后非对称性: {asymmetry:.2e}")
     print(f"  能量谱总能量: {np.sum(E_sym):.4f}")
@@ -349,7 +318,6 @@ def run_turbulence():
 
 
 def run_summary():
-    """运行完整模拟并输出摘要"""
     print("\n" + "#" * 70)
     print("#" + " " * 68 + "#")
     print("#" + "   海洋内波破碎与混合参数化综合模拟系统".center(60) + "#")
@@ -362,7 +330,7 @@ def run_summary():
     print("输出语言: Python 3")
     print("运行模式: 零参数自动运行")
     
-    # 运行所有模块
+
     z, rho, N, Ri = run_ocean_physics()
     t, xi, E = run_nonlinear_dynamics()
     t_hist, u_hist = run_spectral_solver()
@@ -373,7 +341,7 @@ def run_summary():
     path, x_path, z_path = run_optimal_path()
     tau, results = run_turbulence()
     
-    # 综合摘要
+
     print_section("综合结果摘要")
     
     print("  [物理参数]")
@@ -415,7 +383,7 @@ def run_summary():
 
 
 if __name__ == "__main__":
-    # 设置随机种子保证可复现性
+
     np.random.seed(57)
     
     try:

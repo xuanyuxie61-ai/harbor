@@ -1,18 +1,9 @@
-"""
-main.py
-统一入口：三维随机 Fisher-KPP 反应-扩散-对流方程的
-自适应高阶数值积分、不确定性量化与扩散系数反演
-
-运行方式:
-    python main.py
-无需任何命令行参数。
-"""
 
 import numpy as np
 import os
 import sys
 
-# 将当前目录加入路径（保证模块导入）
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mesh_generation import generate_composite_mesh_1d, fibonacci_spiral_disk, cvt_lloyd_1d
@@ -33,16 +24,13 @@ def print_section(title: str):
 
 
 def experiment_1_spde_single_realization():
-    """
-    实验 1: 单条路径的 SPDE 求解，对比不同时间积分方法。
-    """
     print_section("实验 1: SPDE 单路径求解与格式对比")
 
-    # 空间参数
+
     x = generate_composite_mesh_1d(n_base=65, a=0.0, b=1.0, steepness=12.0, center=0.5)
     nx = len(x)
 
-    # 物理参数
+
     epsilon = 0.008
     velocity = 0.6
     reaction_rate = 10.0
@@ -54,10 +42,10 @@ def experiment_1_spde_single_realization():
         reaction_rate=reaction_rate, carrying_capacity=carrying_capacity
     )
 
-    # 初始条件：高斯脉冲
+
     u0 = carrying_capacity * np.exp(-200.0 * (x - 0.2) ** 2)
 
-    # Wiener 过程
+
     wiener = QWienerProcess(
         x, n_modes=32, alpha=1.2, sigma=1.0,
         rng=LEcuyerRNG(seed1=12345, seed2=67890), use_antithetic=False
@@ -84,9 +72,6 @@ def experiment_1_spde_single_realization():
 
 
 def experiment_2_monte_carlo_uq():
-    """
-    实验 2: 蒙特卡洛不确定性量化与方差缩减。
-    """
     print_section("实验 2: 蒙特卡洛不确定性量化")
 
     x = generate_composite_mesh_1d(n_base=65, a=0.0, b=1.0, steepness=10.0, center=0.5)
@@ -114,7 +99,7 @@ def experiment_2_monte_carlo_uq():
         return u_hist[-1]
 
     def observable(u: np.ndarray) -> float:
-        # 可观测：波前位置（质量中心）
+
         dx = np.diff(x)
         dx = np.append(dx, dx[-1])
         mass_center = np.sum(x * u * dx) / (np.sum(u * dx) + 1e-12)
@@ -130,7 +115,7 @@ def experiment_2_monte_carlo_uq():
     print(f"  分层后方差:    {stats['stratified_variance']:.8f}")
     print(f"  Gelman-Rubin R-hat: {stats['r_hat']:.4f}")
 
-    # 层次聚类距离矩阵演示
+
     dist = hierarchical_distance_matrix(8)
     print(f"  层次距离矩阵 (8x8) 谱范数: {np.linalg.norm(dist, 2):.4f}")
 
@@ -138,12 +123,9 @@ def experiment_2_monte_carlo_uq():
 
 
 def experiment_3_parameter_calibration():
-    """
-    实验 3: 无梯度参数标定与测试函数验证。
-    """
     print_section("实验 3: 无梯度参数标定 (PRAXIS)")
 
-    # 3a: Rosenbrock 基准测试
+
     print("  --- Rosenbrock 测试 ---")
     opt = PraxisOptimizer(tol=1e-8, max_iter=300, h0=0.5)
     x0_rosen = np.array([-1.2, 1.0], dtype=np.float64)
@@ -151,7 +133,7 @@ def experiment_3_parameter_calibration():
     print(f"      初始值: {x0_rosen}, f0={rosenbrock(x0_rosen):.6f}")
     print(f"      最优值: {x_opt}, f_opt={f_opt:.10f}, 迭代={n_iter}")
 
-    # 3b: SPDE 扩散系数 epsilon 的反演
+
     print("  --- SPDE 扩散系数反演 ---")
     x = generate_composite_mesh_1d(n_base=65, a=0.0, b=1.0)
     nx = len(x)
@@ -199,20 +181,17 @@ def experiment_3_parameter_calibration():
 
 
 def experiment_4_adaptive_strategy():
-    """
-    实验 4: 自适应数值格式选择策略。
-    """
     print_section("实验 4: 自适应策略选择 (Reversi-风格决策)")
 
     x = generate_composite_mesh_1d(n_base=65, a=0.0, b=1.0, steepness=15.0, center=0.5)
     nx = len(x)
 
-    # 构造具有激波特征的解场
+
     u = np.ones(nx, dtype=np.float64)
     u[x < 0.4] = 0.1
     u[x > 0.6] = 0.1
-    # 在 0.4~0.6 之间保持 1.0，形成方波
-    # 平滑过渡
+
+
     mask = (x >= 0.4) & (x <= 0.6)
     u[mask] = 1.0 - 0.9 * np.exp(-50.0 * (x[mask] - 0.5) ** 2)
 
@@ -230,17 +209,14 @@ def experiment_4_adaptive_strategy():
 
 
 def experiment_5_fibonacci_and_cvt():
-    """
-    实验 5: Fibonacci 螺旋采样与 CVT 网格优化。
-    """
     print_section("实验 5: Fibonacci 螺旋与 CVT 网格")
 
-    # Fibonacci 圆盘采样
+
     pts = fibonacci_spiral_disk(n=200, R=1.0)
     print(f"  Fibonacci 采样点数: {len(pts)}")
     print(f"  径向标准差: {np.std(np.linalg.norm(pts, axis=1)):.4f}")
 
-    # CVT Lloyd 优化演示
+
     x_cvt = cvt_lloyd_1d(n=21, a=0.0, b=1.0, density=None, it_num=50, tol=1e-10)
     print(f"  CVT 节点数: {len(x_cvt)}")
     print(f"  最大间距: {np.max(np.diff(x_cvt)):.6f}")
@@ -250,9 +226,6 @@ def experiment_5_fibonacci_and_cvt():
 
 
 def write_summary_report(results: dict, filename: str = "summary_report.txt"):
-    """
-    将实验结果写入文本报告。
-    """
     path = os.path.join(os.path.dirname(__file__), filename)
     with open(path, "w", encoding="utf-8") as f:
         f.write("=" * 70 + "\n")

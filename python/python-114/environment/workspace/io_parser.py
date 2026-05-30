@@ -1,19 +1,3 @@
-"""
-io_parser.py
-
-DNA 损伤修复分子动力学 —— TEC 格式结构数据解析与自适应网格加密
-
-基于种子项目:
-  - 1197_tec_io: TECPLOT 有限元数据文件解析
-  - 578_image_double: 图像/网格分辨率加倍（上采样）
-
-科学背景:
-  实验结构生物学数据（如 cryo-EM 电子密度图、FRET 距离约束）常以
-  TECPLOT (.tec) 或类似格式存储。本模块实现了 TEC 文件的解析，
-  提取 DNA-蛋白复合物的节点坐标、单元连接和节点属性（如电子密度）。
-  同时，利用 image_double 的上采样思想实现自适应网格加密 (AMR)，
-  在 DNA 断裂端等高梯度区域提高空间分辨率。
-"""
 
 import numpy as np
 from typing import Tuple, Optional, List, Dict
@@ -21,46 +5,25 @@ import re
 
 
 def parse_tec_file(content: str) -> Dict:
-    """
-    解析 TECPLOT 格式的有限元数据字符串。
-
-    TEC 文件结构:
-        TITLE = "..."
-        VARIABLES = "X", "Y", "Z", "Density", ...
-        ZONE N=node_num, E=element_num, ZONETYPE=FETETRAHEDRON
-        # 节点数据行: x y z density ...
-        # 单元数据行: n1 n2 n3 n4
-
-    Parameters
-    ----------
-    content : str
-        TEC 文件的文本内容。
-
-    Returns
-    -------
-    data : dict
-        包含 dim_num, node_num, element_num, element_order,
-        node_coord, element_node, node_data 等字段。
-    """
     lines = [line.strip() for line in content.splitlines()]
     lines = [line for line in lines if line]
 
     idx = 0
 
-    # 跳过 TITLE
+
     if lines[idx].upper().startswith("TITLE"):
         idx += 1
 
-    # 解析 VARIABLES
+
     if not lines[idx].upper().startswith("VARIABLES"):
         raise ValueError("VARIABLES line not found")
 
     var_line = lines[idx]
     idx += 1
 
-    # 提取变量名
+
     var_part = var_line.split('=', 1)[1] if '=' in var_line else var_line
-    # 按引号或逗号/空格分割
+
     raw_vars = re.findall(r'"([^"]*)"', var_part)
     if not raw_vars:
         raw_vars = var_part.replace(',', ' ').split()
@@ -68,19 +31,19 @@ def parse_tec_file(content: str) -> Dict:
     variable_names = [v.strip() for v in raw_vars if v.strip()]
     n_vars = len(variable_names)
 
-    # 判定空间维度（前几个变量为 X, Y, Z）
+
     coord_vars = {'X', 'Y', 'Z'}
     dim_num = sum(1 for v in variable_names if v.upper() in coord_vars)
     n_data_per_node = n_vars - dim_num
 
-    # 解析 ZONE 行
+
     if idx >= len(lines) or not lines[idx].upper().startswith("ZONE"):
         raise ValueError("ZONE line not found")
 
     zone_line = lines[idx]
     idx += 1
 
-    # 提取 N=, E=, ZONETYPE=
+
     n_match = re.search(r'N\s*=\s*(\d+)', zone_line, re.IGNORECASE)
     e_match = re.search(r'E\s*=\s*(\d+)', zone_line, re.IGNORECASE)
     type_match = re.search(r'ZONETYPE\s*=\s*(\w+)', zone_line, re.IGNORECASE)
@@ -100,7 +63,7 @@ def parse_tec_file(content: str) -> Dict:
     }
     element_order = element_order_map.get(zone_type, 4)
 
-    # 读取节点数据
+
     node_coord = np.zeros((dim_num, node_num), dtype=np.float64)
     node_data = np.zeros((n_data_per_node, node_num), dtype=np.float64)
 
@@ -116,7 +79,7 @@ def parse_tec_file(content: str) -> Dict:
         if n_data_per_node > 0:
             node_data[:, node] = vals[dim_num:dim_num + n_data_per_node]
 
-    # 读取单元数据
+
     element_node = np.zeros((element_order, element_num), dtype=np.int64)
     for elem in range(element_num):
         if idx >= len(lines):
@@ -147,9 +110,6 @@ def build_tec_file(
     variable_names: Optional[List[str]] = None,
     title: str = "DNA_Repair_Focus",
 ) -> str:
-    """
-    将有限元数据编码为 TECPLOT 格式字符串。
-    """
     dim_num, node_num = node_coord.shape
     element_order, element_num = element_node.shape
 
@@ -184,26 +144,6 @@ def grid_double_resolution(
     values: np.ndarray,
     mode: str = "2d",
 ) -> np.ndarray:
-    """
-    将网格数据分辨率加倍（上采样）。
-
-    基于 image_double_gray 的思想：每个原始网格单元被复制为 2×2
-    （2D）或 2×2×2（3D）个子单元，保持总量不变。
-
-    在 DNA 损伤修复模拟中，用于在 γH2AX 高梯度区域进行自适应加密。
-
-    Parameters
-    ----------
-    values : ndarray
-        原始网格数据（2D 或 3D）。
-    mode : str
-        "2d" 或 "3d"。
-
-    Returns
-    -------
-    doubled : ndarray
-        分辨率加倍后的数组。
-    """
     values = np.asarray(values, dtype=np.float64)
 
     if mode == "2d":
@@ -212,7 +152,7 @@ def grid_double_resolution(
         for i in range(m):
             for j in range(n):
                 doubled[2 * i:2 * i + 2, 2 * j:2 * j + 2] = values[i, j]
-        # 保持积分守恒：除以 4
+
         doubled /= 4.0
     elif mode == "3d":
         m, n, p = values.shape
@@ -233,33 +173,19 @@ def adaptive_mesh_refinement_2d(
     gradient_threshold: float = 0.05,
     max_level: int = 2,
 ) -> List[np.ndarray]:
-    """
-    基于梯度阈值的简单自适应网格加密 (AMR)。
-
-    算法:
-      1. 计算当前网格上的梯度幅值 |∇φ|
-      2. 在 |∇φ| > threshold 的区域标记为加密区
-      3. 对加密区执行 grid_double_resolution
-      4. 递归直到 max_level
-
-    Returns
-    -------
-    levels : list of ndarray
-        各层级网格数据，levels[0] 为最粗网格。
-    """
     field = np.asarray(field, dtype=np.float64)
     levels = [field.copy()]
 
     current = field
     for level in range(max_level):
-        # 计算梯度
+
         grad_x = np.zeros_like(current)
         grad_y = np.zeros_like(current)
         grad_x[1:-1, :] = (current[2:, :] - current[:-2, :]) / 2.0
         grad_y[:, 1:-1] = (current[:, 2:] - current[:, :-2]) / 2.0
         grad_mag = np.sqrt(grad_x ** 2 + grad_y ** 2)
 
-        # 检查是否需要加密
+
         if np.max(grad_mag) < gradient_threshold:
             break
 

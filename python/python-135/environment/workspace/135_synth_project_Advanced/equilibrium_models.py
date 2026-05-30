@@ -1,13 +1,3 @@
-"""
-Vapor-Liquid Equilibrium and Thermodynamic Models for CO2-Amine Systems
-Integrates vandermonde_approx_2d for fitting VLE data surfaces.
-
-Key thermodynamic models:
-- Extended UNIQUAC (e-UNIQUAC) activity coefficient model
-- Kent-Eisenberg equilibrium model for CO2-amine-H2O
-- NRTL for non-ideal liquid mixtures
-- Electrolyte NRTL for ionic species
-"""
 
 import numpy as np
 from utils import R_GAS, STANDARD_TEMP, validate_positive, safe_log, van_t_hoff
@@ -15,28 +5,17 @@ from spectral_methods import polynomial_fit_2d_vandermonde, evaluate_2d_polynomi
 
 
 class KentEisenbergModel:
-    """
-    Kent-Eisenberg model for CO2-amine-H2O VLE.
-    Simplified but widely used in process engineering.
-
-    Reactions:
-    1) CO2 + 2RNH2 <=> RNHCOO- + RNH3+      K1
-    2) CO2 + RNH2 + H2O <=> RNH3+ + HCO3-   K2
-    3) CO2 + OH- <=> HCO3-                  K3
-    4) H2O <=> H+ + OH-                     Kw
-    5) RNH3+ <=> RNH2 + H+                  Ka
-    """
 
     def __init__(self, amine_type="MEA"):
         self.amine_type = amine_type
-        # Equilibrium constants at 298K (molality basis)
+
         self.K1_0 = 2.5e7
         self.K2_0 = 1.2e3
         self.K3_0 = 2.2e4
         self.Kw_0 = 1.0e-14
         self.Ka_0 = 10.0 ** (-9.5)
 
-        # Reaction enthalpies [J/mol]
+
         self.dH1 = -52000.0
         self.dH2 = -38000.0
         self.dH3 = -45000.0
@@ -44,7 +23,6 @@ class KentEisenbergModel:
         self.dHa = 30000.0
 
     def equilibrium_constants(self, T):
-        """Temperature-dependent equilibrium constants."""
         validate_positive(T, "Temperature")
         K1 = van_t_hoff(self.K1_0, self.dH1, T)
         K2 = van_t_hoff(self.K2_0, self.dH2, T)
@@ -54,23 +32,19 @@ class KentEisenbergModel:
         return K1, K2, K3, Kw, Ka
 
     def solve_speciation(self, T, alpha, c_amine_total):
-        """
-        Solve liquid-phase speciation for given CO2 loading (alpha) and total amine.
-        Returns concentrations of all species.
-        """
         validate_positive(T, "Temperature")
         validate_positive(c_amine_total, "Total amine concentration")
         alpha = np.clip(alpha, 0.0, 0.55)
 
         K1, K2, K3, Kw, Ka = self.equilibrium_constants(T)
 
-        # Simplified speciation (assuming carbamate dominance for MEA)
+
         c_RNH2 = c_amine_total * (1.0 - 2.0 * alpha) / (1.0 - alpha)
         c_RNH2 = np.maximum(c_RNH2, 1e-10)
         c_RNH3 = c_amine_total * alpha / (1.0 - alpha)
         c_RNHCOO = c_amine_total * alpha / (1.0 - alpha)
 
-        # pH estimate
+
         c_H = Ka * c_RNH2 / c_RNH3
         c_OH = Kw / c_H
         c_HCO3 = K2 * c_CO2 * c_RNH2 / c_RNH3 if 'c_CO2' in locals() else 0.0
@@ -85,16 +59,11 @@ class KentEisenbergModel:
         }
 
     def CO2_partial_pressure(self, T, alpha, c_amine_total):
-        """
-        Calculate CO2 equilibrium partial pressure from loading.
-        Using empirical correlation fitted to MEA VLE data:
-            ln(P_CO2) = A + B/T + C*ln(alpha) + D*alpha^2 + E*alpha
-        """
         validate_positive(T, "Temperature")
         validate_positive(c_amine_total, "Total amine concentration")
         alpha = np.clip(alpha, 0.01, 0.55)
 
-        # Empirical coefficients for MEA (from literature data regression)
+
         A = 35.2
         B = -8300.0
         C = 2.5
@@ -107,16 +76,12 @@ class KentEisenbergModel:
 
 
 class ExtendedUNIQUAC:
-    """
-    Extended UNIQUAC activity coefficient model for electrolyte solutions.
-    Simplified for CO2-amine-H2O system.
-    """
 
     def __init__(self):
-        # UNIQUAC parameters (simplified)
+
         self.q = {"H2O": 1.4, "MEA": 1.5, "CO2": 1.3}
         self.r = {"H2O": 0.92, "MEA": 1.2, "CO2": 1.1}
-        # Binary interaction parameters [K]
+
         self.a_ij = {
             ("H2O", "MEA"): -150.0,
             ("MEA", "H2O"): 200.0,
@@ -125,25 +90,21 @@ class ExtendedUNIQUAC:
         }
 
     def activity_coefficient(self, T, x):
-        """
-        Calculate activity coefficients using UNIQUAC.
-        x: dict of mole fractions.
-        """
         validate_positive(T, "Temperature")
         species = list(x.keys())
         r = np.array([self.r.get(s, 1.0) for s in species])
         q = np.array([self.q.get(s, 1.0) for s in species])
         x_arr = np.array([x[s] for s in species])
 
-        # Mole fraction weighted averages
+
         phi = r * x_arr / np.sum(r * x_arr)
         theta = q * x_arr / np.sum(q * x_arr)
         l = 5.0 * (r - q) - (r - 1.0)
 
-        # Combinatorial part
+
         ln_gamma_c = safe_log(phi / x_arr) + 5.0 * q * safe_log(theta / phi) + l - phi / x_arr * np.sum(x_arr * l)
 
-        # Residual part (simplified)
+
         tau = np.ones((len(species), len(species)))
         for i, si in enumerate(species):
             for j, sj in enumerate(species):
@@ -161,10 +122,6 @@ class ExtendedUNIQUAC:
 
 
 class VLEPolynomialFitter:
-    """
-    2D polynomial fitting of VLE data (T, alpha) -> P_CO2.
-    Based on vandermonde_approx_2d_coef.m.
-    """
 
     def __init__(self, degree=4):
         self.degree = degree
@@ -172,10 +129,7 @@ class VLEPolynomialFitter:
         self.cond_num = None
 
     def fit(self, T_data, alpha_data, P_data):
-        """
-        Fit P_CO2 = f(T, alpha) using 2D polynomial.
-        """
-        # Normalize inputs for numerical stability
+
         self.T_mean = np.mean(T_data)
         self.T_std = np.std(T_data) + 1e-10
         self.alpha_mean = np.mean(alpha_data)
@@ -191,7 +145,6 @@ class VLEPolynomialFitter:
         return self.coeffs, self.cond_num
 
     def predict(self, T, alpha):
-        """Predict CO2 partial pressure."""
         if self.coeffs is None:
             raise RuntimeError("Model not fitted yet")
         T_norm = (T - self.T_mean) / self.T_std
@@ -201,9 +154,6 @@ class VLEPolynomialFitter:
 
 
 def generate_vle_dataset(amine_type="MEA", c_amine=5.0):
-    """
-    Generate synthetic VLE dataset for fitting and validation.
-    """
     model = KentEisenbergModel(amine_type)
     T_range = np.linspace(298.15, 393.15, 15)
     alpha_range = np.linspace(0.01, 0.5, 15)

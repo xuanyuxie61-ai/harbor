@@ -1,27 +1,9 @@
-"""
-main.py
-中微子振荡与质量 Hierarchy 综合分析平台
-
-本程序为零参数入口, 运行后将自动执行以下博士级计算任务:
-    1. PMNS 矩阵构造与幺正性验证
-    2. 真空与物质中微子哈密顿量求解
-    3. 一维/二维有限元地球密度剖面计算
-    4. 蒙特卡洛参数不确定性分析
-    5. 数值积分振荡概率计算
-    6. ODE 味演化求解 (Euler/RK4/矩阵指数)
-    7. 三维网格质量评估
-    8. 稀疏迭代本征态分析
-    9. 质量 Hierarchy 显著性判定
-    10. 概率守恒与幺正性验证
-
-所有结果将输出到控制台。
-"""
 
 import numpy as np
 import sys
 import os
 
-# 确保当前目录在路径中
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from constants import (
@@ -96,7 +78,6 @@ from data_io import (
 
 
 def print_section(title):
-    """打印带分隔线的章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
@@ -108,9 +89,9 @@ def main():
     print("  Neutrino Oscillation & Mass Hierarchy Analysis Platform")
     print("=" * 70)
 
-    # =====================================================================
-    # 1. PMNS 矩阵与基本参数
-    # =====================================================================
+
+
+
     print_section("1. PMNS 矩阵构造与验证")
 
     U = build_pmns_matrix()
@@ -128,9 +109,9 @@ def main():
     J_cp = jarkslog_invariant(U)
     print(f"Jarlskog 不变量 J_CP = {J_cp:.6e}")
 
-    # =====================================================================
-    # 2. 质量与波长
-    # =====================================================================
+
+
+
     print_section("2. 中微子质量与振荡波长")
 
     m_bounds = mass_sum_bounds('normal', m_lightest_eV=0.0)
@@ -140,16 +121,16 @@ def main():
     print(f"  m_3 = {m_bounds['m3']:.6f} eV")
     print(f"  Σm_i = {m_bounds['sum']:.6f} eV")
 
-    E_test = 2.0  # GeV
+    E_test = 2.0
     waves = compute_oscillation_wavelengths(E_test)
     print(f"\nE = {E_test} GeV 时的振荡波长:")
     print(f"  L_21 = {waves['L_21']:.2f} km")
     print(f"  L_31 = {waves['L_31']:.2f} km")
     print(f"  L_32 = {waves['L_32']:.2f} km")
 
-    # =====================================================================
-    # 3. 哈密顿量与本征值
-    # =====================================================================
+
+
+
     print_section("3. 真空与物质哈密顿量本征值分析")
 
     H_vac = build_vacuum_hamiltonian(E_test)
@@ -165,8 +146,8 @@ def main():
     is_ordered = validate_eigenvalue_ordering(ev_vac)
     print(f"本征值排序验证: {'通过' if is_ordered else '失败'}")
 
-    # 物质中的情况
-    V_earth = matter_potential_eV(0.5)  # 地幔中间
+
+    V_earth = matter_potential_eV(0.5)
     H_mat = build_matter_hamiltonian(E_test, V_earth)
     ev_mat, evec_mat, U_mat_matter = solve_hamiltonian_eigen(H_mat)
 
@@ -174,25 +155,25 @@ def main():
     for i, ev in enumerate(ev_mat):
         print(f"  E_{i+1}^m = {ev:.6e} eV")
 
-    # =====================================================================
-    # 4. 有限元地球密度剖面
-    # =====================================================================
+
+
+
     print_section("4. 有限元地球密度剖面 (1D & 2D)")
 
-    # 1D FEM
+
     r_nodes = np.linspace(0, EARTH_RADIUS_KM, 51)
     rho_1d, r_1d = solve_steady_state_density_1d(r_nodes)
     print(f"1D FEM 节点数: {len(r_1d)}")
     print(f"  中心密度: {rho_1d[0]:.3f} g/cm³")
     print(f"  表面密度: {rho_1d[-1]:.3f} g/cm³")
 
-    # 验证 PREM 对比
+
     rho_prem_center = 13.0885
     rho_prem_surface = 2.6910
     print(f"  PREM 中心密度: {rho_prem_center:.3f} g/cm³")
     print(f"  PREM 表面密度: {rho_prem_surface:.3f} g/cm³")
 
-    # 2D FEM
+
     rho_2d, nodes_2d, elements_2d = solve_steady_state_density_2d(
         radius_km=EARTH_RADIUS_KM, n_r=10, n_theta=16
     )
@@ -202,9 +183,9 @@ def main():
     print(f"  最小密度: {np.min(rho_2d):.3f} g/cm³")
     print(f"  最大密度: {np.max(rho_2d):.3f} g/cm³")
 
-    # =====================================================================
-    # 5. 蒙特卡洛分析
-    # =====================================================================
+
+
+
     print_section("5. 蒙特卡洛振荡概率与参数不确定性")
 
     mc_result = monte_carlo_oscillation_probability(
@@ -221,7 +202,7 @@ def main():
     print(f"  P(ν_e→ν_μ) = {mc_result['P_em_mean']:.6f} ± {mc_result['P_em_std']:.6f}")
     print(f"  P(ν_e→ν_τ) = {mc_result['P_et_mean']:.6f} ± {mc_result['P_et_std']:.6f}")
 
-    # Hierarchy 显著性 MC
+
     mc_hier = mc_hierarchy_significance(
         energy_gev=2.0, baseline_km=1000.0,
         n_samples=10000, seed=123
@@ -232,12 +213,12 @@ def main():
     print(f"  NH 置信度: {mc_hier['nh_confidence_sigma']:.2f} σ")
     print(f"  IH 置信度: {mc_hier['ih_confidence_sigma']:.2f} σ")
 
-    # =====================================================================
-    # 6. 数值积分
-    # =====================================================================
+
+
+
     print_section("6. 数值积分振荡概率")
 
-    # 2D 中点积分
+
     P_avg_ee = oscillation_probability_integral_2d(
         1.0, 10.0, 100.0, 1300.0,
         nx=16, ny=16,
@@ -246,13 +227,13 @@ def main():
     )
     print(f"2D 积分 P(ν_e→ν_e) 平均值 = {P_avg_ee:.6f}")
 
-    # 圆积分规则
+
     w, ang = circle_rule(12)
     print(f"\n圆积分规则 (12 点):")
     print(f"  权重和 = {np.sum(w):.6f} (应为 1.0)")
     print(f"  角度范围: [{ang[0]:.4f}, {ang[-1]:.4f}] rad")
 
-    # 自适应积分
+
     def test_func(x):
         return np.sin(x) ** 2
     adaptive_result = adaptive_integral_1d(test_func, 0.0, np.pi, tol=1e-8)
@@ -261,15 +242,15 @@ def main():
     print(f"  ∫_0^π sin²(x) dx = {adaptive_result:.10f} (精确值: {exact:.10f})")
     print(f"  误差: {abs(adaptive_result - exact):.2e}")
 
-    # =====================================================================
-    # 7. ODE 求解器
-    # =====================================================================
+
+
+
     print_section("7. 中微子味演化 ODE 求解")
 
-    baseline_test = 1000.0  # km
-    E_test = 2.0  # GeV
+    baseline_test = 1000.0
+    E_test = 2.0
 
-    # Euler 方法
+
     result_euler = solve_neutrino_oscillation_ode(
         E_test, baseline_test, method='euler', n_steps=5000
     )
@@ -278,7 +259,7 @@ def main():
     print(f"  P_em = {result_euler['prob_final'][1]:.6f}")
     print(f"  P_et = {result_euler['prob_final'][2]:.6f}")
 
-    # RK4 方法
+
     result_rk4 = solve_neutrino_oscillation_ode(
         E_test, baseline_test, method='rk4', n_steps=1000
     )
@@ -287,7 +268,7 @@ def main():
     print(f"  P_em = {result_rk4['prob_final'][1]:.6f}")
     print(f"  P_et = {result_rk4['prob_final'][2]:.6f}")
 
-    # 矩阵指数法 (精确解)
+
     result_exact = solve_neutrino_oscillation_ode(
         E_test, baseline_test, method='matrix_exp'
     )
@@ -296,7 +277,7 @@ def main():
     print(f"  P_em = {result_exact['prob_final'][1]:.6f}")
     print(f"  P_et = {result_exact['prob_final'][2]:.6f}")
 
-    # 概率守恒验证
+
     P_mat = np.zeros((3, 3), dtype=np.float64)
     for alpha in range(3):
         res = solve_neutrino_oscillation_ode(
@@ -312,7 +293,7 @@ def main():
     for i in range(3):
         print(f"    [{P_mat[i,0]:.6f}  {P_mat[i,1]:.6f}  {P_mat[i,2]:.6f}]")
 
-    # 变物质 ODE
+
     def V_profile(x_km):
         r_ratio = abs(1.0 - x_km / baseline_test)
         return matter_potential_eV(r_ratio)
@@ -325,7 +306,7 @@ def main():
     print(f"  P_em = {result_vary['prob_final'][1]:.6f}")
     print(f"  P_et = {result_vary['prob_final'][2]:.6f}")
 
-    # R8BUT 求解器测试
+
     A_test = np.array([[2.0, 1.0, 0.5],
                        [0.0, 3.0, 1.0],
                        [0.0, 0.0, 4.0]], dtype=np.float64)
@@ -337,9 +318,9 @@ def main():
     print(f"  精确解:    [{x_exact[0]:.6f}, {x_exact[1]:.6f}, {x_exact[2]:.6f}]")
     print(f"  误差:      {np.max(np.abs(x_r8but - x_exact)):.2e}")
 
-    # =====================================================================
-    # 8. 网格质量评估
-    # =====================================================================
+
+
+
     print_section("8. 三维地球网格质量评估")
 
     nodes_3d, tetra_3d = generate_earth_tetrahedral_mesh(n_r=4, n_theta=6, n_phi=6)
@@ -355,35 +336,35 @@ def main():
         print("地球四面体网格生成 (简化模式, 节点数较少)")
         print(f"  节点数: {len(nodes_3d)}")
 
-    # 索引转换测试
+
     idx_0based = np.array([0, 1, 2, 3])
     idx_1based = convert_index_base(idx_0based, 0, 1)
     print(f"\n索引转换测试:")
     print(f"  0-based: {idx_0based} -> 1-based: {idx_1based}")
 
-    # =====================================================================
-    # 9. 稀疏迭代与主导模式
-    # =====================================================================
+
+
+
     print_section("9. 稀疏迭代与主导振荡模式")
 
-    # 主导模式
+
     dom_mode = find_dominant_oscillation_mode(H_vac)
     print(f"真空主导振荡模式:")
     print(f"  有效能量: {dom_mode['energy']:.6e} eV")
     print(f"  角频率:   {dom_mode['frequency']:.6e} eV")
     print(f"  态向量:   [{dom_mode['state'][0]:.4f}, {dom_mode['state'][1]:.4f}, {dom_mode['state'][2]:.4f}]")
 
-    # PageRank 风格矩阵
+
     P_pr = pagerank_style_matrix(np.abs(H_vac), damping=0.85)
     print(f"\nPageRank 风格矩阵 (阻尼=0.85):")
     print(f"  列和范围: [{np.min(np.sum(P_pr, axis=0)):.6f}, {np.max(np.sum(P_pr, axis=0)):.6f}]")
 
-    # 幂迭代
+
     ev_pi, vec_pi, conv = power_iteration(P_pr, n_iterations=100)
     print(f"  幂迭代收敛: {'是' if conv else '否'}")
     print(f"  主导特征值: {ev_pi:.6f}")
 
-    # Hierarchy 迭代求解
+
     hier_iter = iterative_hierarchy_solver(2.0, 1000.0)
     print(f"\nHierarchy 迭代判别:")
     print(f"  P_ee (NH) = {hier_iter['P_ee_NH']:.6f}")
@@ -391,9 +372,9 @@ def main():
     print(f"  |ΔP| = {hier_iter['delta_P']:.6f}")
     print(f"  判别能力 = {hier_iter['discrimination_power']:.6f}")
 
-    # =====================================================================
-    # 10. MSW 共振与物质效应
-    # =====================================================================
+
+
+
     print_section("10. MSW 共振与有效混合角")
 
     V_test = matter_potential_eV(0.5)
@@ -407,9 +388,9 @@ def main():
     print(f"\nMSW 共振电子数密度:")
     print(f"  N_e^res = {ne_res:.4e} cm⁻³")
 
-    # =====================================================================
-    # 11. 综合 Hierarchy 判定
-    # =====================================================================
+
+
+
     print_section("11. 质量 Hierarchy 综合判定")
 
     sig_NH, hier_NH = hierarchy_discrimination_significance(
@@ -433,9 +414,9 @@ def main():
     else:
         print(f"\n  >> 结论: 需要更多数据以区分 NH 和 IH")
 
-    # =====================================================================
-    # 12. Gamma 函数与 Fermi-Dirac 分布
-    # =====================================================================
+
+
+
     print_section("12. 特殊函数验证")
 
     ln_g, fault = log_gamma_pike_hill(5.0)
@@ -446,9 +427,9 @@ def main():
     print(f"\nFermi-Dirac 分布 (E=1.0, T=0.5, μ=0):")
     print(f"  f_FD = {fd:.6f}")
 
-    # =====================================================================
-    # 13. 数据 I/O 测试
-    # =====================================================================
+
+
+
     print_section("13. 数据 I/O 验证")
 
     test_data = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
@@ -460,9 +441,9 @@ def main():
     print(f"  一致: {np.allclose(test_data, read_back)}")
     os.remove("test_matrix_io.txt")
 
-    # =====================================================================
-    # 完成
-    # =====================================================================
+
+
+
     print("\n" + "=" * 70)
     print("  全部计算任务已完成!")
     print("=" * 70)

@@ -1,57 +1,18 @@
-"""
-平流-扩散传输方程求解器
-
-本模块实现平流层中化学物种的垂直传输过程数值求解，包括：
-- 垂直涡旋扩散方程离散化
-- 平流项的迎风差分格式
-- 大型稀疏线性系统的 GMRES 和 CG 求解
-- 隐式时间积分 (后退 Euler)
-
-科学公式:
-1. 垂直扩散方程:
-   ∂n/∂t = ∂/∂z (Kzz(z) × ∂n/∂z)
-   其中 Kzz 为涡旋扩散系数 (m²/s)
-
-2. 平流-扩散方程 (含化学源汇):
-   ∂n/∂t + w × ∂n/∂z = ∂/∂z (Kzz × ∂n/∂z) + P - L
-   其中 w 为垂直风速 (m/s)
-
-3. 隐式离散化 (后退 Euler):
-   (n^{k+1} - n^k) / Δt = L(n^{k+1}) + S^k
-   (I - Δt L) n^{k+1} = n^k + Δt S^k
-   A x = b
-
-4. 扩散项中心差分:
-   ∂/∂z(Kzz ∂n/∂z)|_i ≈ [K_{i+1/2}(n_{i+1}-n_i) - K_{i-1/2}(n_i-n_{i-1})] / dz²
-   K_{i+1/2} = (K_i + K_{i+1}) / 2
-
-5. 平流项迎风差分 (w > 0 向上):
-   w ∂n/∂z|_i ≈ w (n_i - n_{i-1}) / dz
-
-融入原项目: 760_mgmres (重启GMRES迭代), 149_cg (共轭梯度法)
-"""
 
 import numpy as np
 from typing import Tuple, Optional, Callable
 
 
 class SparseMatrixCRS:
-    """
-    压缩稀疏行 (CRS) 格式矩阵
-    用于高效存储和操作大型稀疏矩阵
-    """
 
     def __init__(self, n: int, nz_num: int):
         self.n = n
         self.nz_num = nz_num
-        self.a = np.zeros(nz_num)      # 非零元素值
-        self.ia = np.zeros(nz_num, dtype=int)  # 行索引
-        self.ja = np.zeros(nz_num, dtype=int)  # 列索引
+        self.a = np.zeros(nz_num)
+        self.ia = np.zeros(nz_num, dtype=int)
+        self.ja = np.zeros(nz_num, dtype=int)
 
     def from_dense(self, A: np.ndarray, threshold: float = 1e-14) -> None:
-        """
-        从稠密矩阵构建 CRS 格式
-        """
         if A.shape[0] != self.n or A.shape[1] != self.n:
             raise ValueError("矩阵维度不匹配")
 
@@ -66,7 +27,7 @@ class SparseMatrixCRS:
                     self.ja[idx] = j
                     idx += 1
 
-        # 如果实际非零元素更少，截断
+
         self.nz_num = idx
         self.a = self.a[:idx]
         self.ia = self.ia[:idx]
@@ -75,9 +36,6 @@ class SparseMatrixCRS:
 
 def sparse_matvec(a: np.ndarray, ia: np.ndarray, ja: np.ndarray,
                   x: np.ndarray, n: int, nz_num: int) -> np.ndarray:
-    """
-    CRS 格式稀疏矩阵-向量乘法 y = A x
-    """
     y = np.zeros(n)
     for k in range(nz_num):
         i = ia[k]
@@ -87,9 +45,6 @@ def sparse_matvec(a: np.ndarray, ia: np.ndarray, ja: np.ndarray,
 
 
 def mult_givens(c: float, s: float, k: int, g: np.ndarray) -> np.ndarray:
-    """
-    Givens 旋转应用于向量 g
-    """
     g1 = c * g[k] - s * g[k + 1]
     g2 = s * g[k] + c * g[k + 1]
     g = g.copy()
@@ -102,33 +57,6 @@ def mgmres(a: np.ndarray, ia: np.ndarray, ja: np.ndarray,
            x: np.ndarray, rhs: np.ndarray, n: int, nz_num: int,
            itr_max: int = 100, mr: int = 20,
            tol_abs: float = 1e-10, tol_rel: float = 1e-8) -> np.ndarray:
-    """
-    重启 GMRES 迭代求解稀疏线性系统 A x = rhs
-
-    Parameters
-    ----------
-    a, ia, ja : ndarray
-        CRS 格式矩阵
-    x : ndarray
-        初始猜测
-    rhs : ndarray
-        右端项
-    n : int
-        矩阵阶数
-    nz_num : int
-        非零元数
-    itr_max : int
-        最大外迭代次数
-    mr : int
-        Krylov 子空间维度
-    tol_abs, tol_rel : float
-        绝对/相对残差容差
-
-    Returns
-    -------
-    x : ndarray
-        解向量
-    """
     if mr <= 0 or mr > n:
         mr = min(20, n)
 
@@ -164,7 +92,7 @@ def mgmres(a: np.ndarray, ia: np.ndarray, ja: np.ndarray,
 
             h[k + 1, k] = np.linalg.norm(v[:, k + 1])
 
-            # 重正交化
+
             if av + delta * h[k + 1, k] == av:
                 for j in range(k + 1):
                     htmp = np.dot(v[:, j], v[:, k + 1])
@@ -175,7 +103,7 @@ def mgmres(a: np.ndarray, ia: np.ndarray, ja: np.ndarray,
             if h[k + 1, k] != 0.0:
                 v[:, k + 1] /= h[k + 1, k]
 
-            # Givens 旋转
+
             if k > 0:
                 y = h[:k + 2, k].copy()
                 for j in range(k):
@@ -192,7 +120,7 @@ def mgmres(a: np.ndarray, ia: np.ndarray, ja: np.ndarray,
 
             rho = abs(g[k + 1])
             if rho <= tol_abs and rho <= rho_tol:
-                # 回代求解上三角系统
+
                 k_copy = k
                 y = np.zeros(k_copy + 1)
                 y[k_copy] = g[k_copy] / (h[k_copy, k_copy] + 1e-30)
@@ -202,7 +130,7 @@ def mgmres(a: np.ndarray, ia: np.ndarray, ja: np.ndarray,
                 x += v[:, :k_copy + 1] @ y
                 break
         else:
-            # 达到 mr 次迭代
+
             k = mr - 1
             y = np.zeros(mr)
             y[mr - 1] = g[mr - 1] / (h[mr - 1, mr - 1] + 1e-30)
@@ -218,27 +146,6 @@ def conjugate_gradient(A: np.ndarray, b: np.ndarray,
                        x0: Optional[np.ndarray] = None,
                        max_iter: int = None,
                        tol: float = 1e-10) -> np.ndarray:
-    """
-    共轭梯度法求解对称正定系统 A x = b
-
-    Parameters
-    ----------
-    A : ndarray
-        SPD 矩阵 (n, n)
-    b : ndarray
-        右端项
-    x0 : ndarray, optional
-        初始猜测
-    max_iter : int
-        最大迭代次数
-    tol : float
-        残差容差
-
-    Returns
-    -------
-    x : ndarray
-        解向量
-    """
     n = len(b)
     if max_iter is None:
         max_iter = n
@@ -275,22 +182,9 @@ def conjugate_gradient(A: np.ndarray, b: np.ndarray,
 
 
 class VerticalTransportSolver:
-    """
-    垂直传输方程求解器
-    """
 
     def __init__(self, z: np.ndarray, Kzz: np.ndarray,
                  w: Optional[np.ndarray] = None):
-        """
-        Parameters
-        ----------
-        z : ndarray
-            高度网格 (m), 单调递增
-        Kzz : ndarray
-            涡旋扩散系数 (m²/s)
-        w : ndarray, optional
-            垂直风速 (m/s), 正值向上
-        """
         if len(z) < 3:
             raise ValueError("高度网格至少需要3个点")
         if len(Kzz) != len(z):
@@ -308,16 +202,12 @@ class VerticalTransportSolver:
         else:
             self.w = w.copy()
 
-        # 网格界面扩散系数
+
         self.K_face = np.zeros(self.nz - 1)
         for i in range(self.nz - 1):
             self.K_face[i] = 0.5 * (self.Kzz[i] + self.Kzz[i + 1])
 
     def _build_diffusion_matrix(self) -> np.ndarray:
-        """
-        构建扩散算子的离散矩阵 (中心差分)
-        D_i = [K_{i+1/2}(n_{i+1}-n_i)/dz_{i+1} - K_{i-1/2}(n_i-n_{i-1})/dz_i] / dz_mid
-        """
         nz = self.nz
         L = np.zeros((nz, nz))
 
@@ -336,13 +226,13 @@ class VerticalTransportSolver:
             L[i, i] = -(a_m + a_p)
             L[i, i + 1] = a_p
 
-        # 边界条件: 零通量 (Neumann)
-        # 底部
+
+
         dz_0 = self.z[1] - self.z[0]
         L[0, 0] = -self.K_face[0] / (dz_0 ** 2)
         L[0, 1] = self.K_face[0] / (dz_0 ** 2)
 
-        # 顶部
+
         dz_n = self.z[-1] - self.z[-2]
         L[-1, -2] = self.K_face[-1] / (dz_n ** 2)
         L[-1, -1] = -self.K_face[-1] / (dz_n ** 2)
@@ -350,9 +240,6 @@ class VerticalTransportSolver:
         return L
 
     def _build_advection_matrix(self) -> np.ndarray:
-        """
-        构建平流算子离散矩阵 (迎风差分)
-        """
         nz = self.nz
         A = np.zeros((nz, nz))
 
@@ -360,38 +247,22 @@ class VerticalTransportSolver:
             dz_i = self.z[i] - self.z[i - 1]
             w_i = self.w[i]
 
-            if w_i > 0:  # 向上风，用下方值
+            if w_i > 0:
                 A[i, i - 1] = -w_i / dz_i
                 A[i, i] = w_i / dz_i
-            elif w_i < 0:  # 向下风，用上方值
+            elif w_i < 0:
                 if i < nz - 1:
                     dz_ip1 = self.z[i + 1] - self.z[i]
                     A[i, i] = -w_i / dz_ip1
                     A[i, i + 1] = w_i / dz_ip1
 
-        # 底部边界: 固定通量
+
         A[0, 0] = 0.0
 
         return A
 
     def build_implicit_matrix(self, dt: float,
                               jac_diag: Optional[np.ndarray] = None) -> np.ndarray:
-        """
-        构建隐式时间步进矩阵
-        A = I - dt * (L_diff + L_adv + J_chem)
-
-        Parameters
-        ----------
-        dt : float
-            时间步长
-        jac_diag : ndarray, optional
-            化学雅可比对角线
-
-        Returns
-        -------
-        A : ndarray
-            隐式矩阵 (nz, nz)
-        """
         if dt <= 0:
             raise ValueError("dt 必须为正")
 
@@ -413,28 +284,6 @@ class VerticalTransportSolver:
                        source: Optional[np.ndarray] = None,
                        jac_diag: Optional[np.ndarray] = None,
                        use_cg: bool = True) -> np.ndarray:
-        """
-        隐式求解一步传输+化学
-        (I - dt L) n_new = n_old + dt * S
-
-        Parameters
-        ----------
-        n_old : ndarray
-            上一时刻浓度
-        dt : float
-            时间步长
-        source : ndarray, optional
-            化学源汇项 (P - L)
-        jac_diag : ndarray, optional
-            化学雅可比对角线
-        use_cg : bool
-            若矩阵对称正定则使用 CG，否则使用 GMRES
-
-        Returns
-        -------
-        n_new : ndarray
-            新时刻浓度
-        """
         nz = self.nz
         A = self.build_implicit_matrix(dt, jac_diag)
         b = n_old.copy()
@@ -442,14 +291,14 @@ class VerticalTransportSolver:
         if source is not None:
             b += dt * source
 
-        # 检查边界
+
         b = np.clip(b, -1e25, 1e25)
 
         if use_cg and self._is_symmetric_positive_definite(A):
             n_new = conjugate_gradient(A, b, max_iter=min(nz * 2, 1000),
                                        tol=1e-12)
         else:
-            # 使用 GMRES
+
             nz_est = nz * 3
             sparse_A = SparseMatrixCRS(nz, nz_est)
             sparse_A.from_dense(A)
@@ -462,16 +311,13 @@ class VerticalTransportSolver:
 
     def _is_symmetric_positive_definite(self, A: np.ndarray,
                                          tol: float = 1e-10) -> bool:
-        """
-        检查矩阵是否近似对称正定
-        """
         if A.shape[0] != A.shape[1]:
             return False
-        # 检查对称性
+
         asym = np.max(np.abs(A - A.T))
         if asym > tol * np.max(np.abs(A)):
             return False
-        # 检查正定性 (通过特征值或尝试 Cholesky)
+
         try:
             np.linalg.cholesky(A + 1e-12 * np.eye(A.shape[0]))
             return True
@@ -479,13 +325,10 @@ class VerticalTransportSolver:
             return False
 
     def compute_flux_divergence(self, n: np.ndarray) -> np.ndarray:
-        """
-        计算通量散度 ∂/∂z(Kzz ∂n/∂z) - w ∂n/∂z
-        """
         nz = self.nz
         div = np.zeros(nz)
 
-        # 扩散通量散度
+
         for i in range(1, nz - 1):
             dz_i = self.z[i] - self.z[i - 1]
             dz_ip1 = self.z[i + 1] - self.z[i]
@@ -495,7 +338,7 @@ class VerticalTransportSolver:
             flux_m = self.K_face[i - 1] * (n[i] - n[i - 1]) / dz_i
             div[i] = (flux_p - flux_m) / dz_mid
 
-        # 平流通量散度
+
         for i in range(1, nz):
             dz_i = self.z[i] - self.z[i - 1]
             if self.w[i] > 0:

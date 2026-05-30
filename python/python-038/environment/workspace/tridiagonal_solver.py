@@ -1,47 +1,8 @@
-"""
-Tridiagonal Linear System Solvers (R83 format)
-===============================================
-Derived from 962_r83 (tridiagonal matrix linear algebra).
-
-Provides compact-storage solvers for the symmetric tridiagonal systems
-that arise from discretized DGLAP evolution and 1D diffusion equations
-in parton shower medium effects.
-
-Storage format (R83): A is stored as a 3×N array where
-    A[0,:] = upper diagonal (length N-1, A[0,-1] unused)
-    A[1,:] = main diagonal  (length N)
-    A[2,:] = lower diagonal (length N-1, A[2,0]  unused)
-"""
 
 import numpy as np
 
 
 def r83_cg_solve(A_r83, b, x0=None, tol=1e-12, max_iter=None):
-    """
-    Conjugate Gradient solver for symmetric positive-definite tridiagonal systems.
-    
-    Solves  A x = b  where A is symmetric tridiagonal stored in R83 format.
-    
-    Parameters
-    ----------
-    A_r83 : ndarray, shape (3, N)
-        Tridiagonal matrix in R83 format.
-    b : ndarray, shape (N,)
-        Right-hand side vector.
-    x0 : ndarray, shape (N,), optional
-        Initial guess. Defaults to zero vector.
-    tol : float
-        Relative residual tolerance.
-    max_iter : int, optional
-        Maximum iterations. Defaults to N.
-    
-    Returns
-    -------
-    x : ndarray, shape (N,)
-        Solution vector.
-    info : dict
-        Contains 'iterations', 'residual', 'converged'.
-    """
     b = np.asarray(b, dtype=float)
     N = b.size
     if A_r83.shape != (3, N):
@@ -55,7 +16,7 @@ def r83_cg_solve(A_r83, b, x0=None, tol=1e-12, max_iter=None):
     else:
         x = np.asarray(x0, dtype=float).copy()
     
-    # Matrix-vector product for R83 symmetric tridiagonal
+
     def matvec(v):
         v = np.asarray(v, dtype=float)
         out = A_r83[1, :] * v
@@ -96,20 +57,6 @@ def r83_cg_solve(A_r83, b, x0=None, tol=1e-12, max_iter=None):
 
 
 def r83_cyclic_reduction(A_r83, b):
-    """
-    Cyclic reduction (odd-even elimination) for symmetric tridiagonal systems.
-    Efficient O(N) direct solver, numerically stable for diagonally dominant systems.
-    
-    Parameters
-    ----------
-    A_r83 : ndarray, shape (3, N)
-    b : ndarray, shape (N,)
-    
-    Returns
-    -------
-    x : ndarray, shape (N,)
-        Solution vector.
-    """
     b = np.asarray(b, dtype=float)
     N = b.size
     if A_r83.shape != (3, N):
@@ -120,13 +67,13 @@ def r83_cyclic_reduction(A_r83, b):
     if N == 1:
         return np.array([b[0] / A_r83[1, 0]])
     
-    # Extract diagonals
-    c = A_r83[2, 1:].copy()   # lower: sub-diagonal (length N-1)
-    d = A_r83[1, :].copy()    # main diagonal (length N)
-    e = A_r83[0, :-1].copy()  # upper: super-diagonal (length N-1)
+
+    c = A_r83[2, 1:].copy()
+    d = A_r83[1, :].copy()
+    e = A_r83[0, :-1].copy()
     rhs = b.copy()
     
-    # Forward elimination (Thomas algorithm, standard for tridiagonal)
+
     for i in range(1, N):
         if abs(d[i - 1]) < 1e-30:
             raise RuntimeError("Zero pivot in cyclic reduction")
@@ -134,7 +81,7 @@ def r83_cyclic_reduction(A_r83, b):
         d[i] -= w * e[i - 1]
         rhs[i] -= w * rhs[i - 1]
     
-    # Back substitution
+
     x = np.zeros(N, dtype=float)
     x[-1] = rhs[-1] / d[-1]
     for i in range(N - 2, -1, -1):
@@ -144,61 +91,29 @@ def r83_cyclic_reduction(A_r83, b):
 
 
 def build_dif2_r83(N):
-    """
-    Build the classic DIF2 test matrix (discretized 1D Laplacian) in R83 format:
-        A_{ii} = 2, A_{i,i+1} = A_{i+1,i} = -1.
-    
-    This matrix appears in the spatial discretization of diffusion equations
-    describing parton cascade thermalization in QGP.
-    """
     A = np.zeros((3, N), dtype=float)
-    A[1, :] = 2.0           # main diagonal
+    A[1, :] = 2.0
     if N > 1:
-        A[0, :-1] = -1.0    # upper
-        A[2, 1:] = -1.0     # lower
+        A[0, :-1] = -1.0
+        A[2, 1:] = -1.0
     return A
 
 
 def solve_diffusion_1d(u0, D, dt, dx, n_steps, solver='cyclic'):
-    """
-    Solve 1D diffusion equation  ∂u/∂t = D ∂²u/∂x²  with zero Dirichlet BCs
-    using implicit Euler + tridiagonal solve.
-    
-    Discretization:
-        (u^{n+1}_i - u^n_i)/dt = D (u^{n+1}_{i+1} - 2u^{n+1}_i + u^{n+1}_{i-1})/dx^2
-    
-    Parameters
-    ----------
-    u0 : ndarray, shape (N,)
-        Initial condition.
-    D : float
-        Diffusion coefficient.
-    dt, dx : float
-        Time and space steps.
-    n_steps : int
-        Number of time steps.
-    solver : str
-        'cyclic' or 'cg'.
-    
-    Returns
-    -------
-    u : ndarray, shape (N,)
-        Final solution profile.
-    """
     N = u0.size
     r = D * dt / (dx * dx)
     if r > 10.0:
-        # Warn but do not abort; implicit method is unconditionally stable
+
         pass
     
-    # Build implicit system: (I + r * L) u^{n+1} = u^n
+
     A = np.zeros((3, N), dtype=float)
-    A[1, :] = 1.0 + 2.0 * r   # main diagonal
+    A[1, :] = 1.0 + 2.0 * r
     if N > 1:
-        A[0, :-1] = -r        # upper
-        A[2, 1:] = -r         # lower
+        A[0, :-1] = -r
+        A[2, 1:] = -r
     
-    # Zero Dirichlet boundaries: override rows
+
     A[1, 0] = 1.0
     A[0, 0] = 0.0
     A[2, 0] = 0.0
@@ -224,13 +139,10 @@ def solve_diffusion_1d(u0, D, dt, dx, n_steps, solver='cyclic'):
 
 
 def test_tridiagonal_solvers():
-    """
-    Validation test: solve DIF2 system of size 100 and verify residual.
-    """
     N = 100
     A = build_dif2_r83(N)
     x_exact = np.sin(np.linspace(0, np.pi, N))
-    # Compute RHS
+
     b = np.zeros(N)
     b[0] = A[1, 0] * x_exact[0] + A[0, 0] * x_exact[1]
     for i in range(1, N - 1):

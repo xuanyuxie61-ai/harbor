@@ -1,21 +1,8 @@
-"""
-volume_conservation.py
-气候系统守恒量数值验证模块
-
-使用高精度数值积分验证 EBM 中的能量守恒，
-融合种子项目 1235_tet_mesh_quad（四面体/三角网格上的节点平均积分）
-与 937_pyramid_witherden_rule（高精度求积规则思想）。
-"""
 
 import numpy as np
 
 
 def integrate_over_spherical_mesh(values, faces, areas):
-    """
-    球面三角网格上的节点平均积分:
-        int_T f dA ≈ mean(f(v1), f(v2), f(v3)) * area(T)
-    对线性函数精确。
-    """
     integral = 0.0
     for i, tri in enumerate(faces):
         avg_val = np.mean(values[tri])
@@ -24,49 +11,32 @@ def integrate_over_spherical_mesh(values, faces, areas):
 
 
 def pyramid_witherden_rule_3d(f_vals, volume):
-    """
-    简化的 4 点重心求积规则（融合 Witherden-Vincent 对称求积思想），
-    对线性被积函数精确。
-    """
     return np.mean(f_vals) * volume
 
 
 def compute_global_energy(T, faces, areas, heat_capacity=2.5e8):
-    """
-    全球热含量:  E = int C * T dA
-    """
     energy_density = heat_capacity * np.asarray(T, dtype=np.float64)
     return integrate_over_spherical_mesh(energy_density, faces, areas)
 
 
 def compute_radiative_imbalance(T, vertices, faces, areas, epsilon=0.6, Q_solar=340.25):
-    """
-    辐射不平衡:
-        imbalance = int [Q*S*(1-alpha) - epsilon*sigma*T^4] dA
-    稳态时应接近零。
-    """
     from ebm_dynamics import ice_albedo_feedback, outgoing_longwave_radiation, SIGMA
 
-    # TODO: Compute the global radiative imbalance.
-    # Imbalance density = Q_solar * S(lat) * (1 - alpha(T)) - OLR(T, epsilon)
-    # where:
-    #   S(lat) = 1 - 0.482 * P2(sin(lat))   [Legendre polynomial]
-    #   alpha  = ice_albedo_feedback(T)
-    #   OLR    = outgoing_longwave_radiation(T, epsilon)
-    # Integrate the imbalance density over the spherical mesh using
-    # integrate_over_spherical_mesh().
-    # HINT: The latitudinal distribution S(lat) and the radiative terms
-    # must be consistent with the EBM formulation in ebm_dynamics.py.
+
+
+
+
+
+
+
+
+
+
     pass
 
 
 def conservation_diagnostics(T_history, vertices, faces, dt_years, areas,
                              heat_capacity=2.5e8, epsilon=0.6, Q_solar=340.25):
-    """
-    能量守恒诊断:
-        dE/dt ≈ 净辐射通量 + 扩散通量(全球积分为零)
-    返回各时刻的能量、辐射不平衡、守恒残差。
-    """
     n_steps = len(T_history)
     energies = np.zeros(n_steps, dtype=np.float64)
     imbalances = np.zeros(n_steps, dtype=np.float64)
@@ -77,7 +47,7 @@ def conservation_diagnostics(T_history, vertices, faces, dt_years, areas,
             T_history[i], vertices, faces, areas, epsilon, Q_solar
         )
 
-    # 中心差分计算 dE/dt
+
     dt_sec = dt_years * 365.25 * 24 * 3600
     dEdt = np.zeros(n_steps, dtype=np.float64)
     dEdt[1:-1] = (energies[2:] - energies[:-2]) / (2.0 * dt_sec)

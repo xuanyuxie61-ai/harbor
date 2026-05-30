@@ -1,57 +1,9 @@
-"""
-main.py
-=======
-Unified entry point for the Plasma Stealth Absorber Coating (PSAC) project.
-
-Scientific Problem
-------------------
-Design and evaluate a multi-layer, non-uniform plasma coating for
-wideband electromagnetic stealth (radar cross-section reduction).
-
-The coating consists of a stratified collisional plasma slab whose
-electron density profile n_e(z) and collision frequency nu(z) are
-engineered to absorb incident microwave radiation across multiple
-frequency bands (1–40 GHz).
-
-Core physics models:
-  1. Drude dielectric function:
-         eps(omega) = 1 - omega_p^2/(omega^2+nu^2)
-                      - i*nu*omega_p^2/(omega*(omega^2+nu^2))
-     where omega_p = sqrt(n_e*e^2/(m_e*eps_0)).
-
-  2. Fresnel reflection / transmission at layer interfaces, combined
-     via the transfer-matrix method (TMM) for the full stack.
-
-  3. Electromagnetic power absorption density:
-         P_abs(z) = 0.5 * omega * eps_0 * eps_i(z) * |E(z)|^2.
-
-  4. Total absorbed power computed by 3-D Gauss-Legendre quadrature.
-
-  5. Radar Cross Section (RCS) reduction:
-         Delta_RCS = 10*log10( R_coating / R_metal )   [dB].
-
-Workflow
---------
-  A. Load / generate plasma coating design parameters.
-  B. Construct electron density profile via PWL approximation.
-  C. Compute complex permittivity profile (Drude model).
-  D. Solve electromagnetic field (transfer matrix + finite differences).
-  E. Evaluate reflection spectrum and RCS reduction.
-  F. Compute 3-D energy absorption via Gaussian quadrature.
-  G. Perform Haar wavelet multi-resolution analysis of reflection data.
-  H. Optimize coating parameters via quasi-Monte Carlo (Sobol + lattice rules).
-  I. Encode multi-band design using Chinese Remainder Theorem.
-  J. Propagate parameter uncertainties via Monte Carlo probability sampling.
-  K. Print comprehensive numerical report.
-
-All calculations are performed with zero command-line arguments.
-"""
 
 import numpy as np
 import math
 import time
 
-# Project modules
+
 import plasma_drude_model as pdm
 import fresnel_coefficients as fc
 import layered_field_solver as lfs
@@ -83,7 +35,6 @@ def print_subheader(title: str):
 
 
 def section_a_environment():
-    """A. Runtime environment check (from 824_octopus)."""
     print_header("A. RUNTIME ENVIRONMENT")
     env = check_runtime_environment()
     for k, v in env.items():
@@ -91,23 +42,22 @@ def section_a_environment():
 
 
 def section_b_design_parameters():
-    """B. Define coating geometry and plasma parameters."""
     print_header("B. COATING DESIGN PARAMETERS")
 
-    # Coating geometry
-    coating_thickness = 5.0e-3          # 5 mm
+
+    coating_thickness = 5.0e-3
     num_layers = 40
     z = np.linspace(0.0, coating_thickness, num_layers)
 
-    # Plasma parameters
-    peak_density = 1.0e18               # m^-3
-    electron_temp = 5000.0              # K
-    gas_pressure = 100.0                # Pa
 
-    # Collision frequency from temperature and pressure
+    peak_density = 1.0e18
+    electron_temp = 5000.0
+    gas_pressure = 100.0
+
+
     nu_base = pdm.collision_frequency_from_temperature(electron_temp, gas_pressure)
 
-    # Target frequency bands for stealth (GHz -> Hz)
+
     f_bands = np.array([2.0e9, 5.0e9, 10.0e9, 18.0e9, 35.0e9])
     band_widths = np.array([0.5e9, 1.0e9, 2.0e9, 3.0e9, 5.0e9])
 
@@ -132,17 +82,16 @@ def section_b_design_parameters():
 
 
 def section_c_density_profile(params: dict):
-    """C. Construct density profile using PWL approximation (from 925_pwl_approx_1d)."""
     print_header("C. ELECTRON DENSITY PROFILE (PWL)")
 
     z = params["z"]
     peak = params["peak_density"]
     width = params["coating_thickness"] * 0.3
 
-    # Generate a Gaussian-like synthetic profile
+
     n_e_raw = dprof.generate_density_profile(z, peak, width, profile_type="gaussian")
 
-    # Approximate with fewer control points via PWL (from 925_pwl_approx_1d)
+
     n_control = 8
     xc = np.linspace(z.min(), z.max(), n_control)
     yc = dprof.pwl_approx_1d(z, n_e_raw, xc)
@@ -158,7 +107,6 @@ def section_c_density_profile(params: dict):
 
 
 def section_d_permittivity(params: dict):
-    """D. Compute complex permittivity profile (Drude model, from pdm)."""
     print_header("D. COMPLEX PERMITTIVITY PROFILE (DRUDE)")
 
     z = params["z"]
@@ -166,7 +114,7 @@ def section_d_permittivity(params: dict):
     nu = params["nu_base"]
     f_bands = params["f_bands"]
 
-    # Use center frequency for profile evaluation
+
     f_center = f_bands[f_bands.size // 2]
     omega_center = 2.0 * math.pi * f_center
 
@@ -180,7 +128,6 @@ def section_d_permittivity(params: dict):
 
 
 def section_e_transfer_matrix(params: dict):
-    """E. Transfer-matrix reflection spectrum (from fc, Fresnel/TMM)."""
     print_header("E. TRANSFER-MATRIX REFLECTION SPECTRUM")
 
     z = params["z"]
@@ -197,15 +144,15 @@ def section_e_transfer_matrix(params: dict):
 
     for idx, f in enumerate(f_bands):
         omega = 2.0 * math.pi * f
-        # TODO: Compute the refractive index n_j of each layer from the
-        # Drude permittivity, then call the multilayer reflection stack
-        # to obtain the total reflection coefficient r_total and power R.
-        # Store results in R_spectrum[idx] and r_spectrum[idx].
-        #
-        # Hint: n_j = sqrt(eps_j) where eps_j comes from pdm.drude_permittivity.
+
+
+
+
+
+
         raise NotImplementedError("Hole 3: layer refractive index and reflection calculation not implemented.")
 
-    # Bare metal reflection (assume perfect conductor, R ≈ 1.0)
+
     R_metal = np.ones_like(R_spectrum)
 
     reductions = np.array([ea.rcs_reduction_db(R_spectrum[i], R_metal[i]) for i in range(f_bands.size)])
@@ -220,14 +167,13 @@ def section_e_transfer_matrix(params: dict):
 
 
 def section_f_finite_difference(params: dict):
-    """F. Finite-difference field solver + Jacobi iteration (from 603_jacobi)."""
     print_header("F. FINITE-DIFFERENCE FIELD SOLVER (JACOBI)")
 
     z = params["z"]
     eps_profile = params["eps_profile"]
     omega_center = params["omega_center"]
 
-    # Use direct solver for small N; Jacobi for demonstration
+
     if z.size <= 60:
         E_fd = lfs.solve_fd_direct(z, eps_profile, omega_center)
         res = float(np.linalg.norm(lfs.build_fd_matrix(z, eps_profile, omega_center)[0] @ E_fd - lfs.build_fd_matrix(z, eps_profile, omega_center)[1]))
@@ -240,7 +186,7 @@ def section_f_finite_difference(params: dict):
 
     P_abs = lfs.compute_power_density(E_fd, eps_profile, omega_center)
 
-    # Export FD matrix to sparse triplet (from 783_msm_to_st)
+
     rows, cols, vals, shape = lfs.fd_matrix_to_st(z, eps_profile, omega_center)
     nnz = rows.size
 
@@ -258,20 +204,19 @@ def section_f_finite_difference(params: dict):
 
 
 def section_g_energy_absorption(params: dict):
-    """G. 3-D energy absorption integral (from 232_cube_felippa_rule)."""
     print_header("G. 3-D ENERGY ABSORPTION INTEGRAL")
 
     z = params["z"]
     P_abs = params["P_abs_fd"]
     coating_thickness = params["coating_thickness"]
 
-    # Create an interpolable power density function
-    # P_abs is only defined along z; assume uniform in x and y
+
+
     P_max = float(np.max(P_abs))
     P_min = float(np.min(P_abs))
 
     def power_density_3d(x, y, zq):
-        # 1-D interpolation along z
+
         if zq <= z[0]:
             p = P_abs[0]
         elif zq >= z[-1]:
@@ -285,16 +230,16 @@ def section_g_energy_absorption(params: dict):
             else:
                 w = (zq - z[j]) / h
                 p = (1.0 - w) * P_abs[j] + w * P_abs[j + 1]
-        # Uniform in x, y
+
         return float(p)
 
-    Lx = 0.1  # 10 cm
+    Lx = 0.1
     Ly = 0.1
     total_absorbed = ea.absorbed_energy_in_coating(
         power_density_3d, Lx, Ly, coating_thickness, order=3
     )
     area = Lx * Ly
-    incident_power_density = 1.0  # 1 W/m^2 reference
+    incident_power_density = 1.0
     eta = ea.absorption_efficiency(total_absorbed, incident_power_density, area)
 
     print(f"  Slab dimensions        : {Lx*1e2:.1f} cm x {Ly*1e2:.1f} cm x {coating_thickness*1e3:.1f} mm")
@@ -305,7 +250,6 @@ def section_g_energy_absorption(params: dict):
 
 
 def section_h_wavelet_analysis(params: dict):
-    """H. Haar wavelet decomposition of reflection spectrum (from 496_haar_transform)."""
     print_header("H. HAAR WAVELET ANALYSIS OF REFLECTION SPECTRUM")
 
     R_spectrum = params["R_spectrum"]
@@ -319,7 +263,7 @@ def section_h_wavelet_analysis(params: dict):
     print(f"  Energy per scale       : {energies}")
     print(f"  Detected peak indices  : {peaks}")
 
-    # Reconstruct to verify invertibility
+
     R_recon = wvd.haar_1d_inverse(v)
     recon_error = float(np.linalg.norm(R_spectrum - R_recon))
     print(f"  Reconstruction error   : {recon_error:.3e}")
@@ -328,7 +272,6 @@ def section_h_wavelet_analysis(params: dict):
 
 
 def section_i_qmc_optimization(params: dict):
-    """I. QMC parameter optimization (from 1097_sobol, 654_lattice_rule)."""
     print_header("I. QMC COATING PARAMETER OPTIMIZATION")
 
     z = params["z"]
@@ -336,8 +279,8 @@ def section_i_qmc_optimization(params: dict):
     f_bands = params["f_bands"]
     coating_thickness = params["coating_thickness"]
 
-    # Objective: minimize average reflection power over target bands
-    # Parameter vector: [peak_density_log10, profile_width_frac, nu_scale]
+
+
     def objective(p):
         peak_d = 10.0 ** clamp(p[0], 15.0, 20.0)
         width_frac = clamp(p[1], 0.05, 0.95)
@@ -372,7 +315,7 @@ def section_i_qmc_optimization(params: dict):
     print(f"  Best nu scale          : {best_p[2]:.4f}")
     print(f"  Best avg reflection    : {best_val:.4e}")
 
-    # Lattice-rule integral of the objective over the parameter space
+
     def lattice_objective(x):
         p = bounds[:, 0] + x * (bounds[:, 1] - bounds[:, 0])
         return objective(p)
@@ -384,7 +327,6 @@ def section_i_qmc_optimization(params: dict):
 
 
 def section_j_crt_encoding(params: dict):
-    """J. Multi-band CRT encoding (from 170_chinese_remainder_theorem)."""
     print_header("J. MULTI-BAND CRT ENCODING")
 
     f_bands = params["f_bands"]
@@ -397,7 +339,7 @@ def section_j_crt_encoding(params: dict):
     print(f"  Remainders             : {design['remainders']}")
     print(f"  Composite index        : {design['composite_index']}")
 
-    # Verify decode
+
     decoded = wcrt.decode_frequency_bands(design["composite_index"], design["moduli"], design["bin_width_hz"])
     print(f"  Decoded frequencies    : {decoded}")
     print(f"  Encoding error (max)   : {np.max(np.abs(decoded - f_bands)):.3e} Hz")
@@ -406,7 +348,6 @@ def section_j_crt_encoding(params: dict):
 
 
 def section_k_uncertainty_quantification(params: dict):
-    """K. Monte Carlo uncertainty propagation (from 918_prob)."""
     print_header("K. UNCERTAINTY QUANTIFICATION (MONTE CARLO)")
 
     z = params["z"]
@@ -415,7 +356,7 @@ def section_k_uncertainty_quantification(params: dict):
     coating_thickness = params["coating_thickness"]
     best_p = params["best_params"]
 
-    # Mean parameters around the QMC optimum
+
     peak_d_mean = 10.0 ** best_p[0]
     width_frac_mean = best_p[1]
     nu_scale_mean = best_p[2]
@@ -452,7 +393,6 @@ def section_k_uncertainty_quantification(params: dict):
 
 
 def section_l_electron_statistics(params: dict):
-    """L. Electron spatial distribution statistics (from 1125_sphere_positive_distance)."""
     print_header("L. ELECTRON SCATTERING STATISTICS")
 
     stats = dprof.sphere_positive_distance_stats(n=200, seed=99)
@@ -467,13 +407,12 @@ def section_l_electron_statistics(params: dict):
 
 
 def section_m_inversion_and_newton(params: dict):
-    """M. Least-squares inversion + Newton dispersion solve (from 692_llsq, 808_nonlin_newton)."""
     print_header("M. PARAMETER INVERSION & NONLINEAR DISPERSION")
 
     f_bands = params["f_bands"]
     R_spectrum = params["R_spectrum"]
 
-    # Invert reflection data for effective omega_p^2 (from 692_llsq)
+
     A_fit, residual, rms = fc.invert_reflection_for_epsilon(f_bands, R_spectrum, theta=0.0, polarization="TE")
     omega_p_inv = math.sqrt(max(A_fit, 0.0))
 
@@ -483,8 +422,8 @@ def section_m_inversion_and_newton(params: dict):
     print(f"  LSQ residual           : {residual:.3e}")
     print(f"  RMS error              : {rms:.3e}")
 
-    # Newton solve for nonlinear surface-wave dispersion
-    # Use the lowest frequency band (2 GHz) where eps_p < 0 (overdense)
+
+
     n_e_peak = params["peak_density"]
     nu = params["nu_base"]
     f_test = f_bands[0]
@@ -499,7 +438,6 @@ def section_m_inversion_and_newton(params: dict):
 
 
 def section_n_summary(params: dict):
-    """N. Final summary."""
     print_header("N. PROJECT SUMMARY")
     print(f"  Average RCS reduction  : {params['avg_reduction']:.2f} dB")
     print(f"  Absorption efficiency  : {params['absorption_efficiency']:.6f}")
@@ -514,49 +452,48 @@ def section_n_summary(params: dict):
 
 
 def main():
-    """Main execution pipeline."""
     t_start = time.time()
 
-    # A. Environment
+
     section_a_environment()
 
-    # B. Parameters
+
     params = section_b_design_parameters()
 
-    # C. Density profile (PWL)
+
     params = section_c_density_profile(params)
 
-    # D. Permittivity (Drude)
+
     params = section_d_permittivity(params)
 
-    # E. Transfer matrix reflection
+
     params = section_e_transfer_matrix(params)
 
-    # F. Finite difference + Jacobi
+
     params = section_f_finite_difference(params)
 
-    # G. 3-D energy absorption
+
     params = section_g_energy_absorption(params)
 
-    # H. Haar wavelet analysis
+
     params = section_h_wavelet_analysis(params)
 
-    # I. QMC optimization
+
     params = section_i_qmc_optimization(params)
 
-    # J. CRT encoding
+
     params = section_j_crt_encoding(params)
 
-    # K. Uncertainty quantification
+
     params = section_k_uncertainty_quantification(params)
 
-    # L. Electron statistics
+
     params = section_l_electron_statistics(params)
 
-    # M. Inversion + Newton
+
     params = section_m_inversion_and_newton(params)
 
-    # N. Summary
+
     section_n_summary(params)
 
     t_elapsed = time.time() - t_start

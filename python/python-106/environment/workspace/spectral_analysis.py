@@ -1,49 +1,8 @@
-"""
-spectral_analysis.py
-====================
-FFT-based spectral analysis of time-domain plasmonic response.
-
-Given the time-dependent dipole moment p(t) of a nanoparticle assembly
-under pulsed excitation, the radiated far-field spectrum is proportional
-to the squared magnitude of the Fourier transform of p̈(t):
-
-    I(ω) ∝ | FFT{ p̈(t) } |²
-
-For discrete time series p[n] with time step Δt, the DFT is:
-
-    P[k] = Σ_{n=0}^{N-1} p[n] exp( −2π i k n / N )
-
-and the corresponding angular frequencies are:
-
-    ω_k = 2π k / (N Δt)   for k = 0,…,N/2−1
-
-The power spectral density (PSD) is:
-
-    S(ω_k) = (Δt² / T) |P[k]|²
-
-where T = N Δt.
-
-This module implements a serial Cooley-Tukey-style complex FFT adapted
-from the original fft_serial seed, generalized to 3-vector time series.
-"""
 
 import numpy as np
 
 
 def cffti(n):
-    """
-    Initialize sine/cosine tables for the complex FFT.
-
-    Parameters
-    ----------
-    n : int
-        FFT size (must be a power of 2 for this implementation).
-
-    Returns
-    -------
-    w : ndarray, shape (n,)
-        Interleaved cos/sin table.
-    """
     if n < 2:
         raise ValueError("n must be at least 2.")
     n2 = n // 2
@@ -56,24 +15,6 @@ def cffti(n):
 
 
 def cfft2_step(n, mj, x, w, sgn):
-    """
-    Single butterfly step of the complex FFT.
-
-    Parameters
-    ----------
-    n : int
-    mj : int
-    x : ndarray, shape (2*n,)
-        Interleaved real/imaginary data.
-    w : ndarray
-        Twiddle table.
-    sgn : float
-        +1 for forward, -1 for backward.
-
-    Returns
-    -------
-    y : ndarray, shape (2*n,)
-    """
     mj2 = 2 * mj
     lj = n // mj2
     y = np.zeros(2 * n)
@@ -90,10 +31,10 @@ def cfft2_step(n, mj, x, w, sgn):
         for k in range(mj):
             idx_ja_r = (ja + k) * 2
             idx_ja_i = idx_ja_r + 1
-            idx_jb_r = (jb + k) * 2 + n  # offset for second half
+            idx_jb_r = (jb + k) * 2 + n
             idx_jb_i = idx_jb_r + 1
 
-            # ensure we don't overflow (the original code uses xoff=n implicitly)
+
             if idx_jb_r >= 2 * n:
                 idx_jb_r -= 2 * n
                 idx_jb_i -= 2 * n
@@ -115,21 +56,6 @@ def cfft2_step(n, mj, x, w, sgn):
 
 
 def complex_fft_serial(x, forward=True):
-    """
-    Serial complex FFT.  For robustness, uses numpy.fft as the backend,
-    while preserving the cffti/cfft2_step framework from the original seed.
-
-    Parameters
-    ----------
-    x : ndarray, shape (2*n,)
-        Interleaved real/imaginary pairs.
-    forward : bool
-        True for forward FFT, False for inverse.
-
-    Returns
-    -------
-    y : ndarray, shape (2*n,)
-    """
     n = x.size // 2
     if n < 1:
         raise ValueError("Input too short.")
@@ -145,29 +71,13 @@ def complex_fft_serial(x, forward=True):
 
 
 def power_spectral_density(time_series, dt):
-    """
-    Compute the power spectral density of a real-valued time series.
-
-    Parameters
-    ----------
-    time_series : ndarray
-    dt : float
-        Time step (s).
-
-    Returns
-    -------
-    freqs : ndarray
-        Positive frequencies (rad/s).
-    psd : ndarray
-        Power spectral density.
-    """
     if dt <= 0:
         raise ValueError("dt must be positive.")
     N = time_series.size
     if N < 2:
         raise ValueError("Time series too short.")
 
-    # Use our serial FFT for power-of-two; otherwise numpy
+
     x = np.zeros(2 * N)
     x[0::2] = time_series
     y = complex_fft_serial(x, forward=True)
@@ -181,23 +91,6 @@ def power_spectral_density(time_series, dt):
 
 
 def spectral_response_dipole(p_t, dt):
-    """
-    Compute radiated spectral intensity from dipole moment time history p(t).
-    For a dipole oriented along z, the far-field amplitude is ∝ ω² p(ω).
-
-    Parameters
-    ----------
-    p_t : ndarray, shape (N, 3)
-        Dipole moment components vs time (C·m).
-    dt : float
-        Time step (s).
-
-    Returns
-    -------
-    freqs : ndarray
-    intensity : ndarray
-        Spectral intensity (arbitrary units).
-    """
     if p_t.ndim != 2 or p_t.shape[1] != 3:
         raise ValueError("p_t must be of shape (N, 3).")
     N = p_t.shape[0]

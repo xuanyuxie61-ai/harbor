@@ -1,14 +1,3 @@
-"""
-density_profile.py
-------------------
-Piecewise-linear (PWL) approximation of plasma electron density profiles
-and Monte-Carlo statistical analysis of electron spatial distributions
-using sphere-distance sampling.
-
-Incorporates core ideas from:
-  - 925_pwl_approx_1d   (1D piecewise linear approximation)
-  - 1125_sphere_positive_distance (Monte Carlo distance statistics)
-"""
 
 import numpy as np
 import math
@@ -20,32 +9,6 @@ def pwl_approx_1d(
     yd: np.ndarray,
     xc: np.ndarray,
 ) -> np.ndarray:
-    """
-    Construct a piecewise-linear approximation of data (xd, yd) using
-    control points xc by solving a least-squares projection.
-
-    For each data point xd[i], it falls in some interval [xc[j], xc[j+1]].
-    The basis value at xd[i] for control point j is the linear hat function:
-        phi_j(x) = (xc[j+1] - x) / (xc[j+1] - xc[j])   if x in [xc[j], xc[j+1]]
-        phi_j(x) = (x - xc[j-1]) / (xc[j] - xc[j-1])   if x in [xc[j-1], xc[j]]
-
-    We build an ND x NC matrix A and solve  yc = (A^T A)^{-1} A^T yd
-    (normal equations) for the control values yc.
-
-    Parameters
-    ----------
-    xd : (ND,) ndarray
-        Data abscissas.
-    yd : (ND,) ndarray
-        Data ordinates.
-    xc : (NC,) ndarray
-        Control points (must be strictly increasing, NC >= 2).
-
-    Returns
-    -------
-    yc : (NC,) ndarray
-        Control values at xc.
-    """
     xd = np.asarray(xd, dtype=float)
     yd = np.asarray(yd, dtype=float)
     xc = np.asarray(xc, dtype=float)
@@ -58,7 +21,7 @@ def pwl_approx_1d(
     ND = xd.size
     NC = xc.size
 
-    # Build projection matrix A[ND, NC]
+
     A = np.zeros((ND, NC), dtype=float)
     for i in range(ND):
         x = xd[i]
@@ -67,7 +30,7 @@ def pwl_approx_1d(
         elif x >= xc[-1]:
             A[i, -1] = 1.0
         else:
-            # Find interval
+
             j = int(np.searchsorted(xc, x) - 1)
             j = clamp(j, 0, NC - 2)
             h = xc[j + 1] - xc[j]
@@ -78,11 +41,11 @@ def pwl_approx_1d(
                 A[i, j] = 1.0 - w
                 A[i, j + 1] = w
 
-    # Solve normal equations: (A^T A) yc = A^T yd
+
     AtA = A.T @ A
     Aty = A.T @ yd
 
-    # Add small regularization for numerical stability
+
     reg = 1e-12 * np.eye(NC)
     AtA_reg = AtA + reg
 
@@ -95,22 +58,6 @@ def pwl_interp_1d(
     yc: np.ndarray,
     xi: np.ndarray,
 ) -> np.ndarray:
-    """
-    Piecewise-linear interpolation from control points (xc, yc) to query points xi.
-
-    Parameters
-    ----------
-    xc : (NC,) ndarray
-        Control abscissas (strictly increasing).
-    yc : (NC,) ndarray
-        Control ordinates.
-    xi : (Nq,) ndarray
-        Query points.
-
-    Returns
-    -------
-    yi : (Nq,) ndarray
-    """
     xc = np.asarray(xc, dtype=float)
     yc = np.asarray(yc, dtype=float)
     xi = np.asarray(xi, dtype=float)
@@ -143,24 +90,6 @@ def generate_density_profile(
     width: float,
     profile_type: str = "gaussian",
 ) -> np.ndarray:
-    """
-    Generate a synthetic electron density profile n_e(z).
-
-    Parameters
-    ----------
-    z : (Nz,) ndarray
-        Depth coordinates [m].
-    peak_density : float
-        Peak electron density [m^-3].
-    width : float
-        Characteristic width [m].
-    profile_type : str
-        "gaussian", "exponential", "linear", or "step".
-
-    Returns
-    -------
-    n_e : (Nz,) ndarray
-    """
     z = np.asarray(z, dtype=float)
     peak_density = max(float(peak_density), 1.0)
     width = max(float(width), 1e-6)
@@ -181,20 +110,6 @@ def generate_density_profile(
 
 
 def sphere_positive_sample(n: int, seed: int = None) -> np.ndarray:
-    """
-    Sample n points uniformly on the positive octant of the unit sphere
-    (x>0, y>0, z>0) using the normal-distribution trick.
-
-    Parameters
-    ----------
-    n : int
-        Number of points.
-    seed : int, optional
-
-    Returns
-    -------
-    points : (n, 3) ndarray
-    """
     n = max(int(n), 1)
     if seed is not None:
         rng = np.random.default_rng(seed)
@@ -210,23 +125,8 @@ def sphere_positive_sample(n: int, seed: int = None) -> np.ndarray:
 
 
 def sphere_positive_distance_stats(n: int, seed: int = None) -> dict:
-    """
-    Compute statistical properties of pairwise distances between points
-    sampled on the positive unit sphere.
-
-    Parameters
-    ----------
-    n : int
-        Number of sample points.
-    seed : int
-
-    Returns
-    -------
-    stats : dict
-        { "mean": float, "std": float, "min": float, "max": float }
-    """
     pts = sphere_positive_sample(n, seed=seed)
-    # Pairwise distances
+
     dists = []
     for i in range(n):
         for j in range(i + 1, n):
@@ -249,25 +149,8 @@ def electron_scattering_angle_distribution(
     n_samples: int = 1000,
     seed: int = 42,
 ) -> tuple:
-    """
-    Model the angular distribution of scattered electromagnetic waves
-    by plasma electrons as a proxy for scattering anisotropy.
-
-    We sample random directions on the positive sphere and compute the
-    cosine of the scattering angle relative to the incident direction
-    (assumed along +z).  The mean cosine quantifies forward scattering.
-
-    Parameters
-    ----------
-    n_samples : int
-    seed : int
-
-    Returns
-    -------
-    (mean_cos_theta, std_cos_theta, cos_samples)
-    """
     pts = sphere_positive_sample(n_samples, seed=seed)
-    cos_theta = pts[:, 2]  # z-component is cos(theta) for unit vectors
+    cos_theta = pts[:, 2]
     return (
         float(np.mean(cos_theta)),
         float(np.std(cos_theta)),

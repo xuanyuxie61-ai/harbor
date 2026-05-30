@@ -1,46 +1,9 @@
-r"""
-geometry_utils.py
-================================================================================
-三维几何数据处理工具：点云读写、三角曲面法向量计算与 STL 格式转换
-
-原项目映射:
-- 1425_xyzf_display — XYZ/XYZF 点云与面片数据读取
-- 1296_tri_surface_to_stla — TRI_SURFACE 到 ASCII STL 的转换
-
-科学背景
---------
-在神经影像学（如 fMRI/DTI）中，因果推断需要在三维脑皮层表面上进行。
-本模块提供：
-1. 点云与三角网格数据的 I/O 与处理
-2. 三角面片法向量计算（用于定义因果场的表面法向梯度）
-3. 网格拓扑结构分析（边邻接、顶点度数）
-
-这些几何操作为后续在三维流形上建立因果结构方程模型提供离散几何基础。
-
-核心公式
---------
-1. 三角形法向量：
-   $$ \mathbf{n} = (\mathbf{p}_2 - \mathbf{p}_1) \times (\mathbf{p}_3 - \mathbf{p}_1) $$
-   单位化：$\hat{\mathbf{n}} = \mathbf{n} / \|\mathbf{n}\|$。
-
-2. 顶点法向量（面积加权平均）：
-   $$ \mathbf{N}_v = \sum_{T\ni v} A_T \,\hat{\mathbf{n}}_T $$
-
-3. 三角形面积（三维）：
-   $$ A = \frac{1}{2}\|\mathbf{v}_1 \times \mathbf{v}_2\| $$
-
-4. 叉积：
-   $$ \mathbf{a}\times\mathbf{b} = (a_y b_z - a_z b_y,\; a_z b_x - a_x b_z,\; a_x b_y - a_y b_x) $$
-r"""
 
 import numpy as np
 from typing import Tuple, List
 
 
 def cross_product(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
-    r"""
-    三维叉积 $v_1 \times v_2$。
-    r"""
     return np.array([
         v1[1] * v2[2] - v1[2] * v2[1],
         v1[2] * v2[0] - v1[0] * v2[2],
@@ -49,9 +12,6 @@ def cross_product(v1: np.ndarray, v2: np.ndarray) -> np.ndarray:
 
 
 def triangle_normal(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> np.ndarray:
-    r"""
-    计算三角形的单位法向量（右手定则）。
-    r"""
     v1 = p2 - p1
     v2 = p3 - p1
     n = cross_product(v1, v2)
@@ -62,19 +22,6 @@ def triangle_normal(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> np.ndarra
 
 
 def compute_face_normals(points: np.ndarray, faces: np.ndarray) -> np.ndarray:
-    r"""
-    计算所有三角面片的单位法向量。
-
-    Parameters
-    ----------
-    points : ndarray, shape (n_nodes, 3)
-    faces : ndarray, shape (n_faces, 3)
-        每个面由三个顶点索引组成。
-
-    Returns
-    -------
-    normals : ndarray, shape (n_faces, 3)
-    r"""
     n_faces = faces.shape[0]
     normals = np.zeros((n_faces, 3))
     for f in range(n_faces):
@@ -86,9 +33,6 @@ def compute_face_normals(points: np.ndarray, faces: np.ndarray) -> np.ndarray:
 
 
 def compute_vertex_normals(points: np.ndarray, faces: np.ndarray) -> np.ndarray:
-    r"""
-    计算顶点法向量（面积加权相邻面法向量平均）。
-    r"""
     n_nodes = points.shape[0]
     vnormals = np.zeros((n_nodes, 3))
     areas = np.zeros(n_nodes)
@@ -99,7 +43,7 @@ def compute_vertex_normals(points: np.ndarray, faces: np.ndarray) -> np.ndarray:
         n = cross_product(p2 - p1, p3 - p1)
         area = 0.5 * np.linalg.norm(n)
         for v in faces[f]:
-            vnormals[v] += n  # 未归一化法向量加权
+            vnormals[v] += n
             areas[v] += area
     for v in range(n_nodes):
         if areas[v] > 0.0:
@@ -110,9 +54,6 @@ def compute_vertex_normals(points: np.ndarray, faces: np.ndarray) -> np.ndarray:
 
 
 def mesh_edge_list(faces: np.ndarray) -> List[Tuple[int, int]]:
-    r"""
-    从三角面片提取无向边列表（每条边仅出现一次）。
-    r"""
     edge_set = set()
     for f in range(faces.shape[0]):
         a, b, c = faces[f]
@@ -123,14 +64,11 @@ def mesh_edge_list(faces: np.ndarray) -> List[Tuple[int, int]]:
 
 
 def vertex_degree(faces: np.ndarray, n_nodes: int) -> np.ndarray:
-    r"""
-    计算每个顶点的度数（连接的边数）。
-    r"""
     deg = np.zeros(n_nodes, dtype=int)
     for f in range(faces.shape[0]):
         for v in faces[f]:
-            deg[v] += 2  # 每个面给顶点贡献 2 条边（近似）
-    # 修正：每个顶点被多个面共享，真实度数为相邻不同顶点数
+            deg[v] += 2
+
     adj = [set() for _ in range(n_nodes)]
     for f in range(faces.shape[0]):
         a, b, c = faces[f]
@@ -145,11 +83,6 @@ def vertex_degree(faces: np.ndarray, n_nodes: int) -> np.ndarray:
 
 
 def stla_string(points: np.ndarray, faces: np.ndarray) -> str:
-    r"""
-    生成 ASCII STL 格式的字符串表示（不写入文件，避免 I/O 依赖）。
-
-    原项目 1296_tri_surface_to_stla 核心逻辑的纯数据版本。
-    r"""
     normals = compute_face_normals(points, faces)
     lines = ["solid CausalMesh"]
     for f in range(faces.shape[0]):
@@ -166,11 +99,6 @@ def stla_string(points: np.ndarray, faces: np.ndarray) -> str:
 
 
 def generate_icosphere_nodes(radius: float = 1.0, subdivisions: int = 1) -> Tuple[np.ndarray, np.ndarray]:
-    r"""
-    生成二十面体球面网格节点与面片（用于测试因果场在曲面上的传播）。
-
-    黄金比例构造初始 12 个顶点，再递归细分。
-    r"""
     phi = (1.0 + np.sqrt(5.0)) / 2.0
     points = np.array([
         [-1, phi, 0], [1, phi, 0], [-1, -phi, 0], [1, -phi, 0],
@@ -186,7 +114,7 @@ def generate_icosphere_nodes(radius: float = 1.0, subdivisions: int = 1) -> Tupl
         [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]
     ], dtype=int)
 
-    # 简单细分一次
+
     if subdivisions > 0:
         for _ in range(subdivisions):
             new_faces = []
@@ -213,7 +141,6 @@ def generate_icosphere_nodes(radius: float = 1.0, subdivisions: int = 1) -> Tupl
 
 
 def demo():
-    r"""模块自测试。"""
     points, faces = generate_icosphere_nodes(radius=1.0, subdivisions=1)
     normals = compute_face_normals(points, faces)
     vnormals = compute_vertex_normals(points, faces)

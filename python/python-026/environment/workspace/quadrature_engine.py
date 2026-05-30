@@ -1,32 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-quadrature_engine.py
-
-基于 quad_rule (Gauss-Legendre) 与 sparse_grid_hermite 的
-高维数值积分引擎。
-
-原项目 943_quad_rule 提供了多达 33 点的 Gauss-Legendre 求积法则；
-原项目 1105_sparse_grid_hermite 提供了基于 Gauss-Hermite 的稀疏网格。
-二者融合后用于:
-    1. 沿激光射线进行高精度一维积分（能量沉积、光程）。
-    2. 对激光参数空间进行高维稀疏网格积分（不确定性量化）。
-
-核心公式:
-    Gauss-Legendre 积分:
-        ∫_{-1}^{1} f(x) dx ≈ Σ_i w_i * f(x_i)
-    区间变换:
-        ∫_{a}^{b} f(x) dx = (b-a)/2 * Σ_i w_i * f((b-a)/2 * x_i + (b+a)/2)
-
-    稀疏网格 (Smolyak) 对于 d 维积分:
-        Q_d^{L} = Σ_{max(0, L+1-d) <= |l| <= L} (-1)^{L-|l|} * C(d-1, L-|l|) * (Q_{l1} ⊗ ... ⊗ Q_{ld})
-    其中 Q_{li} 为第 i 维的 1D 法则。
-"""
 
 import numpy as np
 from itertools import product
 
 
-# Gauss-Legendre 节点与权重的预计算表 (支持 1 到 10 点)
+
 _LEGENDRE_TABLE = {
     1: {
         'x': np.array([0.0]),
@@ -90,46 +68,12 @@ _LEGENDRE_TABLE = {
 
 
 def gauss_legendre_rule(n):
-    """
-    获取 n 点 Gauss-Legendre 求积法则。
-
-    Parameters
-    ----------
-    n : int
-        点数，支持 1 到 10。
-
-    Returns
-    -------
-    x, w : ndarray
-        节点和权重。
-    """
     if n not in _LEGENDRE_TABLE:
         raise ValueError(f"Gauss-Legendre 规则仅支持 n=1..10，收到 n={n}。")
     return _LEGENDRE_TABLE[n]['x'].copy(), _LEGENDRE_TABLE[n]['w'].copy()
 
 
 def integrate_1d_gauss_legendre(f, a, b, n=8):
-    """
-    使用 Gauss-Legendre 求积计算一维积分 ∫_a^b f(x) dx。
-
-    变换公式:
-        x = (b-a)/2 * t + (b+a)/2
-        dx = (b-a)/2 * dt
-
-    Parameters
-    ----------
-    f : callable
-        被积函数，接受 ndarray 输入返回 ndarray。
-    a, b : float
-        积分区间。
-    n : int, optional
-        求积点数，默认 8。
-
-    Returns
-    -------
-    result : float
-        积分近似值。
-    """
     if a >= b:
         return 0.0
     t, w = gauss_legendre_rule(n)
@@ -141,24 +85,6 @@ def integrate_1d_gauss_legendre(f, a, b, n=8):
 
 
 def integrate_along_ray_gauss(f_s, s_nodes, n_quad=8):
-    """
-    对给定路径节点上的函数值进行分段 Gauss-Legendre 积分。
-
-    Parameters
-    ----------
-    f_s : callable or ndarray
-        若 callable: 接受光程 s 的函数；
-        若 ndarray: 与 s_nodes 等长的函数采样值（使用梯形法则）。
-    s_nodes : ndarray
-        光程节点序列（已排序）。
-    n_quad : int, optional
-        每段的 Gauss-Legendre 点数。
-
-    Returns
-    -------
-    integral : float
-        积分值。
-    """
     s_nodes = np.asarray(s_nodes, dtype=float)
     if len(s_nodes) < 2:
         return 0.0
@@ -185,7 +111,7 @@ def integrate_along_ray_gauss(f_s, s_nodes, n_quad=8):
     return float(integral)
 
 
-# Gauss-Hermite 节点与权重 (标准权重 exp(-x^2), 支持 1 到 7 点)
+
 _HERMITE_TABLE = {
     1: {
         'x': np.array([0.0]),
@@ -227,40 +153,12 @@ _HERMITE_TABLE = {
 
 
 def hermite_rule(order):
-    """
-    获取 order 点 Gauss-Hermite 求积法则（标准权重 exp(-x^2)）。
-
-    Parameters
-    ----------
-    order : int
-        点数，支持 1 到 7。
-
-    Returns
-    -------
-    x, w : ndarray
-        节点和权重。
-    """
     if order not in _HERMITE_TABLE:
         raise ValueError(f"Gauss-Hermite 规则仅支持 order=1..7，收到 order={order}。")
     return _HERMITE_TABLE[order]['x'].copy(), _HERMITE_TABLE[order]['w'].copy()
 
 
 def level_to_order_open(level):
-    """
-    将一维稀疏网格层级映射为 Gauss-Hermite 求积阶数。
-
-    规则: order = 2^{level+1} - 1，但被截断到可用表的最大值。
-
-    Parameters
-    ----------
-    level : int
-        层级 (>= 0)。
-
-    Returns
-    -------
-    order : int
-        求积阶数。
-    """
     if level < 0:
         return 1
     order = 2 ** (level + 1) - 1
@@ -271,32 +169,6 @@ def level_to_order_open(level):
 
 
 def comp_next(n, k, a, more, h, t):
-    """
-    基于原项目 1105_sparse_grid_hermite 的 comp_next 算法:
-    生成整数 n 的 k 部分下一个组合（composition）。
-
-    Parameters
-    ----------
-    n : int
-        目标和。
-    k : int
-        部分数。
-    a : list or ndarray
-        当前组合。
-    more : bool
-        是否还有更多组合。
-    h, t : int
-        内部状态。
-
-    Returns
-    -------
-    a : ndarray
-        下一个组合。
-    more : bool
-        是否还有更多。
-    h, t : int
-        更新后的状态。
-    """
     a = np.asarray(a, dtype=int)
     if not more:
         a[:] = 0
@@ -320,23 +192,6 @@ def comp_next(n, k, a, more, h, t):
 
 
 def sparse_grid_hermite_size(dim_num, level_max):
-    """
-    计算稀疏网格的总点数。
-
-    基于原 sparse_grid_herm_size 算法。
-
-    Parameters
-    ----------
-    dim_num : int
-        空间维度。
-    level_max : int
-        最大层级。
-
-    Returns
-    -------
-    point_num : int
-        总点数。
-    """
     if level_max == 0:
         return 1
     level_min = max(0, level_max + 1 - dim_num)
@@ -359,25 +214,6 @@ def sparse_grid_hermite_size(dim_num, level_max):
 
 
 def sparse_grid_hermite_index(dim_num, level_max):
-    """
-    生成稀疏网格的索引。
-
-    返回每个维度上对应的一维规则索引。
-
-    Parameters
-    ----------
-    dim_num : int
-        空间维度。
-    level_max : int
-        最大层级。
-
-    Returns
-    -------
-    indices : list of tuple
-        每个点对应的 (dim_num,) 维度的 1D 节点索引组合。
-    weights : list of float
-        每个点对应的组合权重。
-    """
     if level_max == 0:
         return [(tuple([0] * dim_num),)], [1.0]
 
@@ -396,11 +232,11 @@ def sparse_grid_hermite_index(dim_num, level_max):
                 if level_min < level and 1 < order_1d[dim]:
                     order_1d[dim] -= 1
 
-            # 组合系数
+
             coeff = ((-1) ** (level_max - level)) * \
                     comb(dim_num - 1, level_max - level)
 
-            # 生成所有笛卡尔积组合
+
             ranges = [range(o) for o in order_1d]
             for idx_tuple in product(*ranges):
                 points_data.append((idx_tuple, order_1d, coeff))
@@ -408,14 +244,14 @@ def sparse_grid_hermite_index(dim_num, level_max):
             if not more:
                 break
 
-    # 去重: 相同的 idx_tuple 权重相加
+
     unique = {}
     for idx_tuple, order_1d, coeff in points_data:
         key = tuple(int(i) for i in idx_tuple)
         if key not in unique:
             unique[key] = {'orders': order_1d, 'weight': 0.0}
-        # 权重由 1D Hermite 权重乘积再乘以组合系数得到
-        # 这里先累积组合系数，后续乘 1D 权重
+
+
         unique[key]['weight'] += float(coeff)
 
     indices = []
@@ -428,9 +264,6 @@ def sparse_grid_hermite_index(dim_num, level_max):
 
 
 def comb(n, k):
-    """
-    计算组合数 C(n, k)。
-    """
     if k < 0 or k > n:
         return 0
     if k == 0 or k == n:
@@ -443,27 +276,6 @@ def comb(n, k):
 
 
 def integrate_nd_sparse_hermite(f, dim_num, level_max):
-    """
-    使用稀疏 Gauss-Hermite 网格计算 d 维积分:
-        ∫_{R^d} f(x) * exp(-|x|^2) dx
-
-    由于标准 Hermite 权重已包含 exp(-x^2)，积分公式为:
-        I ≈ Σ_i w_i * f(x_i)
-
-    Parameters
-    ----------
-    f : callable
-        被积函数，接受 shape (d,) 的 ndarray。
-    dim_num : int
-        维度数。
-    level_max : int
-        稀疏网格最大层级。
-
-    Returns
-    -------
-    result : float
-        积分近似值。
-    """
     indices, comb_weights = sparse_grid_hermite_index(dim_num, level_max)
     result = 0.0
     for idx_tuple, cw in zip(indices, comb_weights):
@@ -471,9 +283,9 @@ def integrate_nd_sparse_hermite(f, dim_num, level_max):
         w_prod = 1.0
         for d in range(dim_num):
             order = level_to_order_open(0)
-            # 推断 order 从索引大小
+
             if idx_tuple[d] >= 1:
-                # 反向推断层级
+
                 for lev in range(1, level_max + 1):
                     ord_lev = level_to_order_open(lev)
                     if idx_tuple[d] < ord_lev:
@@ -491,36 +303,6 @@ def integrate_nd_sparse_hermite(f, dim_num, level_max):
 
 
 def integrate_energy_deposition_along_ray(s_vals, intensity_vals, ne_vals, Te_val, omega0, Z=1):
-    """
-    沿射线计算逆轫致吸收导致的能量沉积。
-
-    功率沉积密度:
-        dP/ds = -κ_ib * I(s)
-    其中 κ_ib = (ν_ei / c) * (ω_p^2 / ω_0^2) * (1 / η)
-
-    总沉积能量（沿射线）:
-        E_dep = ∫ κ_ib(s) * I(s) ds
-
-    Parameters
-    ----------
-    s_vals : ndarray
-        光程节点 [m]。
-    intensity_vals : ndarray
-        各节点上的激光强度 [W/m^2]。
-    ne_vals : ndarray
-        各节点上的电子密度 [m^{-3}]。
-    Te_val : float
-        电子温度 [K]（假设为常数沿射线）。
-    omega0 : float
-        激光角频率 [rad/s]。
-    Z : int, optional
-        离子电荷数。
-
-    Returns
-    -------
-    energy_dep : float
-        单位截面积上的沉积能量 [J/m^2]。
-    """
     from physics_constants import plasma_frequency, electron_ion_collision_frequency, C_LIGHT
 
     s_vals = np.asarray(s_vals, dtype=float)
@@ -545,7 +327,7 @@ def integrate_energy_deposition_along_ray(s_vals, intensity_vals, ne_vals, Te_va
         if not np.isfinite(kappa_vals[i]):
             kappa_vals[i] = 0.0
 
-    # 梯形法则积分
+
     integrand = kappa_vals * intensity_vals
     energy_dep = np.trapezoid(integrand, s_vals)
     return float(energy_dep)

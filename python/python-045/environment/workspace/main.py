@@ -1,31 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-main.py
-大地电磁测深反演合成项目入口
-
-================================================================================
-项目主题：三维大地电磁测深非线性反演与地下电性结构成像
-================================================================================
-
-本项目基于 15 个种子项目的核心算法，融合构建了一个面向前沿地球物理问题的
-博士级科研代码项目。所有核心算法均已在各自模块中实现，main.py 仅负责
-协调调用、配置参数、执行完整反演流程并输出结果。
-
-运行方式：
-    python main.py
-
-无任何命令行参数，零参数可直接运行。
-"""
 
 import numpy as np
 import os
 import sys
 import time
 
-# ==============================================================================
-# 导入各模块
-# ==============================================================================
+
+
+
 from parameter_manager import (
     PhysicalConstants,
     ColeColeDispersion,
@@ -82,7 +65,6 @@ from data_io import (
 
 
 def print_banner():
-    """打印项目横幅"""
     banner = """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║           大地电磁测深非线性反演与地下电性结构成像系统                         ║
@@ -96,16 +78,12 @@ def print_banner():
 
 
 def demo_berstein_approximation():
-    """
-    演示 1: Bernstein 多项式参数化电阻率剖面
-    融合种子项目 013_approx_bernstein
-    """
     print("\n" + "=" * 70)
     print("【演示 1】Bernstein 多项式参数化电阻率剖面")
     print("=" * 70)
 
-    # 使用 Bernstein 基函数参数化一个典型的地下电性结构
-    # 浅层高阻 -> 中层低阻含水层 -> 深层高阻基岩
+
+
     coeffs = np.array([200.0, 150.0, 80.0, 30.0, 20.0, 50.0, 100.0, 300.0])
     profile = BernsteinResistivityProfile(coefficients=coeffs, z_max=10000.0)
 
@@ -121,7 +99,7 @@ def demo_berstein_approximation():
     print(f"深度 5000m 处电阻率: {profile.evaluate(5000.0):.2f} Ω·m")
     print(f"深度 10000m 处电阻率: {rho_test[-1]:.2f} Ω·m")
 
-    # 离散化为 5 层模型用于后续正演
+
     rho_layers, thicknesses = profile.to_layer_model(5)
     print(f"\n离散化层状模型:")
     for i, (r, h) in enumerate(zip(rho_layers, thicknesses)):
@@ -132,15 +110,11 @@ def demo_berstein_approximation():
 
 
 def demo_cole_cole_dispersion():
-    """
-    演示 2: Cole-Cole 频散模型（融合 HH 门控动力学）
-    融合种子项目 060_axon_ode
-    """
     print("\n" + "=" * 70)
     print("【演示 2】Cole-Cole 频散模型（Hodgkin-Huxley 门控类比）")
     print("=" * 70)
 
-    # 定义具有频散特性的地层
+
     cc_model = ColeColeDispersion(sigma_0=0.01, m_charge=0.6, tau=1e-2, c_freq=0.8)
 
     frequencies = np.logspace(-3, 3, 20)
@@ -155,7 +129,7 @@ def demo_cole_cole_dispersion():
     for i in range(5):
         print(f"  f={frequencies[i]:.2e} Hz: ρ* = {rho_star[i]:.2e} Ω·m")
 
-    # HH 门控类比
+
     alpha, beta = cc_model.hh_gating_analogy(V=10.0, alpha_0=0.01, beta_0=0.125,
                                                V_shift=10.0, k_T=10.0)
     print(f"\nHH 门控类比: α={alpha:.4f}, β={beta:.4f}")
@@ -164,15 +138,11 @@ def demo_cole_cole_dispersion():
 
 
 def demo_mesh_generation():
-    """
-    演示 3: 网格生成与质量评估
-    融合种子项目 820_numgrid, 425_ffmatlib, 1320_triangle_to_fem, 1322_triangle_to_xml
-    """
     print("\n" + "=" * 70)
     print("【演示 3】网格生成与质量评估")
     print("=" * 70)
 
-    # 矩形结构化网格（用于 2D 有限差分）
+
     mesh_fd = generate_rectangular_mesh(0.0, 20000.0, 0.0, 10000.0, 41, 21)
     print(f"矩形结构化网格:")
     print(f"  节点数: {mesh_fd.n_nodes}")
@@ -180,7 +150,7 @@ def demo_mesh_generation():
     print(f"  边界节点: {len(mesh_fd.boundary_nodes)}")
     print(f"  内部节点: {len(mesh_fd.interior_nodes)}")
 
-    # 环形非结构化网格
+
     mesh_ann = generate_annulus_mesh(2000.0, 8000.0, 8, 20)
     quality = mesh_ann.mesh_quality()
     print(f"\n环形非结构化网格:")
@@ -191,7 +161,7 @@ def demo_mesh_generation():
     print(f"    最大角: {quality['max_angle']:.2f}°")
     print(f"    平均面积: {quality['mean_area']:.2f} m²")
 
-    # 多种区域类型测试（基于 numgrid）
+
     for rtype in ['S', 'L', 'D', 'A']:
         region = Region2D(rtype)
         bbox = region.bounding_box()
@@ -203,15 +173,11 @@ def demo_mesh_generation():
 
 
 def demo_sparse_matrix_tools():
-    """
-    演示 4: 稀疏矩阵与稠密矩阵工具
-    融合种子项目 459_ge_to_st, 687_linpack_bench
-    """
     print("\n" + "=" * 70)
     print("【演示 4】稀疏矩阵与稠密矩阵工具")
     print("=" * 70)
 
-    # 构造一个带状的有限差分矩阵
+
     n = 20
     A = np.zeros((n, n), dtype=np.float64)
     for i in range(n):
@@ -223,18 +189,18 @@ def demo_sparse_matrix_tools():
             A[i, i - 2] = -0.5
             A[i - 2, i] = -0.5
 
-    # GE -> ST 转换
+
     nz_num, ist, jst, Ast = ge_to_st(A)
     print(f"稠密矩阵: {n}x{n}")
     print(f"非零元个数: {nz_num} / {n*n} (稀疏度: {1.0 - nz_num/(n*n):.4f})")
 
-    # 稀疏矩阵-向量乘法
+
     x = np.ones(n)
     y_sparse = sparse_matvec(ist, jst, Ast, x)
     y_dense = A @ x
     print(f"稀疏/稠密乘法一致性: {np.max(np.abs(y_sparse - y_dense)):.2e}")
 
-    # LU 分解求解
+
     b = np.random.randn(n)
     solver = DenseLUSolver(A)
     info = solver.dgefa()
@@ -247,35 +213,30 @@ def demo_sparse_matrix_tools():
 
 
 def demo_monte_carlo_sampling():
-    """
-    演示 5: 蒙特卡洛采样与距离统计
-    融合种子项目 566_hypersphere_monte_carlo, 561_hypercube_surface_distance,
-    178_circle_distance
-    """
     print("\n" + "=" * 70)
     print("【演示 5】蒙特卡洛采样与距离统计")
     print("=" * 70)
 
-    # 超球面采样
+
     sphere_samples = hypersphere01_sample(m=5, n=1000)
     norms = np.sqrt(np.sum(sphere_samples ** 2, axis=0))
     print(f"5维超球面采样 1000 点: 范数均值={np.mean(norms):.6f}, 标准差={np.std(norms):.6f}")
 
-    # 超球面单项式积分
+
     integral_val = hypersphere01_monomial_integral(3, [2, 0, 0])
     print(f"3维超球面 x² 积分精确值: {integral_val:.6f} (理论: 4π/3 ≈ 4.1888)")
 
-    # 超立方体表面距离
+
     mu_h, var_h = hypercube_surface_distance_stats(5000, 3)
     print(f"3维超立方体表面距离: 均值={mu_h:.4f}, 方差={var_h:.4f}")
 
-    # 圆距离统计
+
     mu_c, var_c = circle_distance_stats(10000)
     print(f"单位圆上距离统计: 均值={mu_c:.4f} (理论≈1.2732), 方差={var_c:.4f}")
 
-    # MCMC 采样测试
+
     def log_target(x):
-        # 双峰高斯分布
+
         d1 = np.sum((x - np.array([2.0, 2.0])) ** 2)
         d2 = np.sum((x - np.array([-2.0, -2.0])) ** 2)
         return np.log(np.exp(-0.5 * d1) + 0.5 * np.exp(-0.5 * d2))
@@ -292,19 +253,15 @@ def demo_monte_carlo_sampling():
 
 
 def demo_mt_forward():
-    """
-    演示 6: MT 一维/二维正演
-    融合种子项目 365_fd1d_predator_prey_plot, 141_cavity_flow_display
-    """
     print("\n" + "=" * 70)
     print("【演示 6】MT 一维解析正演与二维有限差分正演")
     print("=" * 70)
 
-    # 定义一个具有频散特性的 4 层模型
+
     resistivities = np.array([100.0, 30.0, 200.0, 50.0])
     thicknesses = np.array([300.0, 800.0, 2000.0])
 
-    # Cole-Cole 频散（中层含水层具有强频散）
+
     dispersion_list = [
         None,
         ColeColeDispersion(sigma_0=1.0/30.0, m_charge=0.5, tau=1e-2, c_freq=0.7),
@@ -314,10 +271,10 @@ def demo_mt_forward():
 
     frequencies = np.logspace(-2, 2, 25)
 
-    # 一维解析正演（无频散）
+
     Z_1d, rho_a_1d, phi_1d = mt_1d_analytic(resistivities, thicknesses, frequencies)
 
-    # 一维解析正演（有频散）
+
     Z_disp, rho_a_disp, phi_disp = mt_1d_analytic_cole_cole(
         resistivities, thicknesses, dispersion_list, frequencies
     )
@@ -328,11 +285,11 @@ def demo_mt_forward():
         print(f"    无频散: ρ_a={rho_a_1d[i]:.2f} Ω·m, φ={phi_1d[i]:.2f}°")
         print(f"    有频散: ρ_a={rho_a_disp[i]:.2f} Ω·m, φ={phi_disp[i]:.2f}°")
 
-    # 添加噪声模拟观测数据
+
     rho_a_noisy, phi_noisy = add_noise_to_mt_data(rho_a_disp, phi_disp, noise_level=0.05)
     print(f"\n加噪声后数据 (ρ_a 信噪比 ≈ {20:.1f} dB)")
 
-    # 二维有限差分正演（简化模型）
+
     mesh_2d = generate_rectangular_mesh(0.0, 10000.0, 0.0, 5000.0, 21, 11)
 
     def sigma_2d(y, z):
@@ -357,7 +314,7 @@ def demo_mt_forward():
         print(f"  E_x 模范围: [{np.min(np.abs(E_x)):.4e}, {np.max(np.abs(E_x)):.4e}]")
         print(f"  H_y 模范围: [{np.min(np.abs(H_y)):.4e}, {np.max(np.abs(H_y)):.4e}]")
 
-        # 稀疏采样（模拟实际测点）
+
         coords = mesh_2d.node_coords
         Z_mag = np.abs(Z_2d)
         coords_thin, Z_thin = thin_field_data(coords, Z_mag, thin_factor=2)
@@ -369,15 +326,11 @@ def demo_mt_forward():
 
 
 def demo_dijkstra_ifs():
-    """
-    演示 7: Dijkstra 优先级与 IFS 混沌扰动
-    融合种子项目 287_dijkstra, 670_levy_dragon_chaos
-    """
     print("\n" + "=" * 70)
     print("【演示 7】Dijkstra 优先级与 IFS 混沌扰动")
     print("=" * 70)
 
-    # Dijkstra 优先级图
+
     n_nodes = 6
     adjacency = [
         [(1, 1.0), (2, 3.0)],
@@ -393,7 +346,7 @@ def demo_dijkstra_ifs():
     for i, p in enumerate(priorities):
         print(f"  节点 {i}: 优先级 = {p:.4f}, 敏感度 = {sensitivity[i]:.2f}")
 
-    # IFS 混沌扰动
+
     print("\nIFS 混沌扰动序列:")
     x = np.array([5.0, 5.0, 5.0])
     for step in range(5):
@@ -404,37 +357,32 @@ def demo_dijkstra_ifs():
 
 
 def demo_occam_inversion(frequencies, rho_obs, phi_obs, true_resistivities, true_thicknesses):
-    """
-    演示 8: Occam 平滑反演
-    融合所有优化与正演模块
-    """
     print("\n" + "=" * 70)
     print("【演示 8】Occam 平滑反演")
     print("=" * 70)
 
     n_layers = len(true_resistivities)
-    # 反演参数：对数电阻率（保证正性且变化范围更合理）
-    # 实际反演电阻率本身，用 OccamInversion 的内部截断保证正性
+
+
 
     def forward_log_resistivity(m_log):
-        """正演函数：输入对数电阻率，输出视电阻率对数"""
-        # TODO [Hole 2]: 完成对数电阻率到反演观测数据格式的转换
-        # 需要完成：
-        # 1. 将输入的对数电阻率 m_log 转换为线性电阻率（保证正性）
-        # 2. 处理层厚度，确保与真实模型一致
-        # 3. 调用 mt_1d_analytic 进行正演计算
-        # 4. 将正演结果（视电阻率 rho_a 和相位 phi）转换为 OccamInversion 期望的数据格式
-        #    注意：此数据格式必须与 demo_occam_inversion 中 d_obs 的构造方式一致
-        # 关键耦合：本函数的输出格式必须与 OccamInversion 的数据处理逻辑匹配
+
+
+
+
+
+
+
+
         raise NotImplementedError("Hole 2: 正演回调函数的数据格式转换待实现")
 
-    # 观测数据：对数视电阻率 + 归一化相位
+
     d_obs = np.concatenate([np.log10(rho_obs), phi_obs / 45.0])
 
-    # 初始模型：均匀半空间
+
     m_init = np.ones(n_layers) * np.log(100.0)
 
-    # 执行反演
+
     inv = OccamInversion(
         forward_func=forward_log_resistivity,
         n_model=n_layers,
@@ -463,10 +411,6 @@ def demo_occam_inversion(frequencies, rho_obs, phi_obs, true_resistivities, true
 
 def demo_data_io_and_validation(frequencies, rho_obs, phi_obs, rho_inverted,
                                  true_resistivities, true_thicknesses):
-    """
-    演示 9: 数据 I/O 与验证
-    融合种子项目 425_ffmatlib, 1320_triangle_to_fem, 1322_triangle_to_xml
-    """
     print("\n" + "=" * 70)
     print("【演示 9】数据 I/O、格式转换与验证")
     print("=" * 70)
@@ -474,20 +418,20 @@ def demo_data_io_and_validation(frequencies, rho_obs, phi_obs, rho_inverted,
     out_dir = "mt_inversion_output"
     os.makedirs(out_dir, exist_ok=True)
 
-    # 写入观测数据
+
     Z_obs = MTDataContainer.impedance_from_rhophi(rho_obs, phi_obs, frequencies)
     MTDataWriter.write_complex_impedance(
         os.path.join(out_dir, "observed_data.txt"), frequencies, Z_obs
     )
     print(f"观测数据已写入: {out_dir}/observed_data.txt")
 
-    # 读取并验证
+
     f_read, Z_read, err_read = MTDataReader.read_complex_impedance(
         os.path.join(out_dir, "observed_data.txt")
     )
     print(f"数据读取验证: 最大差异 = {np.max(np.abs(Z_obs - Z_read)):.2e}")
 
-    # 写入网格文件
+
     points = np.array([[0, 0], [10000, 0], [0, 5000], [10000, 5000]], dtype=np.float64)
     triangles = np.array([[0, 1, 2], [1, 3, 2]], dtype=np.int32)
     MeshDataIO.write_nodes(os.path.join(out_dir, "mesh_nodes.txt"), points)
@@ -495,8 +439,8 @@ def demo_data_io_and_validation(frequencies, rho_obs, phi_obs, rho_inverted,
     MeshDataIO.write_xml_mesh(os.path.join(out_dir, "mesh.xml"), points, triangles)
     print(f"网格文件已写入: {out_dir}/mesh_nodes.txt, mesh_elements.txt, mesh.xml")
 
-    # 写入反演报告
-    # 生成预测数据
+
+
     thick = true_thicknesses[:-1] if len(true_thicknesses) > 1 else np.array([1000.0])
     n_layers = len(true_resistivities)
     if len(thick) < n_layers - 1:
@@ -514,7 +458,7 @@ def demo_data_io_and_validation(frequencies, rho_obs, phi_obs, rho_inverted,
     )
     print(f"反演报告已写入: {out_dir}/inversion_report.txt")
 
-    # 数据验证
+
     ok, issues = DataValidator.validate_mt_data(frequencies, rho_obs, phi_obs)
     print(f"\nMT 数据验证: {'通过' if ok else '未通过'}")
     if issues:
@@ -531,52 +475,38 @@ def demo_data_io_and_validation(frequencies, rho_obs, phi_obs, rho_inverted,
 
 
 def main():
-    """
-    主程序入口
-
-    执行完整的 MT 反演流程演示：
-      1. Bernstein 参数化模型
-      2. Cole-Cole 频散建模
-      3. 网格生成
-      4. 稀疏矩阵工具
-      5. 蒙特卡洛采样
-      6. MT 正演（1D解析 + 2D有限差分）
-      7. Dijkstra 优先级与 IFS 扰动
-      8. Occam 反演
-      9. 数据 I/O 与验证
-    """
     print_banner()
     t_start = time.time()
 
     np.random.seed(42)
 
-    # 步骤 1: Bernstein 参数化
+
     rho_bezier, thick_bezier = demo_berstein_approximation()
 
-    # 步骤 2: Cole-Cole 频散
+
     freqs_cc, sigma_cc = demo_cole_cole_dispersion()
 
-    # 步骤 3: 网格生成
+
     mesh_fd, mesh_ann = demo_mesh_generation()
 
-    # 步骤 4: 稀疏矩阵工具
+
     A_fd = demo_sparse_matrix_tools()
 
-    # 步骤 5: 蒙特卡洛采样
+
     mcmc_samples = demo_monte_carlo_sampling()
 
-    # 步骤 6: MT 正演
+
     frequencies, rho_obs, phi_obs, true_rho, true_thick = demo_mt_forward()
 
-    # 步骤 7: Dijkstra + IFS
+
     priorities = demo_dijkstra_ifs()
 
-    # 步骤 8: Occam 反演
+
     rho_inv, lambda_best = demo_occam_inversion(
         frequencies, rho_obs, phi_obs, true_rho, true_thick
     )
 
-    # 步骤 9: 数据 I/O 与验证
+
     out_dir = demo_data_io_and_validation(
         frequencies, rho_obs, phi_obs, rho_inv, true_rho, true_thick
     )
@@ -587,28 +517,28 @@ def main():
     print(f"输出目录: {os.path.abspath(out_dir)}")
     print("=" * 70)
 
-    # 最终一致性检查
+
     print("\n【最终一致性检查】")
     all_ok = True
 
-    # 检查 1: Bernstein 基函数求和为 1
+
     t_test = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
     B_sum = np.sum(bernstein_basis_recursive(5, t_test), axis=0)
     b_ok = np.allclose(B_sum, 1.0, atol=1e-10)
     print(f"  Bernstein 基函数 Partition of Unity: {'通过' if b_ok else '失败'}")
     all_ok = all_ok and b_ok
 
-    # 检查 2: 1D 正演的阻抗连续性
+
     Z_test, _, _ = mt_1d_analytic(np.array([100.0, 50.0]), np.array([500.0]),
                                    np.logspace(-1, 1, 10))
     z_ok = np.all(np.isfinite(Z_test)) and np.all(Z_test != 0)
     print(f"  1D 正演阻抗连续性: {'通过' if z_ok else '失败'}")
     all_ok = all_ok and z_ok
 
-    # 检查 3: LU 求解精度
+
     n_check = 10
     A_check = np.random.randn(n_check, n_check)
-    A_check = A_check @ A_check.T + np.eye(n_check)  # 保证正定
+    A_check = A_check @ A_check.T + np.eye(n_check)
     b_check = np.random.randn(n_check)
     sol_check = np.linalg.solve(A_check, b_check)
     res_check = np.linalg.norm(A_check @ sol_check - b_check)
@@ -616,12 +546,12 @@ def main():
     print(f"  LU 求解精度: {'通过' if lu_ok else '失败'} (残差={res_check:.2e})")
     all_ok = all_ok and lu_ok
 
-    # 检查 4: 数据验证通过
+
     ok_mt, _ = DataValidator.validate_mt_data(frequencies, rho_obs, phi_obs)
     print(f"  MT 数据物理合理性: {'通过' if ok_mt else '失败'}")
     all_ok = all_ok and ok_mt
 
-    # 检查 5: 反演结果非负
+
     inv_ok = np.all(rho_inv > 0)
     print(f"  反演结果物理合理性: {'通过' if inv_ok else '失败'}")
     all_ok = all_ok and inv_ok

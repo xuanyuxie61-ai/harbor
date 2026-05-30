@@ -1,28 +1,8 @@
-"""
-mesh_generator.py
-网格生成与三角剖分模块
-融合种子项目：
-  - 1340_triangulation_node_to_element（节点到单元的映射与平均）
-  - 1167_stla_to_tri_surface（STL 三角表面解析与拓扑处理）
-"""
 import numpy as np
 from typing import Tuple, List, Optional
 
 
 class TriMesh2D:
-    r"""
-    二维三角网格数据结构，用于有限元分析。
-
-    网格包含：
-    - nodes: 节点坐标，形状 (n_nodes, 2)
-    - elements: 三角形单元，形状 (n_elements, 3)，每行是三个节点索引（0-based）
-    - node_to_element: 节点到单元的邻接表
-    - boundaries: 边界边列表
-
-    核心公式（线性三角形面积）：
-    对于节点 (x1,y1), (x2,y2), (x3,y3)，面积
-    A = 0.5 * | (x2-x1)(y3-y1) - (x3-x1)(y2-y1) |
-    """
 
     def __init__(self, nodes: np.ndarray, elements: np.ndarray):
         if nodes.ndim != 2 or nodes.shape[1] != 2:
@@ -38,10 +18,6 @@ class TriMesh2D:
         self._areas: Optional[np.ndarray] = None
 
     def compute_areas(self) -> np.ndarray:
-        r"""
-        计算每个三角形单元的有向面积。
-        公式：A_e = 0.5 * ((x2-x1)(y3-y1) - (x3-x1)(y2-y1))
-        """
         if self._areas is not None:
             return self._areas
         x = self.nodes[:, 0]
@@ -53,14 +29,9 @@ class TriMesh2D:
         return area
 
     def total_area(self) -> float:
-        """网格总面积（取绝对值）。"""
         return float(np.sum(np.abs(self.compute_areas())))
 
     def build_node_to_element(self) -> List[List[int]]:
-        r"""
-        建立节点到单元的邻接表。
-        融合自 1340_triangulation_node_to_element 的节点-单元映射思想。
-        """
         if self._node_to_element is not None:
             return self._node_to_element
         ne = [[] for _ in range(self.n_nodes)]
@@ -72,11 +43,6 @@ class TriMesh2D:
         return ne
 
     def node_to_element_average(self, node_values: np.ndarray) -> np.ndarray:
-        r"""
-        将节点值平均到单元值。
-        公式：v_e = (1/3) * \sum_{i \in e} v_i
-        直接来自 1340_triangulation_node_to_element 的核心算法。
-        """
         if node_values.ndim == 1:
             node_values = node_values.reshape(-1, 1)
         if node_values.shape[0] != self.n_nodes:
@@ -87,10 +53,6 @@ class TriMesh2D:
         return elem_vals
 
     def element_to_node_average(self, elem_values: np.ndarray) -> np.ndarray:
-        r"""
-        将单元值平均到节点值（面积加权）。
-        公式：v_i = (\sum_{e \ni i} A_e * v_e) / (\sum_{e \ni i} A_e)
-        """
         if elem_values.ndim == 1:
             elem_values = elem_values.reshape(-1, 1)
         areas = np.abs(self.compute_areas()).reshape(-1, 1)
@@ -108,10 +70,6 @@ class TriMesh2D:
         return node_vals
 
     def boundary_edges(self) -> np.ndarray:
-        r"""
-        提取边界边。
-        边界边恰好只属于一个三角形单元。
-        """
         if self._boundary_edges is not None:
             return self._boundary_edges
         edge_count = {}
@@ -125,23 +83,11 @@ class TriMesh2D:
         return self._boundary_edges
 
     def find_bottom_boundary_nodes(self, tol: float = 1e-8) -> np.ndarray:
-        r"""
-        找到 y 坐标最小的边界节点（假设为接触边界）。
-        用于 Signorini 接触条件施加。
-        """
         y_min = np.min(self.nodes[:, 1])
         mask = np.abs(self.nodes[:, 1] - y_min) < tol
         return np.where(mask)[0]
 
     def shape_functions_gradients(self, elem_id: int) -> np.ndarray:
-        r"""
-        计算单元 elem_id 上三个线性形函数的梯度（常数）。
-        对于节点 (x1,y1), (x2,y2), (x3,y3)：
-        \nabla N_1 = (1/(2A)) * [ y2-y3, x3-x2 ]^T
-        \nabla N_2 = (1/(2A)) * [ y3-y1, x1-x3 ]^T
-        \nabla N_3 = (1/(2A)) * [ y1-y2, x2-x1 ]^T
-        返回 (3, 2) 数组。
-        """
         tri = self.elements[elem_id]
         x = self.nodes[tri, 0]
         y = self.nodes[tri, 1]
@@ -158,21 +104,12 @@ class TriMesh2D:
         return dN
 
     def integrate_over_elements(self, elem_integrand: np.ndarray) -> float:
-        r"""
-        在网格上积分：
-        I = \sum_e A_e * f_e
-        其中 f_e 是单元常数。
-        """
         areas = np.abs(self.compute_areas())
         return float(np.dot(areas, elem_integrand))
 
 
 def generate_rectangular_mesh(nx: int, ny: int, lx: float = 1.0, ly: float = 1.0,
                                shift_y: float = 0.0) -> TriMesh2D:
-    r"""
-    生成矩形区域 [0, lx] x [shift_y, shift_y+ly] 的三角网格。
-    使用对角线切分每个四边形为两个三角形。
-    """
     if nx < 2 or ny < 2:
         raise ValueError("nx and ny must be >= 2")
     x = np.linspace(0.0, lx, nx)
@@ -198,11 +135,6 @@ def generate_rectangular_mesh(nx: int, ny: int, lx: float = 1.0, ly: float = 1.0
 
 
 def parse_stla_surface(stla_lines: List[str]) -> Tuple[np.ndarray, np.ndarray]:
-    r"""
-    简化版 ASCII STL 解析器。
-    融合自 1167_stla_to_tri_surface 的 STL 读取逻辑。
-    返回 (nodes, faces)，其中 faces 是三角形索引（0-based）。
-    """
     vertices = []
     normals = []
     state = 0
@@ -226,7 +158,7 @@ def parse_stla_surface(stla_lines: List[str]) -> Tuple[np.ndarray, np.ndarray]:
     if len(vertices) % 3 != 0:
         raise ValueError("Incomplete STL data: vertex count not divisible by 3")
     n_faces = len(vertices) // 3
-    # 去重节点
+
     tol = 1e-8
     unique_nodes = []
     node_map = {}

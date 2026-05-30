@@ -1,30 +1,11 @@
-"""
-mesh_generator.py
-
-Unstructured mesh generation and topological utilities for mantle geometry.
-
-Core seed mappings:
-- 890_polygon_triangulate -> ear-clipping triangulation of polygonal cross-sections
-- 1394_voronoi_city       -> Voronoi tessellation for surface plate partitioning
-- 1372_unicycle           -> cyclic permutation indexing for boundary node ordering
-
-Scientific formulas:
-- Triangle area (signed): A = 0.5 * [(xb−xa)(yc−ya) − (xc−xa)(yb−ya)]
-- Polygon area: A = 0.5 * Σ_{i=1}^{n} (x_i y_{i+1} − x_{i+1} y_i)
-- Voronoi cell area for generator p_i: A_i = ∫_{V_i} dA
-"""
 
 import numpy as np
 from typing import List, Tuple, Optional
 
 
 class PolygonTriangulator:
-    """
-    Ear-clipping triangulation for arbitrary simple polygons.
-    Adapted from seed 890_polygon_triangulate (O'Rourke algorithm).
-    """
     def __init__(self, angle_tol_deg: float = 5.7e-05):
-        self.angle_tol = angle_tol_deg * np.pi / 180.0  # convert to radians
+        self.angle_tol = angle_tol_deg * np.pi / 180.0
 
     def _triangle_area(self, xa, ya, xb, yb, xc, yc) -> float:
         return 0.5 * ((xb - xa) * (yc - ya) - (xc - xa) * (yb - ya))
@@ -113,19 +94,15 @@ class PolygonTriangulator:
         return v1 and v2 and v3
 
     def triangulate(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
-        """
-        Triangulate a simple polygon with vertices (x, y).
-        Returns triangles array of shape (n-2, 3) with 1-based vertex indices.
-        """
         n = len(x)
         if n < 3:
             raise ValueError("Polygon must have at least 3 vertices")
-        # Check for consecutive duplicate vertices
+
         for i in range(n):
             im1 = (i - 1) % n
             if abs(x[i] - x[im1]) < 1e-14 and abs(y[i] - y[im1]) < 1e-14:
                 raise ValueError("Two consecutive nodes are identical")
-        # Check positive area (counter-clockwise)
+
         area = 0.0
         im1 = n - 1
         for i in range(n):
@@ -134,7 +111,7 @@ class PolygonTriangulator:
         area = 0.5 * area
         if area <= 0.0:
             raise ValueError("Polygon has zero or negative area; ensure CCW ordering")
-        # Build linked list
+
         prev_node = np.zeros(n, dtype=int)
         next_node = np.zeros(n, dtype=int)
         prev_node[0] = n - 1
@@ -174,28 +151,10 @@ class PolygonTriangulator:
 
 
 class VoronoiTessellator:
-    """
-    2D Voronoi diagram computation for surface plate partitioning.
-    Adapted from seed 1394_voronoi_city (perpendicular bisector concept).
-
-    For N generators p_i in ℝ², the Voronoi cell V_i is:
-        V_i = { x ∈ ℝ² : ‖x − p_i‖ ≤ ‖x − p_j‖, ∀ j ≠ i }
-    """
     def __init__(self, bounds: Tuple[float, float, float, float] = (0.0, 1.0, 0.0, 1.0)):
         self.xmin, self.xmax, self.ymin, self.ymax = bounds
 
     def compute_cells(self, generators: np.ndarray, grid_res: int = 200) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Compute approximate Voronoi cells on a regular grid using
-        the generator-distance criterion.
-
-        Returns
-        -------
-        labels : np.ndarray of shape (grid_res, grid_res)
-            Index of nearest generator for each grid point.
-        areas : np.ndarray of shape (n_generators,)
-            Approximate cell areas.
-        """
         generators = np.asarray(generators, dtype=float)
         if generators.ndim != 2 or generators.shape[1] != 2:
             raise ValueError("generators must be array of shape (n, 2)")
@@ -209,7 +168,7 @@ class VoronoiTessellator:
         cell_area = dx * dy
         X, Y = np.meshgrid(x, y, indexing='ij')
         points = np.stack([X.ravel(), Y.ravel()], axis=1)
-        # Compute distances to all generators
+
         diffs = points[:, np.newaxis, :] - generators[np.newaxis, :, :]
         dists = np.sum(diffs ** 2, axis=2)
         labels = np.argmin(dists, axis=1).reshape((grid_res, grid_res))
@@ -217,13 +176,10 @@ class VoronoiTessellator:
         return labels, areas
 
     def perpendicular_bisector(self, p1: np.ndarray, p2: np.ndarray) -> Tuple[float, float, float]:
-        """
-        Return line ax + by + c = 0 of the perpendicular bisector of segment p1-p2.
-        """
         mid = 0.5 * (p1 + p2)
         dx = p2[0] - p1[0]
         dy = p2[1] - p1[1]
-        # Normal vector to segment is (dx, dy); bisector line is dx*(x-mx) + dy*(y-my) = 0
+
         a = dx
         b = dy
         c = -(dx * mid[0] + dy * mid[1])
@@ -231,20 +187,8 @@ class VoronoiTessellator:
 
 
 class UnicycleIndexer:
-    """
-    Cyclic permutation (unicycle) indexing for boundary node ordering.
-    Adapted from seed 1372_unicycle.
-
-    A unicycle on n elements is a cyclic permutation σ with a single orbit.
-    The index form maps i → σ(i). Here we use it for cyclic renumbering
-    of nodes along polygonal boundaries.
-    """
     @staticmethod
     def index_to_sequence(n: int, u_index: np.ndarray) -> np.ndarray:
-        """
-        Convert unicycle index vector to sequence.
-        u_index[i] = next node after i in the cycle.
-        """
         if n < 1:
             raise ValueError("n must be >= 1")
         u_index = np.asarray(u_index, dtype=int)
@@ -262,17 +206,13 @@ class UnicycleIndexer:
 
     @staticmethod
     def create_cycle(n: int, shift: int = 1) -> np.ndarray:
-        """
-        Create a simple cyclic permutation index: each node points to (i+shift) mod n.
-        Ensures gcd(n, shift) = 1 to form a single unicycle.
-        """
         if n < 1:
             raise ValueError("n must be >= 1")
         import math
         shift = shift % n
         if shift == 0:
             shift = 1
-        # Ensure single cycle by finding coprime shift
+
         while math.gcd(n, shift) != 1 and shift < n:
             shift += 1
         if math.gcd(n, shift) != 1:
@@ -281,10 +221,6 @@ class UnicycleIndexer:
 
 
 class MantleMesh2D:
-    """
-    2D annular cross-section mesh for mantle convection.
-    Combines triangulation and Voronoi concepts.
-    """
     def __init__(self, R_inner: float = 0.5, R_outer: float = 1.0):
         if R_inner <= 0 or R_outer <= R_inner:
             raise ValueError("Require 0 < R_inner < R_outer")
@@ -296,10 +232,6 @@ class MantleMesh2D:
     def generate_annular_sector_mesh(self, n_r: int = 10, n_theta: int = 20,
                                      theta_min: float = 0.0,
                                      theta_max: float = np.pi) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Generate a structured triangular mesh for an annular sector.
-        Returns nodes (n_nodes, 2), triangles (n_tri, 3), and boundary_nodes.
-        """
         if n_r < 2 or n_theta < 2:
             raise ValueError("Grid dimensions must be >= 2")
         r = np.linspace(self.R_inner, self.R_outer, n_r)
@@ -309,16 +241,16 @@ class MantleMesh2D:
             for tj in theta:
                 nodes.append([ri * np.cos(tj), ri * np.sin(tj)])
         nodes = np.array(nodes)
-        # Boundary nodes: inner arc, outer arc, and radial edges
+
         boundary = set()
         for j in range(n_theta):
-            boundary.add(j)  # inner arc
-            boundary.add((n_r - 1) * n_theta + j)  # outer arc
+            boundary.add(j)
+            boundary.add((n_r - 1) * n_theta + j)
         for i in range(n_r):
-            boundary.add(i * n_theta)  # left radial
-            boundary.add(i * n_theta + n_theta - 1)  # right radial
+            boundary.add(i * n_theta)
+            boundary.add(i * n_theta + n_theta - 1)
         boundary_nodes = np.array(sorted(boundary), dtype=int)
-        # Structured triangulation
+
         triangles = []
         for i in range(n_r - 1):
             for j in range(n_theta - 1):
@@ -332,5 +264,4 @@ class MantleMesh2D:
         return nodes, triangles, boundary_nodes
 
     def triangulate_complex_polygon(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
-        """Wrapper for ear-clipping triangulation."""
         return self.triangulator.triangulate(x, y)

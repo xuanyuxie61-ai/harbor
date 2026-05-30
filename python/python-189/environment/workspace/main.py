@@ -1,26 +1,9 @@
-"""
-main.py
-
-统一入口: 零参数可运行
-
-博士级科学问题:
-    强化学习策略梯度用于非线性振荡网络的最优控制
-    —— 融合锯齿波强迫、放牧动力学、谱基逼近与自然梯度
-
-运行方式:
-    python main.py
-
-输出:
-    - 训练过程日志
-    - 最终策略在测试轨迹上的性能指标
-    - 数值验证报告
-"""
 
 import numpy as np
 import sys
 import time
 
-# 确保本地模块可导入
+
 sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.abspath(__file__)))
 
 from dynamical_system import ControlledNonlinearOscillator, sawtooth_wave, grazing_coupling
@@ -40,21 +23,18 @@ from mesh_geometry import StateSpaceTriangulation, adaptive_mesh_refinement
 
 
 def scientific_validation():
-    """
-    核心科学计算模块的数值验证.
-    """
     print("=" * 70)
     print("博士级科学计算模块数值验证")
     print("=" * 70)
 
     errors = 0
 
-    # 1. 正弦积分验证
+
     print("\n[1] 正弦积分 Si(x) 验证")
     test_points = [0.0, 1.0, 2.0, 5.0, 10.0, 20.0]
     for x in test_points:
         si = sine_integral(x)
-        # 理论: Si(x) → π/2 as x→∞
+
         print(f"    Si({x:5.2f}) = {si:12.8f}")
     if abs(sine_integral(100.0) - np.pi / 2.0) > 0.1:
         print("    WARNING: 渐近值偏差较大")
@@ -62,7 +42,7 @@ def scientific_validation():
     else:
         print("    PASS: 渐近收敛到 π/2")
 
-    # 2. 贝塞尔零点验证
+
     print("\n[2] 贝塞尔零点 Bessel Zero 验证")
     try:
         z1 = bessel_zero(0.0, 1, kind=1)
@@ -77,7 +57,7 @@ def scientific_validation():
     except Exception as e:
         print(f"    SKIP (需要 scipy): {e}")
 
-    # 3. 不完全 Beta 验证
+
     print("\n[3] 不完全 Beta 函数验证")
     prob, ier = incomplete_beta(0.5, 2.0, 3.0)
     print(f"    I_{0.5}(2,3) = {prob:.8f}, ier={ier}")
@@ -87,7 +67,7 @@ def scientific_validation():
         print("    FAIL")
         errors += 1
 
-    # 4. RREF 求解验证
+
     print("\n[4] RREF 线性求解验证")
     A = np.array([[2.0, 1.0], [1.0, 3.0]])
     b = np.array([5.0, 8.0])
@@ -101,7 +81,7 @@ def scientific_validation():
         print("    FAIL")
         errors += 1
 
-    # 5. Toeplitz Cholesky 验证
+
     print("\n[5] Toeplitz Cholesky 验证")
     n = 5
     first_col = np.array([2.0, 0.5, 0.3, 0.2, 0.1])
@@ -123,7 +103,7 @@ def scientific_validation():
         print(f"    ERROR: {e}")
         errors += 1
 
-    # 6. PCA 验证
+
     print("\n[6] PCA 主成分分析验证")
     data = np.random.randn(10, 50)
     V, vals, Psi = pca_vectors(data, 5)
@@ -134,31 +114,31 @@ def scientific_validation():
         print("    FAIL")
         errors += 1
 
-    # 7. Legendre 基验证
+
     print("\n[7] Legendre 乘积多项式基验证")
     X = np.random.uniform(-1, 1, (2, 10))
     B = build_legendre_basis(2, 2, X)
     print(f"    基函数矩阵形状: {B.shape}")
-    if B.shape[0] == 6:  # C(2+2,2)=6
+    if B.shape[0] == 6:
         print("    PASS")
     else:
         print("    FAIL")
         errors += 1
 
-    # 8. 布朗运动统计验证
+
     print("\n[8] Brownian 运动统计验证")
     traj = brownian_motion(1000, 2, sigma=1.0)
     mean_pos = np.mean(traj, axis=0)
     std_pos = np.std(traj, axis=0)
     print(f"    终点均值: {mean_pos}, 标准差: {std_pos}")
-    # Brownian motion 的终点标准差约为 sigma*sqrt(N) ~ 30, 均值应接近 0
+
     if np.all(np.abs(mean_pos) < 50.0):
         print("    PASS")
     else:
         print("    FAIL")
         errors += 1
 
-    # 9. 信任区域概率验证
+
     print("\n[9] 信任区域概率验证")
     prob = trust_region_probability(0.01, 10, 100)
     print(f"    P(KL≤0.01 | d=10, N=100) ≈ {prob:.4f}")
@@ -175,9 +155,6 @@ def scientific_validation():
 
 
 def run_policy_gradient_training():
-    """
-    执行策略梯度训练.
-    """
     print("\n" + "=" * 70)
     print("策略梯度训练: 非线性振荡网络最优控制")
     print("=" * 70)
@@ -203,7 +180,7 @@ def run_policy_gradient_training():
 
     results = trainer.train(num_iterations=20)
 
-    # 测试最终策略
+
     print("\n" + "-" * 70)
     print("最终策略测试 (确定性执行, 5 条轨迹)")
     print("-" * 70)
@@ -217,7 +194,7 @@ def run_policy_gradient_training():
     avg_test = np.mean(test_rewards)
     print(f"\n  平均测试奖励: {avg_test:.3f}")
 
-    # 参考轨迹跟踪误差
+
     print("\n" + "-" * 70)
     print("参考轨迹跟踪性能分析")
     print("-" * 70)
@@ -242,14 +219,11 @@ def run_policy_gradient_training():
 
 
 def run_mesh_analysis():
-    """
-    状态空间网格分析.
-    """
     print("\n" + "=" * 70)
     print("状态空间三角剖分分析")
     print("=" * 70)
 
-    # 从随机轨迹中采样状态点
+
     env = ControlledNonlinearOscillator(dt=0.01)
     states = []
     for _ in range(20):
@@ -265,18 +239,18 @@ def run_mesh_analysis():
     states_arr = np.array(states)
     print(f"  采样状态数: {len(states_arr)}")
 
-    # PCA 降维到 2D 用于可视化分析 (内部计算, 无图形)
+
     V, vals, Psi = pca_vectors(states_arr.T, 2)
     states_2d = pca_transform(states_arr.T, V, Psi).T
 
-    # Delaunay 三角剖分
+
     tri = StateSpaceTriangulation(states_2d)
     vols = tri.simplex_volumes()
     print(f"  单纯形数量: {len(tri.simplices)}")
     print(f"  平均单纯形体积: {np.mean(vols):.6f}")
     print(f"  最大单纯形体积: {np.max(vols):.6f}")
 
-    # 插值测试
+
     test_point = np.mean(states_2d, axis=0)
     dummy_values = np.random.randn(len(states_2d))
     interp_val = tri.interpolate(test_point, dummy_values)
@@ -286,9 +260,6 @@ def run_mesh_analysis():
 
 
 def main():
-    """
-    主函数: 零参数运行完整实验流程.
-    """
     print("\n" + "#" * 70)
     print("#  PROJECT_189: 强化学习策略梯度 —— 非线性振荡网络最优控制")
     print("#  科学领域: 数据科学 · 强化学习策略梯度")
@@ -296,18 +267,18 @@ def main():
 
     start_time = time.time()
 
-    # 阶段 1: 数值验证
+
     val_errors = scientific_validation()
     if val_errors > 5:
         print("\n警告: 过多验证失败, 但仍继续训练...")
 
-    # 阶段 2: 策略梯度训练
+
     results, avg_test_reward, tracking_errors = run_policy_gradient_training()
 
-    # 阶段 3: 状态空间网格分析
+
     tri = run_mesh_analysis()
 
-    # 汇总
+
     elapsed = time.time() - start_time
     print("\n" + "=" * 70)
     print("实验汇总")

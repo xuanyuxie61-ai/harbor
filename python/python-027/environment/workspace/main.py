@@ -1,17 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-main.py
-等离子体鞘层与壁材料侵蚀综合模拟系统 —— 统一入口
-
-本项目基于以下15个种子项目的核心算法合成:
-    702_logistic_ode, 1201_tensor_grid_display, 1419_xy_display,
-    144_cc_project, 823_obj_to_tri_surface, 1304_triangle_felippa_rule,
-    269_delsq, 1290_tree_chaos, 992_r8ri, 883_polygon_average,
-    1403_wavelet, 603_jacobi, 567_hypersphere_positive_distance,
-    137_casino_simulation, 1005_randlc
-
-科学领域: 等离子体物理 —— 等离子体鞘层与壁材料侵蚀
-"""
 
 import numpy as np
 import time
@@ -31,7 +18,6 @@ from utils import (compute_coulomb_logarithm, compute_sheath_heat_flux,
 
 
 def print_banner():
-    """打印项目横幅"""
     print("=" * 70)
     print("  等离子体鞘层与壁材料侵蚀数值模拟系统")
     print("  Plasma Sheath & Wall Material Erosion Simulation System")
@@ -40,14 +26,13 @@ def print_banner():
 
 
 def run_module_01_parameters():
-    """模块1: 物理参数初始化"""
     print("[模块 1/10] 物理参数初始化")
     print("-" * 50)
 
     params = get_parameters()
     params.print_summary()
 
-    # 验证关键物理量
+
     lambda_D = params.debye_length()
     cs = params.ion_sound_speed()
     omega_pe = params.plasma_frequency()
@@ -60,7 +45,6 @@ def run_module_01_parameters():
 
 
 def run_module_02_sheath_ode(params):
-    """模块2: 鞘层ODE求解（基于 702_logistic_ode）"""
     print("[模块 2/10] 鞘层离子密度与速度剖面（修正Logistic ODE）")
     print("-" * 50)
 
@@ -85,16 +69,15 @@ def run_module_02_sheath_ode(params):
 
 
 def run_module_03_poisson_solver(params, n_i, x):
-    """模块3: 泊松方程求解（基于 269_delsq + 603_jacobi）"""
     print("[模块 3/10] 鞘层泊松方程有限差分解（delsq + Jacobi迭代）")
     print("-" * 50)
 
     solver = PoissonSolver(params)
 
-    # 1D 鞘层泊松方程
+
     phi_pois, n_e, rho = solver.solve_1d_sheath_poisson(n_i, x)
 
-    # 2D Laplace 测试（靶板表面电势分布）
+
     def boundary_func(i, j):
         nx, ny = 32, 32
         if i == 0 or i == nx - 1 or j == 0 or j == ny - 1:
@@ -112,19 +95,18 @@ def run_module_03_poisson_solver(params, n_i, x):
 
 
 def run_module_04_sparse_matrix(params):
-    """模块4: 稀疏矩阵运算（基于 992_r8ri）"""
     print("[模块 4/10] 稀疏矩阵R8RI格式运算")
     print("-" * 50)
 
     n = params.get('nx')
     mat = R8RIMatrix.build_dif2(n)
 
-    # 矩阵-向量乘法测试
+
     x_test = np.ones(n)
     y_sparse = mat.matvec(x_test)
     y_transpose = mat.matvec_transpose(x_test)
 
-    # 与稠密矩阵对比
+
     dense = mat.to_dense()
     y_dense = dense.dot(x_test)
     error = np.linalg.norm(y_sparse - y_dense)
@@ -141,7 +123,6 @@ def run_module_04_sparse_matrix(params):
 
 
 def run_module_05_surface_mesh(params):
-    """模块5: 靶板表面网格生成（基于 823_obj_to_tri_surface + 1201_tensor_grid_display）"""
     print("[模块 5/10] 靶板表面三角网格生成")
     print("-" * 50)
 
@@ -149,11 +130,11 @@ def run_module_05_surface_mesh(params):
     mesh.generate_flat_plate_mesh(width=0.05, height=0.05, nx=21, ny=21)
     stats = mesh.mesh_quality_stats()
 
-    # 圆柱面网格
+
     cyl_mesh = SurfaceMesh()
     cyl_mesh.generate_cylindrical_mesh(radius=0.02, height=0.05, n_theta=32, n_z=16)
 
-    # 入射角计算
+
     b_dir = np.array([0.0, 1.0, 0.1])
     angles_flat = mesh.compute_incidence_angles(b_dir)
     angles_cyl = cyl_mesh.compute_incidence_angles(b_dir)
@@ -169,28 +150,27 @@ def run_module_05_surface_mesh(params):
 
 
 def run_module_06_erosion_quadrature(params, E_wall, mesh):
-    """模块6: 侵蚀率数值积分（基于 1304_triangle_felippa_rule + 144_cc_project）"""
     print("[模块 6/10] 壁材料物理溅射产额与侵蚀积分")
     print("-" * 50)
 
     eq = ErosionQuadrature(params)
 
-    # 溅射产额计算
+
     test_energies = [100.0, 200.0, 500.0, 1000.0, 2000.0]
     print("  D -> W 溅射产额:")
     for E in test_energies:
         Y = eq.sputtering_yield_bohdansky(E)
         print(f"    E={E:6.0f} eV, Y={Y:.4f}")
 
-    # 能量沉积深度
+
     depths = np.linspace(0, 1.0e-8, 100)
     dep_profile = eq.energy_deposition_profile(E_wall, depths)
 
-    # Clenshaw-Curtis 积分
+
     avg_yield, _, _ = eq.integrate_sputtering_yield_1d(
         10.0, 5000.0, n_points=64)
 
-    # 三角形积分
+
     tri = mesh.triangles[0]
     tri_verts = mesh.nodes[tri]
     def gamma_f(x, y):
@@ -199,7 +179,7 @@ def run_module_06_erosion_quadrature(params, E_wall, mesh):
         return E_wall
     tri_erosion = eq.integrate_erosion_over_triangle(tri_verts, gamma_f, E_f)
 
-    # 验证求积规则精度
+
     w3, xy3 = eq.triangle_unit_o03()
     w12, xy12 = eq.triangle_unit_o12()
 
@@ -213,7 +193,6 @@ def run_module_06_erosion_quadrature(params, E_wall, mesh):
 
 
 def run_module_07_polygon_roughness(params):
-    """模块7: 表面粗糙度演化（基于 883_polygon_average）"""
     print("[模块 7/10] 壁表面粗糙度演化模拟")
     print("-" * 50)
 
@@ -222,7 +201,7 @@ def run_module_07_polygon_roughness(params):
 
     init_stats = surface.compute_roughness_parameters()
 
-    # 多步演化
+
     history = surface.evolve_surface(
         n_steps=100,
         erosion_rate=1.0e-9,
@@ -244,13 +223,12 @@ def run_module_07_polygon_roughness(params):
 
 
 def run_module_08_impurity_transport(params):
-    """模块8: 侵蚀杂质输运（基于 1290_tree_chaos + 137_casino_simulation）"""
     print("[模块 8/10] 侵蚀杂质在鞘层中的输运模拟")
     print("-" * 50)
 
     transport = ImpurityTransport(params)
 
-    # 扩散系数对比
+
     D_bohm = transport.compute_diffusion_coefficient('bohm')
     D_classical = transport.compute_diffusion_coefficient('classical')
     D_neo = transport.compute_diffusion_coefficient('neo')
@@ -260,7 +238,7 @@ def run_module_08_impurity_transport(params):
     print(f"    经典碰撞扩散        = {D_classical:.3e} m^2/s")
     print(f"    新经典扩散          = {D_neo:.3e} m^2/s")
 
-    # IFS混沌映射
+
     x_ifs = np.random.rand(2)
     print(f"\n  IFS混沌映射 (sheath_drift模式):")
     print(f"    初始位置            = [{x_ifs[0]:.4f}, {x_ifs[1]:.4f}]")
@@ -268,7 +246,7 @@ def run_module_08_impurity_transport(params):
         x_ifs = transport.ifs_transport_map(x_ifs, mode='sheath_drift')
     print(f"    10步后位置          = [{x_ifs[0,0]:.4f}, {x_ifs[0,1]:.4f}]")
 
-    # 系综模拟
+
     print(f"\n  Langevin系综模拟 (50粒子)...")
     final_pos, stats = transport.simulate_ensemble(n_particles=50, n_steps=100, dt=1.0e-10)
 
@@ -279,14 +257,13 @@ def run_module_08_impurity_transport(params):
 
 
 def run_module_09_wavelet_analysis(params, n_i):
-    """模块9: 鞘层波动小波分析（基于 1403_wavelet）"""
     print("[模块 9/10] 鞘层密度波动小波多尺度分析")
     print("-" * 50)
 
-    # 构造合成波动信号（模拟 blob 输运）
+
     t = np.linspace(0, 1, 1024)
-    f_blob = 20.0   # blob频率
-    f_drift = 5.0   # 漂移波频率
+    f_blob = 20.0
+    f_drift = 5.0
     signal = (np.sin(2*np.pi*f_drift*t) +
               0.3 * np.sin(2*np.pi*f_blob*t) *
               (1.0 + 0.5*np.sin(2*np.pi*2*t)) +
@@ -294,7 +271,7 @@ def run_module_09_wavelet_analysis(params, n_i):
 
     wv = WaveletAnalysis(order=10)
 
-    # 多级分解
+
     levels = wv.decompose_levels(signal)
     print("  小波分解能量分布:")
     total_detail_energy = 0.0
@@ -304,14 +281,14 @@ def run_module_09_wavelet_analysis(params, n_i):
         print(f"    Level {key}:          = {energy:.4e}")
     print(f"    总细节能量          = {total_detail_energy:.4e}")
 
-    # 功率谱
+
     scales, power, freqs = wv.power_spectrum(signal, sample_rate=1024.0)
     if len(freqs) > 0:
         peak_idx = np.argmax(power)
         print(f"\n  主导频率              = {freqs[peak_idx]:.1f} Hz")
         print(f"  对应特征时间尺度      = {1.0/freqs[peak_idx]:.3e} s")
 
-    # 去噪
+
     denoised = wv.denoise(signal, threshold_ratio=0.15)
     snr_improvement = np.std(signal)**2 / (np.std(denoised - signal) + 1.0e-30)**2
     print(f"  去噪后SNR改善         = {10*np.log10(snr_improvement):.1f} dB")
@@ -320,28 +297,27 @@ def run_module_09_wavelet_analysis(params, n_i):
 
 
 def run_module_10_monte_carlo(params):
-    """模块10: 蒙特卡洛采样（基于 567_hypersphere_positive_distance + 1005_randlc）"""
     print("[模块 10/10] 蒙特卡洛随机采样验证")
     print("-" * 50)
 
     mc = MonteCarloSampler(seed=params.get('rand_seed'))
 
-    # 超球面采样
+
     x_sphere = mc.sample_hypersphere_positive(5)
     print(f"  5维正超球面采样: 模长={np.linalg.norm(x_sphere):.6f}")
 
-    # 距离统计
+
     mu, var = mc.sample_hypersphere_distance_stats(3, 500)
     print(f"  3维距离统计: mu={mu:.4f}, var={var:.6f}")
 
-    # Maxwellian速度
+
     v_th = params.ion_thermal_velocity()
     v_samples = mc.sample_maxwellian_velocity(v_th, 500)
     v_rms = np.sqrt(np.mean(v_samples**2))
-    v_theory = v_th  # 每个速度分量的 rms = v_th
+    v_theory = v_th
     print(f"  Maxwellian速度: 理论rms={v_theory:.3e}, 实测rms={v_rms:.3e}")
 
-    # randlc跳跃验证
+
     from monte_carlo_sampler import RandLC
     rng_test = RandLC(seed=params.get('rand_seed'))
     u_seq = [rng_test.next() for _ in range(10)]
@@ -351,7 +327,7 @@ def run_module_10_monte_carlo(params):
     print(f"  randlc直接跳跃到第10  = {u_jump:.8f}")
     print(f"  跳跃一致性            = {abs(u_seq[-1]-u_jump) < 1.0e-10}")
 
-    # 碰撞采样
+
     collided, mfp = mc.sample_collision_parameter(1.0e-19, 1.0e19, 0.01)
     print(f"  碰撞采样: 碰撞={collided}, 平均自由程={mfp:.3e} m")
     print()
@@ -359,7 +335,6 @@ def run_module_10_monte_carlo(params):
 
 
 def run_final_summary(params, E_wall, avg_yield, stats_transport, stats_roughness):
-    """最终汇总"""
     print("=" * 70)
     print("  模拟结果汇总")
     print("=" * 70)
@@ -381,42 +356,41 @@ def run_final_summary(params, E_wall, avg_yield, stats_transport, stats_roughnes
 
 
 def main():
-    """主函数 —— 零参数可运行"""
     start_time = time.time()
     print_banner()
 
-    # 模块1: 参数
+
     params = run_module_01_parameters()
 
-    # 模块2: 鞘层ODE
+
     x, n_i, v_i, phi_ode, e_field, E_wall, gamma = run_module_02_sheath_ode(params)
 
-    # 模块3: 泊松求解
+
     phi_pois, n_e, rho, phi_2d = run_module_03_poisson_solver(params, n_i, x)
 
-    # 模块4: 稀疏矩阵
+
     mat = run_module_04_sparse_matrix(params)
 
-    # 模块5: 表面网格
+
     mesh, cyl_mesh = run_module_05_surface_mesh(params)
 
-    # 模块6: 侵蚀积分
+
     eq, avg_yield = run_module_06_erosion_quadrature(params, E_wall, mesh)
 
-    # 模块7: 粗糙度
+
     surface, history = run_module_07_polygon_roughness(params)
     roughness_final = surface.compute_roughness_parameters()
 
-    # 模块8: 杂质输运
+
     transport, stats_transport = run_module_08_impurity_transport(params)
 
-    # 模块9: 小波分析
+
     wv, signal, denoised = run_module_09_wavelet_analysis(params, n_i)
 
-    # 模块10: MC采样
+
     mc = run_module_10_monte_carlo(params)
 
-    # 最终汇总
+
     run_final_summary(params, E_wall, avg_yield, stats_transport, roughness_final)
 
     elapsed = time.time() - start_time

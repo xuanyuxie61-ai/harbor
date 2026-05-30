@@ -1,21 +1,8 @@
-"""
-quadrature_rules.py
-===================
-Numerical quadrature rules for finite element integration.
-
-This module implements Gaussian quadrature rules for 1D line segments
-and 2D triangular elements, essential for accurate FEM assembly.
-
-Reference:
-----------
-Felippa, C. (2004). A compendium of FEM integration formulas for
-symbolic work. Engineering Computation, 21(8), 867-890.
-"""
 
 import numpy as np
 
 
-# 1D Gaussian quadrature on [-1, 1] for orders 1 to 5
+
 _1D_ABSCISSA = {
     1: np.array([0.0]),
     2: np.array([-1.0 / np.sqrt(3.0), 1.0 / np.sqrt(3.0)]),
@@ -56,29 +43,12 @@ _1D_WEIGHTS = {
 
 
 def line_rule(a, b, order):
-    """
-    Return Gaussian quadrature rule on interval [a, b].
-
-    Parameters
-    ----------
-    a, b : float
-        Interval endpoints.
-    order : int
-        Quadrature order (1 to 5).
-
-    Returns
-    -------
-    w : ndarray, shape (order,)
-        Quadrature weights.
-    x : ndarray, shape (order,)
-        Quadrature abscissas.
-    """
     if order < 1 or order > 5:
         raise ValueError("Quadrature order must be in [1, 5].")
     x_ref = _1D_ABSCISSA[order].copy()
     w_ref = _1D_WEIGHTS[order].copy()
 
-    # Affine map from [-1, 1] to [a, b]
+
     jac = (b - a) / 2.0
     w = w_ref * jac
     x = ((1.0 - x_ref) * a + (1.0 + x_ref) * b) / 2.0
@@ -86,17 +56,12 @@ def line_rule(a, b, order):
 
 
 def line_monomial_integral(a, b, alpha):
-    """
-    Exact integral of x^alpha over [a, b].
-
-    int_a^b x^alpha dx = (b^(alpha+1) - a^(alpha+1)) / (alpha+1)
-    """
     if alpha == -1:
         raise ValueError("Alpha = -1 is not integrable as a monomial.")
     return (b ** (alpha + 1) - a ** (alpha + 1)) / (alpha + 1)
 
 
-# 2D Triangle quadrature rules (reference triangle: (0,0), (1,0), (0,1))
+
 _TRIANGLE_RULES = {
     1: {
         "w": np.array([0.5]),
@@ -131,21 +96,6 @@ _TRIANGLE_RULES = {
 
 
 def triangle_rule(order):
-    """
-    Return quadrature rule on reference triangle.
-
-    Parameters
-    ----------
-    order : int
-        Number of points (1, 3, 4, or 6).
-
-    Returns
-    -------
-    w : ndarray
-        Weights.
-    x, y : ndarray
-        Barycentric coordinates on reference triangle.
-    """
     if order not in _TRIANGLE_RULES:
         raise ValueError(f"Triangle quadrature order {order} not supported. Use 1, 3, 4, or 6.")
     data = _TRIANGLE_RULES[order]
@@ -153,12 +103,6 @@ def triangle_rule(order):
 
 
 def map_triangle_quad(points, w_ref, xi_ref, eta_ref):
-    """
-    Map quadrature points from reference triangle to physical triangle.
-
-    Physical triangle vertices: p0, p1, p2 (each 2D).
-    Jacobian determinant = 2 * area.
-    """
     p0, p1, p2 = points[0], points[1], points[2]
     J = np.array([
         [p1[0] - p0[0], p2[0] - p0[0]],
@@ -166,7 +110,7 @@ def map_triangle_quad(points, w_ref, xi_ref, eta_ref):
     ])
     detJ = abs(np.linalg.det(J))
 
-    # Map points
+
     nq = len(w_ref)
     x_phys = np.zeros(nq)
     y_phys = np.zeros(nq)
@@ -178,7 +122,7 @@ def map_triangle_quad(points, w_ref, xi_ref, eta_ref):
     return w_phys, x_phys, y_phys, detJ, J
 
 
-# 3D Tetrahedron quadrature (reference: (0,0,0), (1,0,0), (0,1,0), (0,0,1))
+
 _TET_RULES = {
     1: {
         "w": np.array([1.0 / 6.0]),
@@ -187,7 +131,7 @@ _TET_RULES = {
         "z": np.array([0.25]),
     },
     4: {
-        # Midpoint rule (not exact for high order but useful)
+
         "w": np.array([1.0 / 24.0, 1.0 / 24.0, 1.0 / 24.0, 1.0 / 24.0]),
         "x": np.array([0.5, 0.5, 0.5, 0.0]),
         "y": np.array([0.5, 0.5, 0.0, 0.5]),
@@ -197,7 +141,6 @@ _TET_RULES = {
 
 
 def tetrahedron_rule(order):
-    """Return quadrature rule on reference tetrahedron."""
     if order not in _TET_RULES:
         raise ValueError(f"Tetrahedron quadrature order {order} not supported.")
     data = _TET_RULES[order]

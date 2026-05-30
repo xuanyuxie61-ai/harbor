@@ -1,27 +1,8 @@
-"""
-main.py
-=======
-精馏塔传质与能效优化 — 统一入口程序。
-
-本程序零参数运行，完成以下博士级科学计算：
-1. 多组分汽液平衡(VLE)热力学计算（Jacobi谱展开 + Laguerre-Gauss求积）
-2. 传质动力学模拟（Maxwell-Stefan扩散 + RK45积分）
-3. 塔板几何网格生成与局部效率计算（四边形Q4等参映射 + 有符号距离函数）
-4. 物性插值与传质通量积分（Shepard插值 + 梯形法则）
-5. 塔板数与回流比耦合优化（类费马分解搜索 + Gilliland关联）
-6. 填料塔随机堆积模拟（线段停车问题 + Ergun压降方程）
-7. 操作参数不确定性量化（六边形蒙特卡洛 + 随机列联表 + Sobol敏感性分析）
-8. 塔内压力波动传播（一维波动方程有限差分）
-9. 局部湍流混合与大尺度对流混沌分析（Langford + Lorenz96 ODE）
-
-运行方式:
-    python main.py
-"""
 
 import numpy as np
 import time
 
-# 导入各模块
+
 from utils import thermo_factor_check, relative_change
 from vle_thermodynamics import (
     jacobi_polynomial, laguerre_compute, laguerre_quadrature_integrate,
@@ -72,24 +53,23 @@ def print_section(title):
 
 
 def demo_vle_thermodynamics():
-    """演示汽液平衡热力学计算。"""
     print_section("1. 多组分汽液平衡(VLE)热力学计算")
 
-    # 体系：乙醇-水-甲醇三元体系
-    nc = 3
-    T = 350.0  # K
-    T = thermo_factor_check(T)
-    P_total = 101325.0  # Pa
 
-    # Antoine 常数（乙醇, 水, 甲醇）
+    nc = 3
+    T = 350.0
+    T = thermo_factor_check(T)
+    P_total = 101325.0
+
+
     A_ant = np.array([8.20417, 8.07131, 8.08097])
     B_ant = np.array([1642.89, 1730.63, 1582.91])
     C_ant = np.array([230.300, 233.426, 239.726])
 
-    # 摩尔体积 [m³/mol]（近似值）
+
     V = np.array([5.87e-5, 1.80e-5, 4.07e-5])
 
-    # Wilson 参数 Δλ_ij / R [K]
+
     Lambda_ij = np.array([
         [0.0, 155.21, 46.32],
         [292.51, 0.0, 289.19],
@@ -102,7 +82,7 @@ def demo_vle_thermodynamics():
     print(f"  总压 P = {P_total:.2f} Pa")
     print(f"  液相组成 x = {x_feed}")
 
-    # VLE 闪蒸计算
+
     y, K, gamma = vle_flash_calculation(x_feed, P_total, T, A_ant, B_ant, C_ant, V, Lambda_ij)
     alpha_rel = vle_relative_volatility(K)
 
@@ -111,12 +91,12 @@ def demo_vle_thermodynamics():
     print(f"  活度系数 γ = {gamma}")
     print(f"  相对挥发度 α = {alpha_rel}")
 
-    # Jacobi 多项式谱展开
+
     x_range = np.linspace(0.0, 1.0, 20)
     V_jac = activity_coefficient_spectral_expansion(x_range, nc, alpha_jac=0.0, beta_jac=0.0, n_modes=6)
     print(f"  Jacobi 谱展开矩阵 shape = {V_jac.shape}")
 
-    # Laguerre-Gauss 求积：计算温度相关积分
+
     def temp_integral(x):
         return np.exp(-0.001 * x) * np.sin(0.1 * x)
 
@@ -128,10 +108,9 @@ def demo_vle_thermodynamics():
 
 
 def demo_property_interpolation():
-    """演示物性插值与数值积分。"""
     print_section("2. 物性插值与传质通量积分")
 
-    # 离散实验数据：沿塔高的温度与组成分布
+
     z_data = np.array([0.0, 2.0, 4.0, 6.0, 8.0, 10.0])
     T_data = np.array([373.0, 368.0, 362.0, 355.0, 348.0, 340.0])
     x_data = np.array([
@@ -159,14 +138,14 @@ def demo_property_interpolation():
     print(f"  查询位置 z = {z_query}")
     print(f"  插值温度 T = {np.round(T_interp, 2)}")
 
-    # 梯形积分：传质通量
+
     def mass_flux(z):
         return 0.5 * np.exp(-0.1 * z) * (1.0 + 0.05 * z)
 
     total_mt = integrate_mass_transfer_flux(z_query, mass_flux)
     print(f"  沿塔高总传质量 = {total_mt:.4e} mol/(m² s)")
 
-    # 直接梯形积分验证
+
     trap_result = quad_trapezoid(mass_flux, 0.0, 10.0, 20)
     print(f"  梯形积分验证 = {trap_result:.4e}")
 
@@ -174,31 +153,30 @@ def demo_property_interpolation():
 
 
 def demo_tray_geometry():
-    """演示塔板几何网格与局部效率。"""
     print_section("3. 塔板几何网格与局部Murphree效率")
 
-    tray_width = 1.5  # m
-    tray_height = 0.8  # m
+    tray_width = 1.5
+    tray_height = 0.8
     nodes, elements, areas = generate_tray_mesh(tray_width, tray_height, nx=8, ny=5)
 
     print(f"  塔板尺寸: {tray_width} m × {tray_height} m")
     print(f"  节点数: {len(nodes)}, 单元数: {len(elements)}")
 
-    # 测试有符号距离函数
+
     test_points = np.array([[0.5, 0.4], [1.6, 0.9], [0.75, 0.4]])
     dists = drectangle(test_points, 0.0, tray_width, 0.0, tray_height)
     print(f"  有符号距离测试结果: {dists}")
 
-    # 四边形映射测试
+
     q4 = np.array([[0.0, tray_width, tray_width, 0.0],
                    [0.0, 0.0, tray_height, tray_height]])
     rs = np.array([[0.5], [0.5]])
     xy_mapped = reference_to_physical_q4(q4, 1, rs)
     print(f"  参考点 (0.5,0.5) 映射到物理坐标: {xy_mapped[:, 0]}")
 
-    # 局部效率计算
+
     x_liq = np.array([0.5, 0.4, 0.1])
-    y_vap = np.array([0.5, 0.3, 0.05])  # 不等于平衡组成，使效率非零
+    y_vap = np.array([0.5, 0.3, 0.05])
     K_eq = np.array([1.2, 0.875, 0.5])
     E_local = compute_local_efficiency_on_mesh(nodes, elements, x_liq, y_vap, K_eq)
     E_avg = mesh_average_efficiency(nodes, elements, areas, E_local)
@@ -209,52 +187,51 @@ def demo_tray_geometry():
 
 
 def demo_mass_transfer_dynamics(alpha_rel):
-    """演示传质动力学模拟。"""
     print_section("4. 传质动力学与ODE系统")
 
-    # 4.1 三组分Maxwell-Stefan扩散
+
     D_matrix = np.array([
         [1e-9, 1.2e-9, 0.8e-9],
         [1.2e-9, 1e-9, 1.1e-9],
         [0.8e-9, 1.1e-9, 1e-9]
     ])
-    c_total = 50.0  # mol/m³
+    c_total = 50.0
     y0_diff = np.array([0.4, 0.3, 0.3, 0.0, 0.0, 0.0])
     t, y, e = simulate_three_component_diffusion(y0_diff, D_matrix, c_total, (0.0, 10.0), 100)
     print(f"  Maxwell-Stefan扩散: 初始 x={y0_diff[:3]}, 稳态 x≈{y[-1, :3]}")
 
-    # 4.2 Langford 局部混合
+
     xyz0 = np.array([0.1, 0.1, 0.1])
     t_l, y_l, e_l = simulate_langford_mixing(xyz0, (0.0, 20.0), 200)
     print(f"  Langford混合: 终态 [x,y,z] = {y_l[-1, :]}")
 
-    # 4.3 Lorenz96 对流混沌
+
     n_l96 = 20
     y0_l96 = np.ones(n_l96) * 0.5
     y0_l96[0] += 0.01
     t_96, y_96, e_96 = simulate_lorenz96_convection(y0_l96, (0.0, 10.0), 500, force=8.0)
     print(f"  Lorenz96对流: 终态均值={np.mean(y_96[-1, :]):.4f}, 方差={np.var(y_96[-1, :]):.4f}")
 
-    # 4.4 精馏塔动态物料平衡
+
     n_trays = 10
     nc = 3
     F = np.zeros(n_trays)
-    F[4] = 50.0  # 第5块板进料 [mol/s]
+    F[4] = 50.0
     z_feed = np.zeros((n_trays, nc))
     z_feed[4, :] = np.array([0.4, 0.3, 0.3])
     q_feed = np.zeros(n_trays)
     q_feed[4] = 0.5
-    # TODO [Hole 3]: 精馏塔动态模拟的流量参数定义与 simulate_distillation_dynamics 调用。
-    # 要求：
-    #   1. 根据恒摩尔流假设，定义 10 块塔板的液相流量 L 和汽相流量 V 数组。
-    #      注意塔板索引 j=0 为再沸器，j=n_trays-1 为冷凝器。
-    #      提馏段（下部）与精馏段（上部）的流量应反映进料热状态 q=0.5 的影响。
-    #   2. 定义各板持液量 holdup 和 Murphree 效率 tray_eff。
-    #   3. 正确调用 simulate_distillation_dynamics，传入所有必需参数。
-    #      特别说明：alpha_rel 来自上游 demo_vle_thermodynamics() 的 VLE 计算，
-    #      其数值含义与 vle_thermodynamics.py 中 K 的定义直接相关（见 Hole 1）。
-    #   4. 初始组成 x0 应与 n_trays 和 nc 匹配。
-    # --------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
     print(f"  精馏塔动态: 模拟 {n_trays} 块板, {nc} 个组分")
     print(f"  再沸器轻组分终态: {comp_profiles[-1, 0, :]}")
     print(f"  冷凝器轻组分终态: {comp_profiles[-1, -1, :]}")
@@ -263,7 +240,6 @@ def demo_mass_transfer_dynamics(alpha_rel):
 
 
 def demo_efficiency_optimizer():
-    """演示能效优化。"""
     print_section("5. 塔板数与回流比耦合优化")
 
     N_min = 8
@@ -290,7 +266,7 @@ def demo_efficiency_optimizer():
     print(f"  优化结果: N_opt = {N_opt}, R_opt = {R_opt:.3f}")
     print(f"  最小年度总成本 C_min = {C_min:.2e} CNY/year")
 
-    # Gilliland 验证
+
     residual = gilliland_correlation(R_opt, R_min, N_opt, N_min)
     print(f"  Gilliland 残差 = {residual:.4e}")
 
@@ -301,7 +277,6 @@ def demo_efficiency_optimizer():
 
 
 def demo_packing_simulation():
-    """演示填料塔随机堆积模拟。"""
     print_section("6. 填料塔随机堆积模拟")
 
     results = simulate_random_packing_column(
@@ -320,7 +295,7 @@ def demo_packing_simulation():
     print(f"  平均效率因子 η = {results['eta_mean']:.4f} ± {results['eta_std']:.4f}")
     print(f"  平均压降 ΔP = {results['dP_mean']:.2f} ± {results['dP_std']:.2f} Pa")
 
-    # 单次堆积演示
+
     n_parked, density_obs, density_max, positions = line_packing_simulation(
         0.0, 5.0, 0.3, max_attempts=50000
     )
@@ -330,17 +305,16 @@ def demo_packing_simulation():
 
 
 def demo_uncertainty_quantification():
-    """演示不确定性量化。"""
     print_section("7. 不确定性量化与敏感性分析")
 
-    # 7.1 六边形蒙特卡洛积分
+
     def model_in_hexagon(x, y):
         return np.exp(-(x**2 + y**2)) * (1.0 + 0.1 * x * y)
 
     hex_result = hexagon_monte_carlo_integrate(model_in_hexagon, n_samples=20000)
     print(f"  六边形蒙特卡洛积分 = {hex_result:.6f}")
 
-    # 7.2 随机流量分布
+
     n_trays = 5
     nc = 3
     total_flows = np.array([20.0, 100.0, 120.0, 120.0, 20.0])
@@ -349,7 +323,7 @@ def demo_uncertainty_quantification():
     print(f"  随机流量分布样本数: {len(samples)}")
     print(f"  样本1各板总流量: {np.sum(samples[0], axis=1)}")
 
-    # 7.3 Sobol 敏感性分析
+
     def simple_model(params):
         return params['alpha'] * params['T']**2 + params['P'] * params['R']
 
@@ -360,7 +334,7 @@ def demo_uncertainty_quantification():
     for name, s in S1.items():
         print(f"    S_{name} = {s:.4f}")
 
-    # 7.4 不确定性传播
+
     def cost_model(params):
         return params['reflux'] * 1e5 + params['efficiency'] * 2e6 + np.random.normal(0, 1e4)
 
@@ -376,17 +350,16 @@ def demo_uncertainty_quantification():
 
 
 def demo_pressure_wave():
-    """演示压力波动传播。"""
     print_section("8. 塔内压力波动传播")
 
-    column_height = 15.0  # m
-    c_sound = 85.0  # m/s (气相中声速，远低于空气)
-    P_bottom = 120000.0  # Pa
-    P_top = 101325.0  # Pa
-    P_initial = 110000.0  # Pa
-    disturbance_z = 7.5  # m
-    disturbance_amp = 5000.0  # Pa
-    t_end = 0.5  # s
+    column_height = 15.0
+    c_sound = 85.0
+    P_bottom = 120000.0
+    P_top = 101325.0
+    P_initial = 110000.0
+    disturbance_z = 7.5
+    disturbance_amp = 5000.0
+    t_end = 0.5
 
     P_field, z_grid, t_grid, alpha = pressure_wave_in_column(
         column_height, c_sound, P_bottom, P_top, P_initial,
@@ -407,7 +380,6 @@ def demo_pressure_wave():
 
 
 def main():
-    """主程序入口。"""
     print("\n" + "#" * 70)
     print("#  精馏塔传质与能效优化 — 博士级科学计算平台")
     print("#  领域: 化学工程")
@@ -416,28 +388,28 @@ def main():
     np.random.seed(42)
     start_time = time.time()
 
-    # 1. VLE 热力学
+
     y_vle, K_vle, gamma_vle, alpha_rel = demo_vle_thermodynamics()
 
-    # 2. 物性插值
+
     total_mt = demo_property_interpolation()
 
-    # 3. 塔板几何
+
     E_avg = demo_tray_geometry()
 
-    # 4. 传质动力学
+
     comp_profiles = demo_mass_transfer_dynamics(alpha_rel)
 
-    # 5. 能效优化
+
     N_opt, R_opt, C_min = demo_efficiency_optimizer()
 
-    # 6. 填料模拟
+
     packing_results = demo_packing_simulation()
 
-    # 7. 不确定性量化
+
     S1 = demo_uncertainty_quantification()
 
-    # 8. 压力波动
+
     P_field = demo_pressure_wave()
 
     elapsed = time.time() - start_time
@@ -445,7 +417,7 @@ def main():
     print(f"#  所有计算完成，耗时 {elapsed:.3f} 秒")
     print("#" * 70)
 
-    # 汇总输出
+
     print_section("计算结果汇总")
     print(f"  汽液平衡: 相对挥发度 α = {alpha_rel}")
     print(f"  传质通量积分: {total_mt:.4e} mol/(m² s)")

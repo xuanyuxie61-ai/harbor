@@ -1,80 +1,9 @@
-"""
-nonherm_dynamics.py
--------------------
-Time evolution in non-Hermitian open quantum systems.
-
-Adapted from seed projects 675_lindberg_ode (stiff ODE) and 1086_sir_ode
-(compartmental ODE model).
-
-Scientific Background
-=====================
-In open quantum systems described by non-Hermitian Hamiltonians H_eff,
-the Schrödinger equation reads
-
-    i ∂_t |ψ(t)⟩ = H_eff |ψ(t)⟩,
-
-where H_eff = H - i Γ is an effective non-Hermitian Hamiltonian with
-Hermitian part H and dissipation/gain matrix Γ = Γ^† ≥ 0.
-
-The norm of the wavefunction is not conserved:
-
-    d/dt ⟨ψ|ψ⟩ = -2 ⟨ψ|Γ|ψ⟩,
-
-reflecting particle loss or gain. For PT-symmetric systems with
-[H_eff, PT] = 0, the spectrum can be entirely real in the PT-unbroken
-phase, and the norm evolves in a balanced way.
-
-The Lindblad master equation for the density matrix is
-
-    dρ/dt = -i[H, ρ] + Σ_j ( L_j ρ L_j^† - ½{L_j^† L_j, ρ} ).
-
-When we trace out the environment and project onto the single-particle
-sector, this reduces to an effective non-Hermitian Schrödinger equation
-for pure states.
-
-For numerical integration, stiff ODE systems (where eigenvalues of the
-Jacobian span many orders of magnitude) require implicit or adaptive
-methods. We implement an adaptive Runge-Kutta-Fehlberg (RKF45) scheme
-with complex state vectors.
-
-The Lindberg system (seed project 675) is a classic stiff test problem:
-    dy1/dt = 10^4 y1 y3 + 10^4 y2 y4
-    dy2/dt = -10^4 y1 y4 + 10^4 y2 y3
-    dy3/dt = 1 - y3
-    dy4/dt = -0.5 y3 - y4 + 0.5
-
-We adapt this structure to model non-Hermitian two-level dynamics with
-fast decaying coherences and slow population dynamics.
-"""
 
 import numpy as np
 
 
 def rkf45_step_complex(f, t, y, h, tol=1e-9):
-    """
-    One adaptive step of RKF45 for complex vector ODE dy/dt = f(t, y).
 
-    Parameters
-    ----------
-    f : callable
-        f(t, y) returns derivative ndarray of same shape as y.
-    t : float
-    y : ndarray, dtype=complex
-    h : float
-        Attempted step size.
-    tol : float
-        Error tolerance.
-
-    Returns
-    -------
-    y_new : ndarray
-        Updated state.
-    t_new : float
-        Updated time.
-    h_new : float
-        Recommended next step size.
-    """
-    # Butcher tableau for RKF45
     a2, a3, a4, a5, a6 = 1.0 / 4.0, 3.0 / 8.0, 12.0 / 13.0, 1.0, 0.5
     b21 = 1.0 / 4.0
     b31, b32 = 3.0 / 32.0, 9.0 / 32.0
@@ -102,35 +31,13 @@ def rkf45_step_complex(f, t, y, h, tol=1e-9):
         h_new = h * min(5.0, 0.9 * (tol / err) ** 0.2)
 
     if err > tol:
-        # Reject step and retry with smaller h
+
         return rkf45_step_complex(f, t, y, h_new, tol)
 
     return y5, t + h, h_new
 
 
 def evolve_nonhermitian_schrodinger(H_eff, psi0, t_span, dt0=1e-4, tol=1e-10):
-    """
-    Solve i ∂_t ψ = H_eff ψ using adaptive RKF45.
-
-    Parameters
-    ----------
-    H_eff : ndarray, shape (N, N), dtype=complex
-        Effective non-Hermitian Hamiltonian.
-    psi0 : ndarray, shape (N,), dtype=complex
-        Initial state.
-    t_span : tuple (t0, t1)
-    dt0 : float
-        Initial step size.
-    tol : float
-        Tolerance per step.
-
-    Returns
-    -------
-    t_vals : ndarray
-    psi_vals : ndarray, shape (len(t_vals), N)
-    norms : ndarray
-        Time-dependent norm ⟨ψ|ψ⟩.
-    """
     if H_eff.shape[0] != H_eff.shape[1]:
         raise ValueError("H_eff must be square.")
     if psi0.shape[0] != H_eff.shape[0]:
@@ -159,29 +66,6 @@ def evolve_nonhermitian_schrodinger(H_eff, psi0, t_span, dt0=1e-4, tol=1e-10):
 
 
 def lindblad_evolve_2level(H, L_list, rho0, t_span, dt0=1e-4, tol=1e-10):
-    """
-    Solve the Lindblad master equation for a two-level system.
-
-    dρ/dt = -i[H, ρ] + Σ_j ( L_j ρ L_j^† - ½{L_j^† L_j, ρ} )
-
-    Parameters
-    ----------
-    H : ndarray, shape (2, 2), dtype=complex
-        Hermitian Hamiltonian.
-    L_list : list of ndarray
-        Lindblad jump operators.
-    rho0 : ndarray, shape (2, 2), dtype=complex
-        Initial density matrix.
-    t_span : tuple
-    dt0, tol : float
-
-    Returns
-    -------
-    t_vals : ndarray
-    rho_vals : ndarray, shape (M, 2, 2)
-    purity : ndarray
-        Tr[ρ^2(t)] (1 for pure state, 0.5 for maximally mixed).
-    """
     def rhs(t, rho_flat):
         rho = rho_flat.reshape((2, 2))
         drho = -1j * (H @ rho - rho @ H)
@@ -210,19 +94,6 @@ def lindblad_evolve_2level(H, L_list, rho0, t_span, dt0=1e-4, tol=1e-10):
 
 
 def nonhermitian_lindberg_system(y):
-    """
-    Adaptation of the Lindberg stiff ODE to a non-Hermitian two-level
-    density-matrix-like system. Variables:
-        y[0] = Re(ρ_01)
-        y[1] = Im(ρ_01)
-        y[2] = ρ_00
-        y[3] = ρ_11
-
-    The dynamics mimic fast-decaying coherences (y0, y1) coupled to
-    slow populations (y2, y3), with a structure analogous to Lindberg's
-    system but derived from a non-Hermitian Hamiltonian with large
-    imaginary off-diagonal terms.
-    """
     y0, y1, y2, y3 = y
     dydt = np.zeros(4)
     scale = 1e4

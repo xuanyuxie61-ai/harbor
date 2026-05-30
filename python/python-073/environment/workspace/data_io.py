@@ -1,48 +1,15 @@
 # -*- coding: utf-8 -*-
-"""
-data_io.py
-计算数据输入输出与格式转换
-
-核心算法来源：
-- tec_to_vtk: 网格数据格式转换（TECPLOT ↔ VTK）
-- xy_io: 二维坐标数据读写
-
-物理背景：
-CFD 计算结果需在不同后处理软件间传输。
-本模块提供：
-1. 计算网格与流场数据的结构化存储
-2. 边界层剖面数据的 XY 格式读写
-3. 稳定性特征值数据的表格输出
-4. VTK 格式输出（用于外部可视化软件，但本模块仅保留数据格式转换功能）
-"""
 
 import numpy as np
 import os
 
 
 def write_xy_data(filename, x, y, header="X Y"):
-    """
-    基于 xy_io 的二维数据写入。
-
-    参数:
-        filename (str): 输出文件路径
-        x, y (np.ndarray): 数据列
-        header (str): 文件头注释
-    """
     data = np.column_stack((x, y))
     np.savetxt(filename, data, fmt='%.10e', header=header, comments='# ')
 
 
 def read_xy_data(filename):
-    """
-    基于 xy_io 的二维数据读取。
-
-    参数:
-        filename (str): 输入文件路径
-
-    返回:
-        tuple: (x, y) 或失败返回 (None, None)
-    """
     try:
         data = np.loadtxt(filename, comments='#')
         if data.ndim == 1:
@@ -54,15 +21,6 @@ def read_xy_data(filename):
 
 
 def write_vtk_structured_grid(filename, x, y, z, scalars=None, vectors=None):
-    """
-    基于 tec_to_vtk 思想生成 VTK Structured Grid 文件。
-
-    参数:
-        filename (str): 输出文件路径
-        x, y, z (np.ndarray): 网格坐标，shape (nx, ny, nz)
-        scalars (dict): 标量场 {'name': array}
-        vectors (dict): 矢量场 {'name': (u, v, w)}
-    """
     nx, ny, nz = x.shape
     n_points = nx * ny * nz
 
@@ -100,15 +58,6 @@ def write_vtk_structured_grid(filename, x, y, z, scalars=None, vectors=None):
 
 
 def write_tecplot_zone(filename, title, x, y, scalars):
-    """
-    生成 TECPLOT 格式数据文件（单 Zone）。
-
-    参数:
-        filename (str): 输出路径
-        title (str): 标题
-        x, y (np.ndarray): 坐标，shape (n,)
-        scalars (dict): 标量场
-    """
     n = len(x)
     var_names = ['X', 'Y'] + list(scalars.keys())
     with open(filename, 'w') as f:
@@ -123,15 +72,6 @@ def write_tecplot_zone(filename, title, x, y, scalars):
 
 
 def read_tecplot_file(filename):
-    """
-    读取简化的 TECPLOT 数据文件。
-
-    参数:
-        filename (str): 文件路径
-
-    返回:
-        dict: {'title': str, 'variables': list, 'data': np.ndarray}
-    """
     with open(filename, 'r') as f:
         lines = f.readlines()
 
@@ -165,15 +105,6 @@ def read_tecplot_file(filename):
 
 
 def write_eigenvalue_spectrum(filename, alphas, omegas, labels=None):
-    """
-    将特征值谱写入文本文件。
-
-    参数:
-        filename (str): 输出路径
-        alphas (np.ndarray): 波数
-        omegas (np.ndarray): 特征值（复数）
-        labels (list): 模态标签
-    """
     with open(filename, 'w') as f:
         f.write("# Alpha   Omega_r   Omega_i   Label\n")
         for i in range(len(alphas)):
@@ -182,13 +113,6 @@ def write_eigenvalue_spectrum(filename, alphas, omegas, labels=None):
 
 
 def write_transition_report(filename, results):
-    """
-    生成转捩预测报告文本。
-
-    参数:
-        filename (str): 输出路径
-        results (dict): 包含各计算模块结果的字典
-    """
     with open(filename, 'w') as f:
         f.write("=" * 70 + "\n")
         f.write("  高超声速边界层转捩预测计算报告\n")

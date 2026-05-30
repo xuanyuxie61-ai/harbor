@@ -1,53 +1,16 @@
-"""
-谱分析与波数离散化约束模块
-
-基于种子项目：
-  - 155_change_diophantine：N 维丢番图方程求解
-
-核心物理模型：
-  1. 波数空间离散化约束：
-     在谱方法或 Floquet-Bloch 分析中，周期性边界条件要求波数满足：
-         k = 2π (n_x/L_x, n_y/L_y, n_z/L_z)
-     其中 n_x, n_y, n_z 为整数。
-     对于海洋平台 Bragg 共振问题，入射波与结构反射波满足：
-         k_I = k_R + G
-     其中 G 为倒格矢（reciprocal lattice vector），
-     G = h_1 b_1 + h_2 b_2，h_i 为整数（丢番图约束）。
-
-  2. 色散关系约束：
-     深水：ω² = g|k|
-     有限水深：ω² = g|k| tanh(|k|h)
-     结合波数整数约束，频率也必须满足离散化关系。
-
-  3. 丢番图方程（源自 155_change_diophantine）：
-     给定整数系数 a = [a_1, ..., a_m] 和右端 b，
-     求所有非负整数解 x 满足：
-         a_1 x_1 + a_2 x_2 + ... + a_m x_m = b
-     使用回溯法枚举所有解。
-
-  4. 波数组合与频率匹配：
-     对于平台立柱阵列（间距 L），Bragg 共振条件要求：
-         2k cosθ = n · (2π/L),  n ∈ ℤ⁺
-     这等价于一个一维丢番图约束。
-"""
 
 import numpy as np
 from typing import List, Tuple, Optional
 from utils import check_well_posed_diophantine, gcd_vector
 
 
-# ======================================================================
-# 1. 丢番图方程求解（源自 155_change_diophantine）
-# ======================================================================
+
+
+
 
 def diophantine_nd_nonnegative_solutions(
     a: np.ndarray, b: int
 ) -> List[np.ndarray]:
-    """
-    求解 a·x = b 的所有非负整数解。
-    使用递归回溯法，按字典序枚举。
-    返回解向量列表。
-    """
     a = np.asarray(a, dtype=int)
     if not check_well_posed_diophantine(a, b):
         return []
@@ -64,7 +27,6 @@ def _backtrack_diophantine(
     current: np.ndarray,
     solutions: List[np.ndarray],
 ):
-    """递归回溯枚举丢番图方程的解。"""
     m = len(a)
     if idx == m - 1:
         if remaining % a[idx] == 0:
@@ -78,13 +40,12 @@ def _backtrack_diophantine(
 
 
 def diophantine_solution_count(a: np.ndarray, b: int) -> int:
-    """计算 a·x = b 的非负整数解个数。"""
     return len(diophantine_nd_nonnegative_solutions(a, b))
 
 
-# ======================================================================
-# 2. 波数离散化约束
-# ======================================================================
+
+
+
 
 def wavenumber_discrete_constraint_bragg(
     wavelength: float,
@@ -92,13 +53,6 @@ def wavenumber_discrete_constraint_bragg(
     incidence_angle: float,
     max_order: int = 5,
 ) -> List[Tuple[int, float]]:
-    """
-    计算 Bragg 共振条件下的波数丢番图约束解。
-    条件：2k cosθ = n · (2π/L)
-    其中 L 为立柱间距，θ 为入射角。
-    对于给定波长 λ，k = 2π/λ，检查哪些整数 n 满足条件。
-    返回满足条件的 (n, 误差) 列表。
-    """
     k = 2.0 * np.pi / wavelength
     cos_theta = np.cos(incidence_angle)
     if abs(cos_theta) < 1e-12:
@@ -109,7 +63,7 @@ def wavenumber_discrete_constraint_bragg(
         required = n * (2.0 * np.pi / column_spacing)
         error = abs(target - required)
         relative_error = error / abs(target) if abs(target) > 1e-12 else error
-        if relative_error < 0.1:  # 10% 容差
+        if relative_error < 0.1:
             solutions.append((n, relative_error))
     return solutions
 
@@ -120,14 +74,6 @@ def wavenumber_discrete_constraint_floquet(
     omega: float = 1.0,
     h: float = 100.0,
 ) -> List[dict]:
-    """
-    Floquet-Bloch 波数离散化：
-    在周期性域 [0,Lx]×[0,Ly] 中，允许波数：
-        k = (h_1 · 2π/L_x, h_2 · 2π/L_y)
-    结合色散关系 ω² = g|k| tanh(|k|h)，寻找整数对 (h_1, h_2)
-    使得频率匹配。
-    返回满足色散关系的模式列表。
-    """
     domain_lengths = np.asarray(domain_lengths, dtype=float)
     if len(domain_lengths) < 2:
         raise ValueError("domain_lengths 至少包含两个元素")
@@ -163,7 +109,7 @@ def wavenumber_discrete_constraint_floquet(
                         "relative_error": rel_err,
                     }
                 )
-    # 按误差排序
+
     modes.sort(key=lambda x: x["relative_error"])
     return modes
 
@@ -173,13 +119,6 @@ def generate_allowed_wavenumbers_diophantine(
     b_total: int,
     domain_scale: float = 100.0,
 ) -> np.ndarray:
-    """
-    使用丢番图方程的解生成允许的波数组合。
-    设 a_coeffs 为频率/波数基底的整数权重，
-    解 x_i 给出各基底模式的数量，总波数矢量为：
-        k = Σ x_i · (2π / domain_scale) · e_i
-    返回波数矢量数组。
-    """
     solutions = diophantine_nd_nonnegative_solutions(a_coeffs, b_total)
     wavenumbers = []
     base_k = 2.0 * np.pi / domain_scale
@@ -191,9 +130,9 @@ def generate_allowed_wavenumbers_diophantine(
     return np.array(wavenumbers)
 
 
-# ======================================================================
-# 3. 功率谱密度与响应谱分析
-# ======================================================================
+
+
+
 
 def response_spectrum_rao(
     omega: np.ndarray,
@@ -201,12 +140,6 @@ def response_spectrum_rao(
     zeta: float,
     wave_spectrum: np.ndarray,
 ) -> np.ndarray:
-    """
-    计算单自由度系统响应谱（RAO² × S_η）。
-    传递函数：
-        |H(ω)|² = 1 / [ (1 - (ω/ω_n)²)² + (2ζ ω/ω_n)² ]
-    响应谱：S_ξ(ω) = |H(ω)|² · S_η(ω)
-    """
     omega = np.asarray(omega, dtype=float)
     wave_spectrum = np.asarray(wave_spectrum, dtype=float)
     if len(omega) != len(wave_spectrum):
@@ -220,10 +153,6 @@ def response_spectrum_rao(
 def significant_response_from_spectrum(
     response_spectrum: np.ndarray, omega: np.ndarray
 ) -> float:
-    """
-    由响应谱计算特征响应幅值：
-        ξ_{1/3} = 2 √(m_0),  m_0 = ∫ S_ξ(ω) dω
-    """
     if len(omega) < 2:
         return 0.0
     m0 = np.trapezoid(response_spectrum, omega)
@@ -234,10 +163,6 @@ def significant_response_from_spectrum(
 def spectral_moments(
     spectrum: np.ndarray, omega: np.ndarray, max_order: int = 4
 ) -> List[float]:
-    """
-    计算谱矩 m_n = ∫ ω^n S(ω) dω。
-    返回 [m_0, m_1, ..., m_max_order]。
-    """
     moments = []
     for n in range(max_order + 1):
         integrand = (omega ** n) * spectrum
@@ -249,12 +174,6 @@ def spectral_moments(
 def spectral_bandwidth_params(
     spectrum: np.ndarray, omega: np.ndarray
 ) -> dict:
-    """
-    计算谱带宽参数：
-      - 谱宽参数 ε = √(1 - m_2² / (m_0 m_4))
-      - 平均周期 T_01 = 2π m_0 / m_1
-      - 平均周期 T_02 = 2π √(m_0 / m_2)
-    """
     moments = spectral_moments(spectrum, omega, max_order=4)
     m0, m1, m2, _, m4 = moments
     epsilon = 0.0
@@ -273,9 +192,9 @@ def spectral_bandwidth_params(
     }
 
 
-# ======================================================================
-# 4. 波浪-结构相互作用的谱展开
-# ======================================================================
+
+
+
 
 def diffraction_transfer_function_diophantine(
     panel_ks: np.ndarray,
@@ -283,12 +202,6 @@ def diffraction_transfer_function_diophantine(
     a_coeffs: np.ndarray,
     b_constraint: int,
 ) -> np.ndarray:
-    """
-    基于丢番图约束的绕射传递函数。
-    将面板法得到的波数 panel_ks 与入射波数 incident_k 的差
-    限制在丢番图方程解集中，筛选满足倒格矢约束的面板贡献。
-    返回各面板的传递系数数组。
-    """
     solutions = diophantine_nd_nonnegative_solutions(a_coeffs, b_constraint)
     if len(solutions) == 0:
         return np.ones(len(panel_ks))
@@ -301,5 +214,5 @@ def diffraction_transfer_function_diophantine(
         if delta in allowed_deltas:
             transfer[i] = 1.0
         else:
-            transfer[i] = 0.1  # 非共振模式贡献衰减
+            transfer[i] = 0.1
     return transfer

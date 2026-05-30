@@ -1,41 +1,9 @@
-"""
-recombination_models.py
-基于种子项目 641_laguerre_polynomial (Laguerre polynomials & Gauss-Laguerre quadrature)
-改造为钙钛矿太阳能电池中辐射复合与 Auger 复合的高级数值积分模块。
-
-在太阳能电池中，总复合率 R_total = R_rad + R_Auger + R_SRH。
-本模块重点处理：
-  1. 辐射复合（Radiative recombination）：
-       R_rad = B (n p - n_i^2)
-     其中 B 为辐射复合系数。
-  2. Auger 复合（Auger recombination）：
-       R_Auger = (C_n n + C_p p) (n p - n_i^2)
-  3. 带尾态辐射复合（Band-to-tail，Urbach 尾）：
-       R_tail = ∫_{E_g}^{∞} g(E) f_c(E) f_v(E) dE
-     其中 g(E) 为联合态密度，涉及 exp(-E/kT) 权函数。
-
-Gauss-Laguerre 求积（对应原项目 l_quadrature_rule）特别适用于
-积分核含 exp(-x) 的半无穷区间积分，如带尾态分布的积分计算。
-
-核心公式：
-  1. 广义拉盖尔多项式 L_n^{(α)}(x)：
-       (n+1) L_{n+1}^{(α)} = (2n+α+1-x) L_n^{(α)} - (n+α) L_{n-1}^{(α)}
-  2. Gauss-Laguerre 求积：
-       ∫_0^∞ x^α e^{-x} f(x) dx ≈ Σ_i w_i f(x_i)
-  3. 辐射复合系数 B 的温度依赖（van Roosbroeck-Shockley 关系）：
-       B(T) = (2π)^{1/2} ħ^{3/2} / (m_r^{3/2} (kT)^{3/2} τ_rad)
-       更常用经验公式：B(T) = B_300 * (T/300)^{-3/2}
-"""
 
 import numpy as np
 from typing import Tuple
 
 
 def imtqlx(n: int, d: np.ndarray, e: np.ndarray, z: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    隐式 QL 算法对角化对称三对角矩阵。
-    对应原项目 imtqlx。
-    """
     d = d.copy()
     e = e.copy()
     z = z.copy()
@@ -78,7 +46,7 @@ def imtqlx(n: int, d: np.ndarray, e: np.ndarray, z: np.ndarray) -> Tuple[np.ndar
                 p = s * r
                 d[i + 1] = g + p
                 g = c * r - b
-                # 更新特征向量
+
                 for k in range(n):
                     temp = z[k + n * (i + 1)]
                     z[k + n * (i + 1)] = s * z[k + n * i] + c * temp
@@ -90,33 +58,13 @@ def imtqlx(n: int, d: np.ndarray, e: np.ndarray, z: np.ndarray) -> Tuple[np.ndar
 
 
 def laguerre_quadrature_rule(n: int, alpha: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    广义 Gauss-Laguerre 求积规则。
-    计算 ∫_0^∞ x^α e^{-x} f(x) dx ≈ Σ w_i f(x_i)。
-    对应原项目 l_quadrature_rule 的扩展，使用 numpy.linalg.eigh
-    对角化 Jacobi 矩阵（数值更稳定）。
-
-    Parameters
-    ----------
-    n : int
-        求积阶数
-    alpha : float
-        广义拉盖尔参数（默认 0）
-
-    Returns
-    -------
-    x : (n,) array
-        节点
-    w : (n,) array
-        权重
-    """
     if n <= 0:
         raise ValueError("n 必须为正整数")
     if alpha < -1.0:
         raise ValueError("alpha 必须 ≥ -1")
 
     import math
-    # 构造对称三对角 Jacobi 矩阵
+
     diag = np.zeros(n)
     offdiag = np.zeros(n - 1)
     for i in range(n):
@@ -134,10 +82,6 @@ def laguerre_quadrature_rule(n: int, alpha: float = 0.0) -> Tuple[np.ndarray, np
 
 
 def lm_polynomial_values(n: int, m: int, x: np.ndarray) -> np.ndarray:
-    """
-    计算关联拉盖尔多项式 L_n^{(m)}(x) 的值。
-    对应原项目 lm_polynomial_values。
-    """
     x = np.asarray(x)
     v = np.zeros((n + 1, len(x)))
     if n >= 0:
@@ -152,12 +96,7 @@ def lm_polynomial_values(n: int, m: int, x: np.ndarray) -> np.ndarray:
 def radiative_recombination_rate(
     n: float, p: float, n_i: float, T: float = 300.0
 ) -> float:
-    """
-    辐射复合率 [cm^{-3}·s^{-1}]。
-    R_rad = B(T) * (n p - n_i^2)
-    B(T) = B_300 * (T/300)^{-1.5}
-    """
-    B_300 = 2.0e-10  # cm^3/s (钙钛矿典型值)
+    B_300 = 2.0e-10
     B = B_300 * (T / 300.0) ** (-1.5)
     return B * (n * p - n_i * n_i)
 
@@ -165,11 +104,6 @@ def radiative_recombination_rate(
 def auger_recombination_rate(
     n: float, p: float, n_i: float, T: float = 300.0
 ) -> float:
-    """
-    Auger 复合率 [cm^{-3}·s^{-1}]。
-    R_Auger = (C_n n + C_p p) (n p - n_i^2)
-    C_n, C_p 典型值 ~ 1e-29 cm^6/s
-    """
     C_n = 1.0e-29
     C_p = 1.0e-29
     return (C_n * n + C_p * p) * (n * p - n_i * n_i)
@@ -180,36 +114,23 @@ def band_to_tail_recombination_integral(
     n_i: float, N_t_tail: float = 1e16, E_u: float = 0.015,
     quadrature_order: int = 16,
 ) -> float:
-    """
-    使用 Gauss-Laguerre 求积计算带尾态辐射复合积分。
-
-    模型：
-      带尾态密度 g(E) = N_t_tail * exp(-(E - E_g)/E_u) / E_u
-      复合率 R_tail = ∫_{E_g}^∞ g(E) * v(E) * f_c(E) * (1-f_v(E)) dE
-    通过变量替换 x = (E - E_g)/E_u，积分变为：
-      R_tail = N_t_tail * v_th * σ * ∫_0^∞ e^{-x} * f_c(E_g + x E_u) * (1-f_v) * E_u dx
-    进一步简化，使用有效复合速率近似：
-      R_tail ≈ N_t_tail * C * ∫_0^∞ e^{-x} * (n p - n_i^2) / (n + p + 2 n_i cosh(x)) dx
-
-    这里使用 Gauss-Laguerre 对含 exp(-x) 的积分进行数值求积。
-    """
     if E_g <= 0 or T <= 0 or E_u <= 0:
         return 0.0
 
-    kT = 8.617333e-5 * T  # eV
+    kT = 8.617333e-5 * T
     x_nodes, w_nodes = laguerre_quadrature_rule(quadrature_order, alpha=0.0)
 
-    # 简化模型：带尾态的有效复合截面
-    sigma_eff = 1e-14  # cm^2
-    v_th = 1e7  # cm/s (热运动速度近似)
+
+    sigma_eff = 1e-14
+    v_th = 1e7
 
     integral = 0.0
     for xi, wi in zip(x_nodes, w_nodes):
-        # 能级 E = E_g + xi * E_u
-        # 陷阱相对于带边的深度
+
+
         trap_depth = xi * E_u
-        # 简化的复合概率
-        # 使用 Fermi-Dirac 积分的近似
+
+
         n1 = n_i * np.exp(trap_depth / kT)
         p1 = n_i * np.exp(-trap_depth / kT)
         denom = p + n1 + n + p1
@@ -217,7 +138,7 @@ def band_to_tail_recombination_integral(
             integrand = (n * p - n_i * n_i) / denom
             integral += wi * integrand
 
-    # 数值鲁棒性
+
     if not np.isfinite(integral):
         integral = 0.0
 
@@ -231,22 +152,14 @@ def total_recombination_rate(
     E_t: float = 0.0, E_g: float = 1.6,
     N_t_tail: float = 1e16, E_u: float = 0.015,
 ) -> dict:
-    """
-    计算总复合率及各项分量。
 
-    Returns
-    -------
-    rates : dict
-        {'SRH', 'radiative', 'auger', 'tail', 'total'}
-    """
-    # SRH
-    # TODO(Hole_1): 实现 Shockley-Read-Hall 复合率计算
-    # 需要计算 n1, p1 以及 denom_srh，然后得到 R_srh
-    # 公式: R_srh = (n * p - n_i^2) / (tau_p * (n + n1) + tau_n * (p + p1))
-    # 其中 n1 = N_c * exp(-E_t / kT), p1 = N_v * exp(E_t / kT)
-    # 注意与 main.py 中 collection_efficiency 的耦合关系
+
+
+
+
+
     kT = 8.617333e-5 * T
-    R_srh = 0.0  # placeholder
+    R_srh = 0.0
 
     R_rad = radiative_recombination_rate(n, p, n_i, T)
     R_aug = auger_recombination_rate(n, p, n_i, T)

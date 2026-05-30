@@ -1,47 +1,13 @@
-"""
-lattice_geometry.py
-===================
-Geometric utilities for crystal lattice analysis synthesized from seed projects:
-  - 1309_triangle_interpolate (triangle area, barycentric interpolation, uniform sampling)
-  - 150_cg_lab_triangles (signed point-to-line distance)
-
-Core algorithms:
-  - Signed triangle area via shoelace formula
-  - Linear barycentric interpolation on triangular elements
-  - Uniform random sampling inside a triangle (Turk's Rule #1)
-  - Signed perpendicular distance from point to line
-  - Hexagonal and square lattice builders for 2D/3D dusty plasma crystals
-"""
 
 import numpy as np
 
 
 def triangle_area(p1, p2, p3):
-    """
-    Signed area of a triangle via the shoelace formula.
-    
-    Based on seed 1309_triangle_interpolate.
-    
-    Area = 0.5 * [ x1(y2 - y3) + x2(y3 - y1) + x3(y1 - y2) ]
-    
-    Positive for counterclockwise vertex ordering, negative for clockwise.
-    """
     p1, p2, p3 = np.asarray(p1, dtype=float), np.asarray(p2, dtype=float), np.asarray(p3, dtype=float)
     return 0.5 * (p1[0]*(p2[1] - p3[1]) + p2[0]*(p3[1] - p1[1]) + p3[0]*(p1[1] - p2[1]))
 
 
 def barycentric_interpolate(query_points, p1, p2, p3, v1, v2, v3):
-    """
-    Linear barycentric interpolation of vertex data to query points inside a triangle.
-    
-    Based on seed 1309_triangle_interpolate.
-    
-    For a point p inside triangle (p1, p2, p3), the interpolated value is:
-      v(p) = (Area(p,p2,p3) * v1 + Area(p1,p,p3) * v2 + Area(p1,p2,p) * v3) / Area(p1,p2,p3)
-    
-    where Area() is the signed triangle area. The weights w1, w2, w3 are the
-    barycentric coordinates of p.
-    """
     query_points = np.asarray(query_points, dtype=float)
     if query_points.ndim == 1:
         query_points = query_points.reshape(1, -1)
@@ -62,20 +28,6 @@ def barycentric_interpolate(query_points, p1, p2, p3, v1, v2, v3):
 
 
 def uniform_in_triangle(v1, v2, v3, n):
-    """
-    Generate n uniformly distributed random points inside a triangle.
-    
-    Based on seed 1309_triangle_interpolate (Turk's Rule #1 from Graphics Gems).
-    
-    Algorithm:
-      Draw r1, r2 ~ Uniform(0,1).
-      a = 1 - sqrt(r2)
-      b = (1 - r1) * sqrt(r2)
-      c = r1 * sqrt(r2)
-      p = a*v1 + b*v2 + c*v3
-    
-    The mapping (r1, r2) -> (a, b, c) produces uniform barycentric coordinates.
-    """
     v1, v2, v3 = np.asarray(v1, dtype=float), np.asarray(v2, dtype=float), np.asarray(v3, dtype=float)
     r1 = np.random.rand(n)
     r2 = np.random.rand(n)
@@ -87,19 +39,6 @@ def uniform_in_triangle(v1, v2, v3, n):
 
 
 def signed_point_line_distance(p1, p2, p):
-    """
-    Signed perpendicular distance from point p to the line through p1 and p2.
-    
-    Based on seed 150_cg_lab_triangles.
-    
-    Direction vector: d = p2 - p1
-    Unit normal:      n = (-d_y, d_x) / ||d||
-    Signed distance:  dist = n^T * (p - p1)
-    
-    Positive indicates the point lies on one side of the directed line;
-    negative indicates the opposite side; zero means on the line.
-    Used for detecting lattice planes and stacking faults in crystal structures.
-    """
     p1, p2, p = np.asarray(p1, dtype=float), np.asarray(p2, dtype=float), np.asarray(p, dtype=float)
     d = p2 - p1
     norm_d = np.linalg.norm(d)
@@ -110,14 +49,6 @@ def signed_point_line_distance(p1, p2, p):
 
 
 def build_hexagonal_lattice(n_rows, n_cols, a):
-    """
-    Build a 2D hexagonal (triangular) lattice with lattice constant a.
-    
-    In 2D, each particle has 6 nearest neighbors at distance a.
-    The basis vectors are:
-      a1 = a * (1, 0)
-      a2 = a * (1/2, sqrt(3)/2)
-    """
     positions = []
     for i in range(n_rows):
         for j in range(n_cols):
@@ -130,7 +61,6 @@ def build_hexagonal_lattice(n_rows, n_cols, a):
 
 
 def build_square_lattice(n_rows, n_cols, a):
-    """Build a 2D square lattice with lattice constant a."""
     positions = []
     for i in range(n_rows):
         for j in range(n_cols):
@@ -139,7 +69,6 @@ def build_square_lattice(n_rows, n_cols, a):
 
 
 def build_simple_cubic_lattice(nx, ny, nz, a):
-    """Build a 3D simple cubic lattice with lattice constant a."""
     positions = []
     for i in range(nx):
         for j in range(ny):

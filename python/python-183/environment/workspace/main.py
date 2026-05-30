@@ -1,21 +1,9 @@
-r"""
-main.py
-================================================================================
-基于时空结构方程模型与间断 Galerkin 方法的高维因果推断网络分析系统
-
-统一入口，零参数运行。
-本程序整合 15 个种子项目的核心算法，在"数据科学：因果推断与结构方程"
-领域构建一个面向前沿科学问题的博士级计算框架。
-
-运行方式:
-    python main.py
-r"""
 
 import numpy as np
 import sys
 import os
 
-# 将当前目录加入路径以导入各模块
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from sparse_sem_matrix import (
@@ -69,15 +57,11 @@ def section_header(name: str):
 
 
 def run_sem_sparse_precision():
-    r"""
-    模块 1: 稀疏精度矩阵估计（Graphical Lasso）
-    基于种子项目 510_hb_to_st 的稀疏矩阵思想。
-    r"""
     section_header("模块 1: 稀疏精度矩阵与因果骨架提取")
     np.random.seed(42)
     p = 12
     n = 800
-    # 构造真实 DAG 的精度矩阵
+
     Theta_true = np.eye(p) * 2.0
     true_edges = [(0, 1, 0.5), (1, 2, 0.4), (2, 3, 0.3),
                   (0, 3, 0.25), (4, 5, 0.6), (5, 6, 0.35),
@@ -94,7 +78,7 @@ def run_sem_sparse_precision():
     Theta_sparse = threshold_precision(Theta_est, eps=4e-3)
     edges, _ = extract_causal_skeleton(Theta_sparse)
 
-    # CSR 转换
+
     data, indices, indptr = dense_to_csr(Theta_sparse)
     print(f"  变量维度 p={p}, 样本量 n={n}")
     print(f"  真实因果边数: {len(true_edges)}, 估计因果边数: {len(edges)}")
@@ -104,10 +88,6 @@ def run_sem_sparse_precision():
 
 
 def run_dg_causal_diffusion():
-    r"""
-    模块 2: 因果效应时空传播的 DG 求解
-    基于种子项目 275_dg1d_poisson 的间断 Galerkin 方法。
-    r"""
     section_header("模块 2: 因果扩散方程的间断 Galerkin 求解")
     t_hist, u_hist = solve_causal_diffusion_dg(
         nel=10, nsteps=120, dt=0.0005, K=0.5
@@ -119,17 +99,13 @@ def run_dg_causal_diffusion():
 
 
 def run_markov_causal_chain(edges):
-    r"""
-    模块 3: 因果马尔可夫链与 do-干预分析
-    基于种子项目 1200_tennis_matrix 的状态转移矩阵。
-    r"""
     section_header("模块 3: 因果马尔可夫链与干预效应")
     p = 12
     P, trans, absorb = build_causal_markov_chain(p, edges, n_states_per_var=3)
     P_canon, Q, R, state_map = canonical_form(P, trans, absorb)
     B, t = absorption_probabilities_and_times(Q, R)
 
-    # do-干预：固定变量 0 为最高状态
+
     P_do = intervene_do_state(P, state_idx=0, new_value_state=2, n_states_per_var=3)
     P_canon_do, Q_do, R_do, _ = canonical_form(P_do, trans, absorb)
     B_do, t_do = absorption_probabilities_and_times(Q_do, R_do)
@@ -142,10 +118,6 @@ def run_markov_causal_chain(edges):
 
 
 def run_pagerank_causal_rank(edges, n):
-    r"""
-    模块 4: 因果网络 PageRank 排序
-    基于种子项目 844_pagerank 的幂迭代算法。
-    r"""
     section_header("模块 4: CausalRank 与混淆变量识别")
     A = adjacency_from_edges(edges, n, use_weights=True)
     G = build_google_matrix(A, alpha=0.85)
@@ -159,10 +131,6 @@ def run_pagerank_causal_rank(edges, n):
 
 
 def run_toeplitz_time_analysis():
-    r"""
-    模块 5: Toeplitz 自协方差矩阵快速求逆与时滞因果强度
-    基于种子项目 1263_toeplitz_inverse 的 Fiedler 算法。
-    r"""
     section_header("模块 5: Toeplitz 时间矩阵与 AR 系数估计")
     np.random.seed(11)
     n_series = 128
@@ -189,25 +157,21 @@ def run_toeplitz_time_analysis():
 
 
 def run_gaussian_causal_test(Theta_sparse, n):
-    r"""
-    模块 6: Owen T 函数与偏相关系数检验
-    基于种子项目 033_asa076 的高斯求积计算。
-    r"""
     section_header("模块 6: 高斯因果假设检验 (Owen T + 偏相关)")
-    # TODO [Hole 3] 请补全高斯因果检验的数据准备与调用逻辑：
-    # 1. 从 Theta_sparse 获取维度 p
-    # 2. 生成合成数据：Sigma = inv(Theta_sparse + c * I)，从 N(0, Sigma) 采样 n 个样本
-    # 3. 计算样本协方差矩阵 S
-    # 4. 估计检验用精度矩阵 Theta_est_test = inv(S + c' * I)
-    # 5. 调用 partial_correlation_test(Theta_est_test, n, alpha_level=0.05)
-    # 6. 统计显著边数 n_edges
-    # 注意：常数 c 和 c' 的选取需与稀疏精度矩阵的正定性假设一致
+
+
+
+
+
+
+
+
     raise NotImplementedError("Hole 3: 高斯因果检验数据准备待实现")
 
     pvals, reject = None, None
     n_edges = 0
 
-    # Owen T 函数测试
+
     t_val = owen_t_function(1.0, 0.5)
     print(f"  Owen T(1.0, 0.5) = {t_val:.8f}")
     print(f"  显著条件依赖边数 (alpha=0.05): {n_edges}")
@@ -215,10 +179,6 @@ def run_gaussian_causal_test(Theta_sparse, n):
 
 
 def run_causal_ode_dynamics():
-    r"""
-    模块 7: 因果效应动态演化与蒙特卡洛距离估计
-    基于种子项目 1036_rk4 (Runge-Kutta) 与 066_ball_distance (球采样)。
-    r"""
     section_header("模块 7: 因果 ODE 动力学与 MC 距离估计")
     np.random.seed(13)
     p = 6
@@ -244,10 +204,6 @@ def run_causal_ode_dynamics():
 
 
 def run_spherical_causal_field():
-    r"""
-    模块 8: 球面因果场离散化与调和展开
-    基于种子项目 1122_sphere_llq_grid 的球面网格生成。
-    r"""
     section_header("模块 8: 球面因果场与调和分析")
     points = sphere_llq_grid_points(r=1.0, pc=np.zeros(3), lat_num=5, long_num=10)
     field = np.zeros(len(points))
@@ -267,18 +223,14 @@ def run_spherical_causal_field():
 
 
 def run_pyramid_integration():
-    r"""
-    模块 9: 高维因果效应数值积分
-    基于种子项目 937_pyramid_witherden_rule 的求积规则。
-    r"""
     section_header("模块 9: 因果参数空间数值积分")
-    # 测试 1: 金字塔多项式积分
+
     val1 = integrate_pyramid(lambda x, y, z: x * x + y * y + 2.0 * z, precision=4)
-    # 测试 2: 高维因果效应参数空间期望
+
     val2 = integrate_causal_effect_parameter_space(
         lambda theta: np.exp(-np.sum(theta ** 2)), dim=4, n_samples=800
     )
-    # 测试 3: 长方体区域积分
+
     val3 = integrate_on_3d_causal_region(
         lambda x, y, z: np.sin(np.pi * x) * np.cos(np.pi * y) * z ** 2,
         (0.0, 1.0), (0.0, 1.0), (0.0, 1.0), precision=4
@@ -290,10 +242,6 @@ def run_pyramid_integration():
 
 
 def run_mesh_interpolation():
-    r"""
-    模块 10: 三角网格插值与多边形区域判定
-    基于种子项目 425_ffmatlib 与 109_boundary_word_right。
-    r"""
     section_header("模块 10: 因果场网格插值与空间区域判定")
     points = np.array([
         [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.5, 0.5]
@@ -316,10 +264,6 @@ def run_mesh_interpolation():
 
 
 def run_geometry_processing():
-    r"""
-    模块 11: 三维几何处理与 STL 格式
-    基于种子项目 1425_xyzf_display 与 1296_tri_surface_to_stla。
-    r"""
     section_header("模块 11: 三维因果曲面几何处理")
     pts, faces = generate_icosphere_nodes(radius=1.0, subdivisions=1)
     fnormals = compute_face_normals(pts, faces)
@@ -332,16 +276,12 @@ def run_geometry_processing():
 
 
 def run_time_series_analysis():
-    r"""
-    模块 12: 时间序列对齐、互相关与 Granger 因果检验
-    基于种子项目 135_calpak 的时间处理思想。
-    r"""
     section_header("模块 12: 时间序列因果时滞分析")
     np.random.seed(23)
     n = 250
     t = np.linspace(0, 20, n)
     x = np.sin(0.8 * t) + 0.15 * np.random.randn(n)
-    # y 受 x 滞后 6 步的影响
+
     lag_effect = 6
     y = np.cos(0.8 * t) + 0.4 * np.roll(x, lag_effect) + 0.15 * np.random.randn(n)
     y[:lag_effect] = y[lag_effect]
@@ -369,7 +309,7 @@ def main():
     print("项目编号: PROJECT_183")
     print("语言: Python 3")
 
-    # 执行各模块
+
     Theta_sparse, edges = run_sem_sparse_precision()
     t_hist, u_hist = run_dg_causal_diffusion()
     B, t = run_markov_causal_chain(edges)
@@ -383,7 +323,7 @@ def main():
     pts_geo, faces_geo = run_geometry_processing()
     peak_lag, F_stat = run_time_series_analysis()
 
-    # 综合评估
+
     section_header("综合评估与数值验证")
     print("  各模块运行状态: OK")
     print(f"  因果骨架边数: {len(edges)}")

@@ -1,41 +1,3 @@
-"""
-Mesh Processing, Triangulation Refinement, and Reverse Cuthill-McKee
-====================================================================
-Provides utilities for handling 2D triangular and quadrilateral meshes
-that arise in the real-space discretization of moiré superlattices,
-including linear-to-quadratic element upgrade and bandwidth reduction
-for sparse Hamiltonian matrices.
-
-Scientific Background
----------------------
-Finite-element or finite-difference calculations on irregular domains
-require a mesh.  For the moiré supercell, a triangular mesh allows
-flexible handling of the hexagonal geometry.  Quadratic (P2) elements
-provide higher-order accuracy:
-
-    Linear (P1) triangle: 3 nodes (vertices)
-    Quadratic (P2) triangle: 6 nodes (vertices + edge midpoints)
-
-The element upgrade adds edge-midpoint nodes while preserving
-compatibility (shared edges get the same midpoint node).
-
-For sparse matrix computations, the bandwidth
-
-    B = max_{A_{ij} ≠ 0} |i − j|
-
-strongly affects the performance of direct solvers and preconditioners.
-The Reverse Cuthill-McKee (RCM) algorithm reorders nodes to minimize B
-by performing a breadth-first search from a pseudo-peripheral node and
-reversing the ordering.
-
-The profile (envelope) is defined as
-
-    P = Σ_i (max_{j≤i, A_{ij}≠0} j) .
-
-RCM typically reduces both bandwidth and profile by one to two orders
-of magnitude for graphs with local connectivity (e.g., tight-binding
-Hamiltonians).
-"""
 
 import numpy as np
 from typing import Tuple, List, Dict
@@ -45,27 +7,6 @@ def linear_to_quadratic_triangles(
     nodes: np.ndarray,
     elements: np.ndarray,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Upgrade a linear (3-node) triangular mesh to a quadratic (6-node)
-    triangular mesh by adding edge-midpoint nodes.
-
-    For each edge shared by two triangles, the midpoint is computed once
-    and assigned to both elements.  Boundary edges get their own
-    midpoint nodes.
-
-    Parameters
-    ----------
-    nodes : np.ndarray of shape (n_nodes, 2)
-        Vertex coordinates.
-    elements : np.ndarray of shape (n_elements, 3)
-        Linear element connectivity (0-based indices).
-
-    Returns
-    -------
-    new_nodes : np.ndarray of shape (n_nodes + n_edge_nodes, 2)
-    new_elements : np.ndarray of shape (n_elements, 6)
-        Quadratic connectivity: [v0, v1, v2, m01, m12, m20].
-    """
     nodes = np.asarray(nodes, dtype=float)
     elements = np.asarray(elements, dtype=int)
     n_nodes = nodes.shape[0]
@@ -74,14 +15,14 @@ def linear_to_quadratic_triangles(
     if elements.shape[1] != 3:
         raise ValueError("Elements must have 3 vertices for linear triangles.")
 
-    # Identify edges and shared edges
+
     edge_to_midpoint: Dict[Tuple[int, int], int] = {}
     new_nodes_list = list(nodes)
 
     def get_sorted_edge(v1: int, v2: int) -> Tuple[int, int]:
         return (min(v1, v2), max(v1, v2))
 
-    # First pass: create midpoints for all edges
+
     for e in range(n_elements):
         verts = elements[e]
         for edge_idx in range(3):
@@ -100,7 +41,7 @@ def linear_to_quadratic_triangles(
     for e in range(n_elements):
         verts = elements[e]
         new_elements[e, 0:3] = verts
-        # Edge midpoints
+
         for edge_idx in range(3):
             v1 = verts[edge_idx]
             v2 = verts[(edge_idx + 1) % 3]
@@ -116,25 +57,6 @@ def build_adjacency_from_elements(
     n_nodes: int,
     element_type: str = "triangle",
 ) -> List[List[int]]:
-    """
-    Build a node adjacency graph from element connectivity.
-
-    Two nodes are adjacent if they share at least one element.
-
-    Parameters
-    ----------
-    elements : np.ndarray
-        Element connectivity array.
-    n_nodes : int
-        Total number of nodes.
-    element_type : str
-        "triangle" (3 or 6 nodes) or "quadrilateral" (4 nodes).
-
-    Returns
-    -------
-    adjacency : list of lists
-        adjacency[i] contains the neighbors of node i.
-    """
     adjacency = [set() for _ in range(n_nodes)]
 
     for elem in elements:
@@ -161,22 +83,6 @@ def pseudo_peripheral_node(
     adjacency: List[List[int]],
     start: int = 0,
 ) -> int:
-    """
-    Find a pseudo-peripheral node using the Gibbs-Poole-Stockmeyer
-    strategy: start from an arbitrary node, find the farthest node in
-    a BFS level set, and repeat until the level-set depth stops growing.
-
-    Parameters
-    ----------
-    adjacency : list of lists
-    start : int
-        Starting node index.
-
-    Returns
-    -------
-    int
-        A pseudo-peripheral node.
-    """
     n = len(adjacency)
     if n == 0:
         return 0
@@ -185,7 +91,7 @@ def pseudo_peripheral_node(
     prev_depth = -1
 
     while True:
-        # BFS from current
+
         visited = np.full(n, -1, dtype=int)
         queue = [current]
         visited[current] = 0
@@ -208,32 +114,13 @@ def pseudo_peripheral_node(
         if max_level <= prev_depth:
             return current
         prev_depth = max_level
-        # Pick the node in the last level with minimum degree
+
         last_level = level_nodes[max_level]
         degrees = [len(adjacency[v]) for v in last_level]
         current = last_level[int(np.argmin(degrees))]
 
 
 def rcm_order(adjacency: List[List[int]]) -> np.ndarray:
-    """
-    Compute the Reverse Cuthill-McKee (RCM) ordering for a sparse graph.
-
-    Algorithm:
-      1. Find a pseudo-peripheral node R.
-      2. Initialize ordering with R.
-      3. For each level set (breadth-first layers), sort nodes within
-         the level by increasing degree.
-      4. Reverse the final ordering.
-
-    Parameters
-    ----------
-    adjacency : list of lists
-
-    Returns
-    -------
-    np.ndarray of shape (n,)
-        RCM permutation (new_index = perm[old_index]).
-    """
     n = len(adjacency)
     if n == 0:
         return np.array([], dtype=int)
@@ -246,7 +133,7 @@ def rcm_order(adjacency: List[List[int]]) -> np.ndarray:
     visited[root] = True
 
     while queue:
-        # Collect current level
+
         level = []
         next_queue = []
         for u in queue:
@@ -255,13 +142,13 @@ def rcm_order(adjacency: List[List[int]]) -> np.ndarray:
                 if not visited[v]:
                     visited[v] = True
                     next_queue.append(v)
-        # Sort level by degree (ascending)
+
         level.sort(key=lambda x: len(adjacency[x]))
         perm.extend(level)
         queue = next_queue
 
     perm = np.array(perm, dtype=int)
-    # Reverse
+
     return perm[::-1]
 
 
@@ -269,24 +156,6 @@ def apply_rcm_to_sparse_matrix(
     H: np.ndarray,
     adjacency: List[List[int]],
 ) -> Tuple[np.ndarray, np.ndarray, int, int]:
-    """
-    Apply RCM reordering to a sparse Hamiltonian matrix and return the
-    reordered matrix along with bandwidth metrics.
-
-    Parameters
-    ----------
-    H : np.ndarray of shape (n, n)
-    adjacency : list of lists
-
-    Returns
-    -------
-    H_perm : np.ndarray
-        Reordered matrix.
-    perm : np.ndarray
-        Permutation array.
-    bandwidth_old : int
-    bandwidth_new : int
-    """
     n = H.shape[0]
     perm = rcm_order(adjacency)
     H_perm = H[np.ix_(perm, perm)]
@@ -310,17 +179,6 @@ def write_triangle_mesh(
     nodes: np.ndarray,
     elements: np.ndarray,
 ) -> None:
-    """
-    Write a triangular mesh in a simplified TRIANGLE format (.node and
-    .ele files).
-
-    Parameters
-    ----------
-    filename : str
-        Base filename (without extension).
-    nodes : np.ndarray of shape (n_nodes, 2)
-    elements : np.ndarray of shape (n_elements, n_nodes_per_element)
-    """
     node_file = filename + ".node"
     ele_file = filename + ".ele"
 
@@ -343,14 +201,6 @@ def read_triangle_mesh(
     node_file: str,
     ele_file: str,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Read a TRIANGLE-format mesh from .node and .ele files.
-
-    Returns
-    -------
-    nodes : np.ndarray
-    elements : np.ndarray
-    """
     nodes = []
     with open(node_file, "r") as f:
         header = f.readline().strip().split()

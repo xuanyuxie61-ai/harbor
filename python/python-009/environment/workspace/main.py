@@ -1,25 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-main.py
-系外行星大气光谱反演系统 — 统一入口
-
-科学问题：
-    基于透射光谱观测数据，利用贝叶斯框架反演热木星大气参数，
-    包括温度-压强剖面、化学丰度分布、云层光学厚度等。
-
-运行方式：
-    python main.py
-
-零参数可运行，内置模拟观测数据与完整反演流程。
-"""
 
 import numpy as np
 import time
 import sys
 import os
 
-# 导入子模块
+
 from atmospheric_model import AtmosphericProfile, ChemicalEquilibrium, CloudModel
 from mesh_generator import AtmosphericMesh, distance_function_sphere_shell, mesh_size_function
 from spectral_synthesis import MolecularCrossSection, RayleighScattering, LineProfile
@@ -32,23 +19,15 @@ from data_io import TecDataset, write_spectrum_ascii, read_spectrum_ascii, save_
 
 
 def generate_synthetic_observation():
-    """
-    生成模拟观测数据（正向模型）。
-
-    物理场景：
-        热木星 HD 189733 b 类似行星
-        恒星：类太阳恒星
-        观测：凌日透射光谱
-    """
     print("=" * 70)
     print("STEP 1: 生成模拟观测数据 (正向模型)")
     print("=" * 70)
 
-    # 行星物理参数
-    M_jupiter = 1.898e27  # kg
-    R_jupiter = 6.9911e7  # m
-    M_sun = 1.98847e30  # kg
-    AU = 1.496e11  # m
+
+    M_jupiter = 1.898e27
+    R_jupiter = 6.9911e7
+    M_sun = 1.98847e30
+    AU = 1.496e11
 
     planet = AtmosphericProfile(
         planet_mass_kg=1.14 * M_jupiter,
@@ -59,43 +38,43 @@ def generate_synthetic_observation():
 
     print(f"  行星平衡温度: T_eq = {planet.T_eq:.1f} K")
 
-    # 构造压强网格 (100 层，1e-1 Pa 到 1e7 Pa)
+
     mesh = AtmosphericMesh(n_layers=60, P_top=1e-1, P_bot=1e7,
                            planet_radius_m=planet.R_p)
     P = mesh.P_center
 
-    # 真实温度剖面 (Guillot 模型)
+
     T_true = planet.guillot_temperature_profile(
         P, T_int=150.0, T_irr=planet.T_eq * 1.2,
         gamma=16.0 / 3.0, kappa_ir=1e-2, kappa_v1=6e-3, kappa_v2=1e-4
     )
 
-    # 化学丰度
+
     chem = ChemicalEquilibrium(['H2', 'He', 'H2O', 'CH4', 'CO', 'CO2', 'Na'])
     abundances = {}
     for sp in chem.species:
         abundances[sp] = chem.equilibrium_abundance(sp, T_true, P,
                                                       metallicity=1.0, C_O_ratio=0.54)
 
-    # 平均分子量
+
     mu_avg = chem.mean_molecular_weight(abundances)
 
-    # 重力
+
     g = planet.gravity(np.zeros_like(P))
 
-    # 海拔
+
     z = planet.altitude_from_pressure(P, T_true, mu_avg)
 
-    # 云层
+
     cloud = CloudModel(P_cloud_top=1e3, P_cloud_base=1e5,
                        cloud_opacity=2.0, particle_radius_m=1e-6)
     cloud_tau = cloud.cloud_optical_depth(P)
 
-    # 波长网格 (0.3 - 5.0 μm)
-    wavelength_um = np.linspace(0.3, 5.0, 150)
-    wavenumber_cm = 1e4 / wavelength_um  # cm^-1
 
-    # 计算分子截面
+    wavelength_um = np.linspace(0.3, 5.0, 150)
+    wavenumber_cm = 1e4 / wavelength_um
+
+
     species_active = ['H2O', 'CH4', 'CO', 'CO2', 'Na']
     cross_sections = {}
     for sp in species_active:
@@ -105,10 +84,10 @@ def generate_synthetic_observation():
             sigma[i, :] = mol.compute_cross_section(wavenumber_cm, T_true[i], P[i])
         cross_sections[sp] = sigma
 
-    # 瑞利散射截面
+
     rayleigh = RayleighScattering.effective_cross_section(wavelength_um)
 
-    # 辐射传输求解
+
     rt_solver = RadiativeTransferSolver(wavelength_um, planet.R_p)
     tau_cumulative = rt_solver.compute_optical_depth(
         P, T_true, abundances, cross_sections, g,
@@ -116,11 +95,11 @@ def generate_synthetic_observation():
         cloud_optical_depth=cloud_tau[:, None] if cloud_tau.ndim == 1 else cloud_tau
     )
 
-    # 透射光谱
+
     transit_depth = rt_solver.transit_depth_spectrum(P, T_true, tau_cumulative, z)
 
-    # 添加噪声（模拟观测误差 ~50 ppm）
-    noise_level = 50.0  # ppm
+
+    noise_level = 50.0
     noise = np.random.normal(0.0, noise_level, size=len(wavelength_um))
     transit_depth_noisy = transit_depth + noise
     error = np.full_like(transit_depth_noisy, noise_level)
@@ -130,7 +109,7 @@ def generate_synthetic_observation():
     print(f"  平均透射深度: {np.mean(transit_depth):.2f} ppm")
     print(f"  噪声水平: {noise_level:.1f} ppm")
 
-    # 保存数据
+
     write_spectrum_ascii(wavelength_um, transit_depth_noisy, error, "observed_spectrum.dat")
     print("  观测数据已保存至 observed_spectrum.dat")
 
@@ -154,17 +133,6 @@ def generate_synthetic_observation():
 
 
 def forward_model(params, data_dict):
-    """
-    正向模型：从参数计算理论透射光谱。
-
-    参数向量:
-        params[0]: T_int (K) - 内部温度
-        params[1]: log10(metallicity)
-        params[2]: C/O ratio
-        params[3]: log10(cloud_opacity)
-        params[4]: log10(P_cloud_top) (Pa)
-        params[5:5+N_layers-3]: T_perturbation (温度剖面扰动，相对于 Guillot 模型)
-    """
     wavelength_um = data_dict['wavelength_um']
     wavenumber_cm = data_dict['wavenumber_cm']
     P = data_dict['P']
@@ -175,20 +143,20 @@ def forward_model(params, data_dict):
 
     n_layers = len(P)
 
-    # 解析参数
+
     T_int = params[0]
     metallicity = 10.0**params[1]
     C_O = params[2]
     cloud_opacity = 10.0**params[3]
     P_cloud_top = 10.0**params[4]
 
-    # 温度剖面: Guillot + 扰动
+
     T_base = planet.guillot_temperature_profile(P, T_int=T_int, T_irr=planet.T_eq * 1.2)
     n_perturb = min(len(params) - 5, n_layers)
     if n_perturb > 0:
         perturb = np.zeros(n_layers)
         perturb[:n_perturb] = params[5:5 + n_perturb]
-        # 对扰动进行平滑（融合 diffuse 思想）
+
         for _ in range(2):
             perturb[1:-1] = 0.5 * perturb[1:-1] + 0.25 * (perturb[:-2] + perturb[2:])
         T = T_base + perturb
@@ -196,29 +164,26 @@ def forward_model(params, data_dict):
     else:
         T = T_base
 
-    # 化学丰度
+
     chem = ChemicalEquilibrium(['H2', 'He', 'H2O', 'CH4', 'CO', 'CO2', 'Na'])
     abundances = {}
     for sp in chem.species:
         abundances[sp] = chem.equilibrium_abundance(sp, T, P, metallicity=metallicity, C_O_ratio=C_O)
     mu_avg = chem.mean_molecular_weight(abundances)
 
-    # TODO Hole 3: 完成正向模型的剩余部分
-    # 需要依次完成：
-    # 1. 计算海拔 z = planet.altitude_from_pressure(P, T, mu_avg)
-    # 2. 构造 CloudModel 并计算 cloud_tau
-    # 3. 计算各物种分子吸收截面 cross_sections
-    # 4. 计算瑞利散射截面
-    # 5. 构造 RadiativeTransferSolver，调用 compute_optical_depth 计算累积光学深度
-    # 6. 调用 transit_depth_spectrum 计算透射深度并返回
+
+
+
+
+
+
+
+
     transit_depth = np.zeros(len(wavelength_um))
     return transit_depth
 
 
 def inversion_least_squares(data_dict):
-    """
-    最小二乘反演：使用 Levenberg-Marquardt 优化。
-    """
     print("\n" + "=" * 70)
     print("STEP 2: 最小二乘参数反演 (Levenberg-Marquardt)")
     print("=" * 70)
@@ -227,8 +192,8 @@ def inversion_least_squares(data_dict):
     err = data_dict['error']
     n_layers = len(data_dict['P'])
 
-    # 参数初始化
-    # [T_int, log10(Z), C/O, log10(cloud_op), log10(P_cloud), T_perturb...]
+
+
     n_perturb = min(5, n_layers)
     x0 = np.array([100.0, 0.0, 0.54, 0.0, 2.0] + [0.0] * n_perturb)
 
@@ -263,9 +228,6 @@ def inversion_least_squares(data_dict):
 
 
 def bayesian_mcmc_analysis(data_dict, x_init):
-    """
-    贝叶斯 MCMC 不确定性分析。
-    """
     print("\n" + "=" * 70)
     print("STEP 3: 贝叶斯 MCMC 不确定性量化")
     print("=" * 70)
@@ -274,7 +236,7 @@ def bayesian_mcmc_analysis(data_dict, x_init):
     err = data_dict['error']
 
     def log_posterior(x):
-        # 边界检查
+
         if x[0] < 10 or x[0] > 1000:
             return -1e300
         if x[1] < -2 or x[1] > 2:
@@ -289,7 +251,7 @@ def bayesian_mcmc_analysis(data_dict, x_init):
         try:
             model = forward_model(x, data_dict)
             chi2 = np.sum(((model - obs) / err) ** 2)
-            # 先验约束
+
             log_prior = -0.5 * ((x[0] - 150.0) / 100.0) ** 2
             log_prior += -0.5 * (x[1] / 1.0) ** 2
             log_prior += -0.5 * ((x[2] - 0.54) / 0.3) ** 2
@@ -311,7 +273,7 @@ def bayesian_mcmc_analysis(data_dict, x_init):
     print(f"  采样数: {len(samples)}")
     print(f"  接受率: {acc_rate:.3f}")
 
-    # 参数统计
+
     param_names = ['T_int (K)', 'log10([M/H])', 'C/O', 'log10(cloud_τ)', 'log10(P_cloud)']
     print(f"  后验参数估计 (均值 ± 标准差):")
     for i in range(min(5, n_params)):
@@ -323,14 +285,11 @@ def bayesian_mcmc_analysis(data_dict, x_init):
 
 
 def numerical_diagnostics(data_dict, x_opt):
-    """
-    数值诊断与稳定性测试。
-    """
     print("\n" + "=" * 70)
     print("STEP 4: 数值诊断与模型验证")
     print("=" * 70)
 
-    # 1. 网格质量评估
+
     mesh = data_dict['mesh']
     nodes_2d, elements_2d = mesh.generate_2d_shell_mesh(n_angular=16)
     metrics = mesh.mesh_quality_metrics(nodes_2d, elements_2d)
@@ -340,9 +299,9 @@ def numerical_diagnostics(data_dict, x_opt):
     print(f"    平均质量因子: {metrics['mean_quality']:.3f}")
     print(f"    最大纵横比: {metrics['max_aspect_ratio']:.2f}")
 
-    # 2. 球面积分测试
+
     mu, w_mu, phi, w_phi = gauss_legendre_angles(n_polar=8, n_azimuth=16)
-    # 积分常数函数应得 4π
+
     f_const = np.ones((len(mu), len(phi)))
     from sphere_quadrature import integrate_sphere_function
     I_const = integrate_sphere_function(f_const, w_mu, w_phi)
@@ -350,16 +309,16 @@ def numerical_diagnostics(data_dict, x_opt):
     print(f"    ∫ 1 dΩ = {I_const:.6f}  (理论值: {4*np.pi:.6f})")
     print(f"    相对误差: {abs(I_const - 4*np.pi) / (4*np.pi) * 100:.4f}%")
 
-    # 3. 相函数归一化测试
+
     from sphere_quadrature import henyey_greenstein_phase_function, compute_scatter_angles
     cos_theta = np.linspace(-1, 1, 200)
     p_hg = henyey_greenstein_phase_function(cos_theta, g=0.5)
-    # 数值积分验证
+
     I_hg = 2 * np.pi * np.trapezoid(p_hg, cos_theta)
     print(f"\n  Henyey-Greenstein 相函数归一化:")
     print(f"    ∫ P(cosΘ) dΩ = {I_hg:.6f}  (理论值: 1.0)")
 
-    # 4. Delta-Eddington 近似验证
+
     tau_test = np.linspace(0.1, 10.0, 50)
     omega_test = np.full_like(tau_test, 0.8)
     R, T = delta_eddington_approximation(tau_test, omega_test, g=0.5, mu0=0.5)
@@ -367,7 +326,7 @@ def numerical_diagnostics(data_dict, x_opt):
     print(f"\n  Delta-Eddington 能量守恒:")
     print(f"    max|R + T - 1| = {np.max(np.abs(conservation - 1.0)):.6e}")
 
-    # 5. 稀疏矩阵运算测试
+
     n_test = 100
     A_dense = np.diag(np.ones(n_test) * 2.0) + np.diag(np.ones(n_test - 1) * (-1.0), 1) + np.diag(np.ones(n_test - 1) * (-1.0), -1)
     crs_A = CRSMatrix.from_dense(A_dense)
@@ -380,13 +339,13 @@ def numerical_diagnostics(data_dict, x_opt):
     print(f"    相对残差: {res:.2e}")
     print(f"    解相对误差: {rel_err:.2e}")
 
-    # 6. 单纯形采样测试
+
     samples_simplex = SimplexSampler.sample_unit_simplex(m=5, n=10000)
     mean_sum = np.mean(np.sum(samples_simplex, axis=1))
     print(f"\n  单纯形均匀采样测试:")
     print(f"    Σ x_i 均值 = {mean_sum:.6f}  (理论值: 1.0)")
 
-    # 7. 模型预测对比
+
     model_best = forward_model(x_opt, data_dict)
     residuals = (data_dict['transit_depth_obs'] - model_best) / data_dict['error']
     chi2_reduced = np.sum(residuals**2) / (len(residuals) - len(x_opt))
@@ -404,7 +363,6 @@ def numerical_diagnostics(data_dict, x_opt):
 
 
 def main():
-    """主程序入口。"""
     print("\n" + "#" * 70)
     print("#  系外行星大气光谱反演系统")
     print("#  Exoplanet Atmospheric Spectral Retrieval System")
@@ -415,28 +373,28 @@ def main():
     np.random.seed(42)
     t_start = time.time()
 
-    # Step 1: 生成模拟观测
+
     data_dict = generate_synthetic_observation()
 
-    # Step 2: 最小二乘反演
+
     x_opt = inversion_least_squares(data_dict)
 
-    # Step 3: 贝叶斯 MCMC
+
     samples, log_probs = bayesian_mcmc_analysis(data_dict, x_opt)
 
-    # Step 4: 数值诊断
+
     diagnostics = numerical_diagnostics(data_dict, x_opt)
 
-    # Step 5: 保存结果
+
     print("\n" + "=" * 70)
     print("STEP 5: 结果保存")
     print("=" * 70)
 
-    # 保存优化后的模型光谱
+
     model_best = forward_model(x_opt, data_dict)
     write_spectrum_ascii(data_dict['wavelength_um'], model_best, None, "retrieved_spectrum.dat")
 
-    # 保存温度剖面对比
+
     T_retrieved = data_dict['planet'].guillot_temperature_profile(
         data_dict['P'], T_int=x_opt[0], T_irr=data_dict['planet'].T_eq * 1.2
     )
@@ -454,10 +412,10 @@ def main():
         for i in range(len(data_dict['P'])):
             f.write(f"{data_dict['P'][i]:.6e} {data_dict['T_true'][i]:.4f} {T_retrieved[i]:.4f}\n")
 
-    # 保存 MCMC 样本
+
     np.savetxt("mcmc_samples.dat", samples, fmt="%.6f")
 
-    # 保存元数据
+
     metadata = {
         'project': 'Exoplanet Atmospheric Spectral Retrieval',
         'planet_radius_m': float(data_dict['planet'].R_p),

@@ -1,70 +1,26 @@
-"""
-variomino_clot.py
-基于 1389_variomino 的变体多格拼板矩阵操作思想，
-构建纤维蛋白 clot 微观结构的网格表示与拓扑分析工具。
-
-科学背景：
-    纤维蛋白 clot 由交联的纤维蛋白单体组成三维网络。
-    在二维截面上， clot 结构可表示为带有权重（纤维密度）的
-    多格拼板（variomino）。
-
-    矩阵操作包括：
-    - 凝聚（condense）：去除空白区域，提取 clot 核心
-    - 嵌入（embed）：将 clot 结构嵌入血管截面
-    - 变换（transform）：旋转/翻转以分析各向异性
-
-数学模型：
-    1. clot 密度矩阵 P_{ij} ∈ [0,1]：
-       P_{ij} = 0  表示血浆（无纤维）
-       P_{ij} > 0  表示纤维蛋白密度
-
-    2. 凝聚操作：
-       移除全零行/列，得到最小外接矩形。
-
-    3. 孔隙连通性（基于 embed 思想）：
-       使用 DFS/BFS 标记连通的孔隙区域，
-       评估 clot 的渗透性。
-"""
 
 import numpy as np
 
 
 class VariominoClot:
-    """
-    纤维蛋白 clot 的多格矩阵表示与操作。
-    """
 
     def __init__(self, density_matrix):
-        """
-        参数:
-            density_matrix : ndarray, 二维纤维蛋白密度矩阵 [0,1]
-        """
         self.P = np.asarray(density_matrix, dtype=float)
         if self.P.ndim != 2:
             raise ValueError("density_matrix 必须为二维数组")
 
     def condense(self, threshold=1e-12):
-        """
-        基于 1389_variomino/variomino_condense 的凝聚操作：
-        移除边缘全零行/列，保留 clot 核心。
-
-        参数:
-            threshold : float, 判定为零的阈值
-
-        返回:
-            Q : ndarray, 凝聚后的矩阵
-        """
         Q = self.P.copy()
-        # 移除上方全零行
+
         while Q.shape[0] > 0 and np.all(Q[0, :] <= threshold):
             Q = Q[1:, :]
-        # 移除下方全零行
+
         while Q.shape[0] > 0 and np.all(Q[-1, :] <= threshold):
             Q = Q[:-1, :]
-        # 移除左侧全零列
+
         while Q.shape[1] > 0 and np.all(Q[:, 0] <= threshold):
             Q = Q[:, 1:]
-        # 移除右侧全零列
+
         while Q.shape[1] > 0 and np.all(Q[:, -1] <= threshold):
             Q = Q[:, :-1]
         if Q.size == 0:
@@ -72,16 +28,6 @@ class VariominoClot:
         return Q
 
     def embed_in_domain(self, domain_shape, center=None):
-        """
-        将 clot 结构嵌入更大的血管截面域中。
-
-        参数:
-            domain_shape : tuple, (H, W) 目标域大小
-            center       : tuple or None, 嵌入中心位置
-
-        返回:
-            embedded : ndarray, 嵌入后的矩阵
-        """
         dh, dw = domain_shape
         Q = self.condense()
         qh, qw = Q.shape
@@ -99,7 +45,7 @@ class VariominoClot:
         right = min(dw, left + qw)
 
         embedded = np.zeros(domain_shape, dtype=float)
-        # 调整以避免越界
+
         q_top = max(0, -top)
         q_left = max(0, -left)
         q_bottom = q_top + (bottom - top)
@@ -108,34 +54,15 @@ class VariominoClot:
         return embedded
 
     def rotate90(self, k=1):
-        """
-        旋转 clot 结构 k×90 度。
-        """
         return np.rot90(self.P, k=k)
 
     def flip_horizontal(self):
-        """
-        水平翻转。
-        """
         return np.fliplr(self.P)
 
     def flip_vertical(self):
-        """
-        垂直翻转。
-        """
         return np.flipud(self.P)
 
     def count_pore_clusters(self, threshold=0.05):
-        """
-        使用 BFS 统计孔隙（低密度区域）的连通分量数。
-
-        参数:
-            threshold : float, 判定为孔隙的密度上限
-
-        返回:
-            n_clusters : int, 连通孔隙区域数
-            labels     : ndarray, 标记矩阵
-        """
         binary = (self.P <= threshold).astype(int)
         h, w = binary.shape
         labels = np.zeros((h, w), dtype=int)
@@ -145,7 +72,7 @@ class VariominoClot:
             for j in range(w):
                 if binary[i, j] == 1 and labels[i, j] == 0:
                     label_id += 1
-                    # BFS
+
                     queue = [(i, j)]
                     labels[i, j] = label_id
                     head = 0
@@ -161,11 +88,6 @@ class VariominoClot:
         return label_id, labels
 
     def compute_anisotropy(self):
-        """
-        计算 clot 结构的各向异性指数：
-            A = |λ1 - λ2| / (λ1 + λ2)
-        其中 λ1, λ2 为惯性张量的特征值。
-        """
         P = self.condense()
         if P.size == 0:
             return 0.0
@@ -191,9 +113,6 @@ class VariominoClot:
 
     @staticmethod
     def generate_random_clot(height=30, width=30, n_fibers=8, fiber_length=8, seed=42):
-        """
-        生成随机纤维蛋白 clot 结构。
-        """
         rng = np.random.default_rng(seed)
         P = np.zeros((height, width), dtype=float)
         for _ in range(n_fibers):
@@ -205,7 +124,7 @@ class VariominoClot:
                 x = int(round(x0 + step * np.cos(angle)))
                 if 0 <= y < height and 0 <= x < width:
                     P[y, x] = min(1.0, P[y, x] + 0.3 + rng.uniform(0, 0.4))
-        # 添加扩散
+
         from scipy.ndimage import gaussian_filter
         P = gaussian_filter(P, sigma=1.0)
         P = np.clip(P, 0, 1)
@@ -213,9 +132,6 @@ class VariominoClot:
 
 
 def demo_variomino():
-    """
-    演示 clot 结构的矩阵操作。
-    """
     P = VariominoClot.generate_random_clot(height=40, width=40, n_fibers=12, seed=42)
     clot = VariominoClot(P)
 

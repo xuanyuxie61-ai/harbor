@@ -1,40 +1,9 @@
-"""
-special_functions.py
-声学主动噪声控制所需的特殊数学函数库
-
-融合原始项目:
-  - 031_asa063 (不完全Beta函数 betain)
-  - 053_asa266 (digamma, trigamma)
-  - 300_disk01_integrands (cos_power_int)
-
-科学背景:
-  不完全Beta函数用于计算多通道误差的置信区间与统计显著性检验;
-  digamma/trigamma 用于 Dirichlet 分布参数估计中的牛顿迭代;
-  cos_power_int 用于圆形活塞辐射器的指向性函数积分.
-"""
 
 import math
 import numpy as np
 
 
 def betain(x, p, q, beta_log):
-    """
-    计算不完全Beta函数比值 I_x(p,q).
-
-    数学定义:
-        I_x(p,q) = (1/B(p,q)) * \int_0^x t^{p-1} (1-t)^{q-1} dt
-
-    其中 B(p,q) = Gamma(p)Gamma(q)/Gamma(p+q), beta_log = ln(B(p,q)).
-
-    参数:
-        x: 积分上限, 0 <= x <= 1
-        p, q: Beta分布参数, p>0, q>0
-        beta_log: ln(B(p,q))
-
-    返回:
-        value: I_x(p,q)
-        ifault: 错误标志 (0=无错误)
-    """
     acu = 1.0e-14
     ifault = 0
 
@@ -48,7 +17,7 @@ def betain(x, p, q, beta_log):
     psq = p + q
     cx = 1.0 - x
 
-    # 改变尾部以确保收敛
+
     if p < psq * x:
         xx = cx
         cx = x
@@ -96,16 +65,8 @@ def betain(x, p, q, beta_log):
 
 
 def digamma(x):
-    """
-    计算 digamma 函数: psi(x) = d/dx [ln(Gamma(x))]
-
-    数学定义:
-        psi(x) = Gamma'(x) / Gamma(x)
-
-    用于 Dirichlet 分布的最大似然估计.
-    """
     c = 8.5
-    d1 = -0.5772156649  # Euler-Mascheroni 常数
+    d1 = -0.5772156649
     s = 0.00001
     s3 = 0.08333333333
     s4 = 0.0083333333333
@@ -134,14 +95,6 @@ def digamma(x):
 
 
 def trigamma(x):
-    """
-    计算 trigamma 函数: psi'(x) = d^2/dx^2 [ln(Gamma(x))]
-
-    数学定义:
-        psi'(x) = \sum_{n=0}^{\infty} 1/(x+n)^2
-
-    用于 Dirichlet 估计中的 Fisher 信息矩阵.
-    """
     a = 0.0001
     b = 5.0
     b2 = 0.1666666667
@@ -169,18 +122,6 @@ def trigamma(x):
 
 
 def cos_power_int(a, b, n):
-    """
-    计算余弦幂积分:
-        \int_a^b cos^n(t) dt
-
-    使用递推公式:
-        \int cos^n(t) dt = -(1/n)[cos^{n-1}(t) sin(t) + (n-1)\int cos^{n-2}(t) dt]
-
-    声学应用:
-        计算圆形活塞辐射器的远场指向性函数:
-        D(\theta) = 2 J_1(k a sin\theta) / (k a sin\theta)
-        其功率积分与 cos^n 项相关.
-    """
     if n < 0:
         raise ValueError("cos_power_int: n must be non-negative")
 
@@ -203,17 +144,11 @@ def cos_power_int(a, b, n):
 
 
 def log_beta(p, q):
-    """
-    计算 ln(B(p,q)) = ln(Gamma(p)) + ln(Gamma(q)) - ln(Gamma(p+q))
-    """
     from math import lgamma
     return lgamma(p) + lgamma(q) - lgamma(p + q)
 
 
 def incomplete_beta_cdf(x, p, q):
-    """
-    包装函数: 计算正则化不完全Beta函数,并处理边界.
-    """
     if x <= 0.0:
         return 0.0
     if x >= 1.0:
@@ -221,6 +156,6 @@ def incomplete_beta_cdf(x, p, q):
     lb = log_beta(p, q)
     val, ierr = betain(x, p, q, lb)
     if ierr != 0:
-        # 回退到 scipy 风格近似或返回边界值
+
         return 0.0 if x < 0.5 else 1.0
     return val

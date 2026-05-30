@@ -1,59 +1,10 @@
-"""
-mesh_geometry.py
-================
-Mesh generation, quality analysis, and geometric operations for the
-ggeothermal reservoir THM simulation.
-
-Incorporates algorithms from:
-  - 1298_triangle_analyze: triangle geometry quality metrics
-  - 1234_tet_mesh_q2l: quadratic-to-linear tetrahedral mesh conversion
-  - 546_house_data: polygon boundary representation
-
-Mathematical formulation:
-For a triangle with vertices A, B, C:
-
-  Edge lengths:
-    a = |BC|, b = |AC|, c = |AB|
-
-  Semi-perimeter:
-    s = (a + b + c) / 2
-
-  Area (Heron's formula):
-    A = \sqrt{s(s-a)(s-b)(s-c)}
-
-  Quality metric:
-    q = \frac{4\sqrt{3} A}{a^2 + b^2 + c^2}
-
-  Inradius:
-    r = A / s
-
-  Circumradius:
-    R = \frac{abc}{4A}
-
-  Aspect ratio:
-    \gamma = \frac{R}{2r} = \frac{abc}{8A s}
-
-For a tetrahedron with vertices v0, v1, v2, v3:
-
-  Volume:
-    V = \frac{1}{6} | (v_1 - v_0) \cdot [(v_2 - v_0) \times (v_3 - v_0)] |
-
-  A quality tetrahedron satisfies V > 0 and bounded aspect ratios.
-"""
 
 import numpy as np
 
 
 class Triangle:
-    """Representation and analysis of a 2D triangle."""
 
     def __init__(self, vertices):
-        """
-        Parameters
-        ----------
-        vertices : np.ndarray, shape (3, 2)
-            Vertices [A, B, C].
-        """
         self.vertices = np.asarray(vertices, dtype=np.float64)
         if self.vertices.shape != (3, 2):
             raise ValueError("Triangle requires exactly 3 vertices in 2D.")
@@ -64,12 +15,12 @@ class Triangle:
         B = self.vertices[1]
         C = self.vertices[2]
 
-        # Edge lengths
-        self.a = np.linalg.norm(B - C)  # opposite A
-        self.b = np.linalg.norm(A - C)  # opposite B
-        self.c = np.linalg.norm(A - B)  # opposite C
 
-        # Area
+        self.a = np.linalg.norm(B - C)
+        self.b = np.linalg.norm(A - C)
+        self.c = np.linalg.norm(A - B)
+
+
         self.s = 0.5 * (self.a + self.b + self.c)
         area_sq = self.s * (self.s - self.a) * (self.s - self.b) * (self.s - self.c)
         if area_sq <= 0:
@@ -79,7 +30,7 @@ class Triangle:
             self.area = np.sqrt(area_sq)
             self.degenerate = False
 
-        # Angles (law of cosines)
+
         self.angles = np.zeros(3)
         if not self.degenerate:
             self.angles[0] = np.arccos(np.clip((self.b**2 + self.c**2 - self.a**2)
@@ -89,10 +40,10 @@ class Triangle:
             self.angles[2] = np.arccos(np.clip((self.a**2 + self.b**2 - self.c**2)
                                                / (2.0 * self.a * self.b), -1.0, 1.0))
 
-        # Centroid
+
         self.centroid = (A + B + C) / 3.0
 
-        # Circumcircle
+
         if not self.degenerate:
             D = 2.0 * (A[0] * (B[1] - C[1])
                        + B[0] * (C[1] - A[1])
@@ -113,7 +64,7 @@ class Triangle:
             self.circum_center = np.zeros(2)
             self.circum_radius = 0.0
 
-        # Incircle
+
         if not self.degenerate and self.s > 0:
             self.in_radius = self.area / self.s
             self.in_center = (self.a * A + self.b * B + self.c * C) / (self.a + self.b + self.c)
@@ -121,14 +72,13 @@ class Triangle:
             self.in_radius = 0.0
             self.in_center = self.centroid.copy()
 
-        # Quality
+
         if not self.degenerate and (self.a**2 + self.b**2 + self.c**2) > 0:
             self.quality = 4.0 * np.sqrt(3.0) * self.area / (self.a**2 + self.b**2 + self.c**2)
         else:
             self.quality = 0.0
 
     def is_well_formed(self, min_angle_deg=15.0, max_angle_deg=120.0):
-        """Check if triangle satisfies angle bounds."""
         if self.degenerate:
             return False
         angles_deg = np.degrees(self.angles)
@@ -138,15 +88,8 @@ class Triangle:
 
 
 class Tetrahedron:
-    """Representation of a 3D tetrahedron."""
 
     def __init__(self, vertices):
-        """
-        Parameters
-        ----------
-        vertices : np.ndarray, shape (4, 3)
-            Vertices [v0, v1, v2, v3].
-        """
         self.vertices = np.asarray(vertices, dtype=np.float64)
         if self.vertices.shape != (4, 3):
             raise ValueError("Tetrahedron requires exactly 4 vertices in 3D.")
@@ -158,42 +101,30 @@ class Tetrahedron:
         e2 = v2 - v0
         e3 = v3 - v0
 
-        # Volume
+
         self.volume = abs(np.dot(e1, np.cross(e2, e3))) / 6.0
         self.degenerate = (self.volume < 1.0e-14)
 
-        # Edge lengths
+
         edges = []
         for i in range(4):
             for j in range(i + 1, 4):
                 edges.append(np.linalg.norm(self.vertices[i] - self.vertices[j]))
         self.edge_lengths = np.array(edges)
 
-        # Quality measure (ratio of inradius to circumradius, normalized)
+
         if not self.degenerate:
-            # Simple quality: ratio of volume to sum of edge lengths cubed
+
             self.quality = (216.0 * np.sqrt(3.0) * self.volume
                             / np.sum(self.edge_lengths ** 3))
         else:
             self.quality = 0.0
 
-        # Centroid
+
         self.centroid = np.mean(self.vertices, axis=0)
 
 
 def triangle_mesh_quality(triangles):
-    """
-    Analyze quality of a triangle mesh.
-
-    Parameters
-    ----------
-    triangles : list of np.ndarray, each shape (3, 2)
-
-    Returns
-    -------
-    stats : dict
-        Quality statistics.
-    """
     qualities = []
     areas = []
     min_angles = []
@@ -220,11 +151,7 @@ def triangle_mesh_quality(triangles):
 
 
 def reservoir_boundary_polygon():
-    """
-    Return a polygon representing the 2D cross-section of the geothermal
-    reservoir boundary (simplified from house_data concept).
-    """
-    # Cross-section in (x, z) plane: a simplified reservoir shape
+
     xy = np.array([
         [0.0, 0.0],
         [500.0, 0.0],
@@ -236,10 +163,6 @@ def reservoir_boundary_polygon():
 
 
 def triangulate_polygon_simple(polygon):
-    """
-    Simple ear-clipping triangulation for a convex or near-convex polygon.
-    For a polygon with N vertices, returns N-2 triangles.
-    """
     polygon = np.asarray(polygon, dtype=np.float64)
     n = polygon.shape[0]
     if n < 3:
@@ -252,14 +175,6 @@ def triangulate_polygon_simple(polygon):
 
 
 def generate_structured_hex_mesh(Lx, Ly, Lz, nx, ny, nz):
-    """
-    Generate a structured hexahedral mesh for the reservoir domain.
-
-    Returns
-    -------
-    nodes : np.ndarray, shape (nx*ny*nz, 3)
-    elements : np.ndarray, shape ((nx-1)*(ny-1)*(nz-1), 8)
-    """
     x = np.linspace(0, Lx, nx)
     y = np.linspace(0, Ly, ny)
     z = np.linspace(0, Lz, nz)
@@ -295,18 +210,6 @@ def generate_structured_hex_mesh(Lx, Ly, Lz, nx, ny, nz):
 
 
 def convert_quadratic_tet_to_linear(quadratic_elements):
-    """
-    Convert 10-node quadratic tetrahedral elements to 8 linear 4-node tetrahedra.
-    Based on Liu & Joe (1996) 8-subtetrahedron subdivision.
-
-    Parameters
-    ----------
-    quadratic_elements : np.ndarray, shape (10, n_tets)
-
-    Returns
-    -------
-    linear_elements : np.ndarray, shape (4, 8*n_tets)
-    """
     quadratic_elements = np.asarray(quadratic_elements, dtype=np.int64)
     if quadratic_elements.shape[0] != 10:
         raise ValueError("Quadratic tetrahedra must have 10 nodes.")
@@ -348,14 +251,6 @@ def convert_quadratic_tet_to_linear(quadratic_elements):
 
 
 def reservoir_tetrahedral_mesh(params):
-    """
-    Generate a tetrahedral mesh for the reservoir by splitting hexahedra.
-
-    Returns
-    -------
-    nodes : np.ndarray
-    tetra_elements : np.ndarray, shape (4, n_tets)
-    """
     Lx = params.reservoir_length
     Ly = params.reservoir_width
     Lz = params.reservoir_height
@@ -363,7 +258,7 @@ def reservoir_tetrahedral_mesh(params):
 
     nodes, hex_elements = generate_structured_hex_mesh(Lx, Ly, Lz, nx, ny, nz)
 
-    # Split each hexahedron into 6 tetrahedra
+
     n_hex = hex_elements.shape[0]
     n_tets = 6 * n_hex
     tetra_elements = np.zeros((4, n_tets), dtype=np.int64)
@@ -373,7 +268,7 @@ def reservoir_tetrahedral_mesh(params):
         e = hex_elements[h]
         v = [nodes[e[i]] for i in range(8)]
 
-        # Diagonal-based splitting (consistent orientation)
+
         tets = [
             [e[0], e[1], e[3], e[4]],
             [e[1], e[2], e[3], e[6]],

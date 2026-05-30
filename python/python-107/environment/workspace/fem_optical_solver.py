@@ -1,41 +1,12 @@
-"""
-fem_optical_solver.py
-
-2D Finite Element Method (FEM) solver for optical property distribution
-in tissue cross-sections. Uses high-order triangle quadrature with
-symmetry analysis (from triangle_quadrature_symmetry) for accurate
-integration of scattering and absorption terms.
-
-The governing equation on a 2D tissue slice:
-    -nabla . (D(x,y) nabla phi) + mu_a(x,y) phi = S(x,y)
-
-with D(x,y) = 1 / (3 * (mu_s'(x,y) + mu_a(x,y))).
-"""
 
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# Barycentric coordinates and triangle quadrature (from triangle_quadrature_symmetry)
-# ---------------------------------------------------------------------------
+
+
+
 
 def triangle_xy_to_barycentric(xy):
-    """
-    Convert Cartesian coordinates in the reference triangle
-    (vertices (0,0), (1,0), (0,1)) to barycentric coordinates.
-
-    xyz = [x, y, 1 - x - y]
-
-    Parameters
-    ----------
-    xy : ndarray, shape (m, 2)
-        Points in reference triangle.
-
-    Returns
-    -------
-    xyz : ndarray, shape (m, 3)
-        Barycentric coordinates.
-    """
     xy = np.asarray(xy, dtype=float)
     if xy.ndim != 2 or xy.shape[1] != 2:
         raise ValueError("xy must have shape (m, 2).")
@@ -43,34 +14,13 @@ def triangle_xy_to_barycentric(xy):
     xyz = np.zeros((m, 3), dtype=float)
     xyz[:, 0:2] = xy
     xyz[:, 2] = 1.0 - xy[:, 0] - xy[:, 1]
-    # Clamp to physical simplex
+
     xyz = np.clip(xyz, 0.0, 1.0)
     xyz = xyz / np.sum(xyz, axis=1, keepdims=True)
     return xyz
 
 
 def barycentric_symmetry(xyz, tol=1e-10):
-    """
-    Determine symmetry class of barycentric quadrature points.
-
-    Symmetry classes:
-      1 : single point (center, [1/3,1/3,1/3])
-      3 : points with 2 unique coordinates (edge-centered)
-      6 : points with 3 unique coordinates (generic interior)
-      0 : invalid
-
-    Parameters
-    ----------
-    xyz : ndarray, shape (m, 3)
-        Barycentric coordinates.
-    tol : float
-        Tolerance for equality.
-
-    Returns
-    -------
-    symmetry : ndarray, shape (m,)
-        Symmetry class per point.
-    """
     xyz = np.asarray(xyz, dtype=float)
     m = xyz.shape[0]
     symmetry = np.zeros(m, dtype=int)
@@ -89,28 +39,17 @@ def barycentric_symmetry(xyz, tol=1e-10):
     return symmetry
 
 
-# ---------------------------------------------------------------------------
-# 7-point Gauss quadrature on reference triangle (high order)
-# ---------------------------------------------------------------------------
+
+
+
 
 def triangle_gauss_rule(order=7):
-    """
-    Return Gauss quadrature nodes and weights on the reference triangle.
-
-    For order=7, uses the 7-point rule (exact for polynomials up to degree 5).
-    Nodes in barycentric coordinates.
-
-    Returns
-    -------
-    bary : ndarray, shape (n_qp, 3)
-    weights : ndarray, shape (n_qp,)
-    """
     if order == 3:
-        # Centroid rule
+
         bary = np.array([[1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]])
         weights = np.array([0.5])
     elif order == 7:
-        # 7-point rule
+
         a = 1.0 / 3.0
         b = (6.0 + np.sqrt(15.0)) / 21.0
         c = (6.0 - np.sqrt(15.0)) / 21.0
@@ -130,60 +69,21 @@ def triangle_gauss_rule(order=7):
         ])
         weights = np.array([w1, w2, w2, w2, w3, w3, w3])
     else:
-        # Default to 3-point
+
         bary = np.array([[1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]])
         weights = np.array([0.5])
     return bary, weights
 
 
 def barycentric_to_cartesian(bary, vertices):
-    """
-    Map barycentric coordinates to Cartesian coordinates.
-
-    x = sum_i b_i * v_i
-
-    Parameters
-    ----------
-    bary : ndarray, shape (n, 3)
-    vertices : ndarray, shape (3, 2)
-        Triangle vertices.
-
-    Returns
-    -------
-    xy : ndarray, shape (n, 2)
-    """
     return np.dot(bary, vertices)
 
 
-# ---------------------------------------------------------------------------
-# FEM assembly for 2D diffusion on triangular mesh
-# ---------------------------------------------------------------------------
+
+
+
 
 def assemble_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_func):
-    """
-    Assemble FEM stiffness matrix and load vector for 2D diffusion on
-    a triangular mesh using linear Lagrange elements.
-
-    Parameters
-    ----------
-    nodes : ndarray, shape (n_nodes, 2)
-        Node coordinates.
-    elements : ndarray, shape (n_elements, 3)
-        Triangle connectivity (0-based).
-    diffusivity : callable or float
-        D(x, y).
-    absorption : callable or float
-        mu_a(x, y).
-    source_func : callable
-        S(x, y).
-
-    Returns
-    -------
-    K : ndarray, shape (n_nodes, n_nodes)
-        Stiffness matrix.
-    F : ndarray, shape (n_nodes,)
-        Load vector.
-    """
     nodes = np.asarray(nodes, dtype=float)
     elements = np.asarray(elements, dtype=int)
     n_nodes = nodes.shape[0]
@@ -192,16 +92,16 @@ def assemble_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_f
     K = np.zeros((n_nodes, n_nodes), dtype=float)
     F = np.zeros(n_nodes, dtype=float)
 
-    # Quadrature on reference triangle
+
     bary_qp, w_qp = triangle_gauss_rule(order=7)
     n_qp = len(w_qp)
 
     for e in range(n_elements):
         idx = elements[e, :]
-        verts = nodes[idx, :]  # shape (3, 2)
+        verts = nodes[idx, :]
 
-        # Jacobian of mapping from reference to physical triangle
-        # x = v0 + xi*(v1-v0) + eta*(v2-v0)
+
+
         J_mat = np.array([
             [verts[1, 0] - verts[0, 0], verts[2, 0] - verts[0, 0]],
             [verts[1, 1] - verts[0, 1], verts[2, 1] - verts[0, 1]]
@@ -211,24 +111,24 @@ def assemble_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_f
             continue
         invJ = np.linalg.inv(J_mat)
 
-        # Local stiffness and mass
+
         K_local = np.zeros((3, 3), dtype=float)
         M_local = np.zeros((3, 3), dtype=float)
         F_local = np.zeros(3, dtype=float)
 
-        # Shape function gradients in reference triangle
+
         grad_N_ref = np.array([
             [-1.0, -1.0],
             [1.0, 0.0],
             [0.0, 1.0]
         ], dtype=float)
 
-        # Transform to physical gradients: grad_N_phy = inv(J^T) * grad_N_ref
+
         grad_N_phy = np.dot(grad_N_ref, invJ.T)
 
         for q in range(n_qp):
-            xi = bary_qp[q, 1]  # xi coordinate in reference
-            eta = bary_qp[q, 2]  # eta coordinate
+            xi = bary_qp[q, 1]
+            eta = bary_qp[q, 2]
             w = w_qp[q] * abs(detJ)
 
             xy_phys = verts[0, :] + xi * (verts[1, :] - verts[0, :]) + eta * (verts[2, :] - verts[0, :])
@@ -236,14 +136,14 @@ def assemble_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_f
             mu_val = absorption(xy_phys[0], xy_phys[1]) if callable(absorption) else float(absorption)
             S_val = source_func(xy_phys[0], xy_phys[1]) if callable(source_func) else float(source_func)
 
-            # Diffusion stiffness: D * grad(N_i) . grad(N_j)
+
             for i in range(3):
                 for j in range(3):
                     K_local[i, j] += D_val * np.dot(grad_N_phy[i, :], grad_N_phy[j, :]) * w
-                    M_local[i, j] += mu_val * w / 3.0  # lumped approximation for mass
+                    M_local[i, j] += mu_val * w / 3.0
                 F_local[i] += S_val * w / 3.0
 
-        # Assemble
+
         for i in range(3):
             for j in range(3):
                 K[idx[i], idx[j]] += K_local[i, j] + M_local[i, j]
@@ -254,26 +154,6 @@ def assemble_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_f
 
 def solve_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_func,
                            dirichlet_nodes=None, dirichlet_values=None):
-    """
-    Solve 2D diffusion equation on triangular mesh with Dirichlet BC.
-
-    Parameters
-    ----------
-    nodes : ndarray
-    elements : ndarray
-    diffusivity : callable or float
-    absorption : callable or float
-    source_func : callable or float
-    dirichlet_nodes : array_like, optional
-        Node indices with Dirichlet BC.
-    dirichlet_values : array_like, optional
-        Values at Dirichlet nodes.
-
-    Returns
-    -------
-    phi : ndarray
-        Solution at all nodes.
-    """
     nodes = np.asarray(nodes, dtype=float)
     n_nodes = nodes.shape[0]
     K, F = assemble_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_func)
@@ -284,7 +164,7 @@ def solve_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_func
         dirichlet_nodes = np.asarray(dirichlet_nodes, dtype=int)
         dirichlet_values = np.asarray(dirichlet_values, dtype=float)
         phi[dirichlet_nodes] = dirichlet_values
-        # Modify system
+
         for idx in dirichlet_nodes:
             F -= K[:, idx] * phi[idx]
             K[idx, :] = 0.0
@@ -296,24 +176,11 @@ def solve_fem_2d_diffusion(nodes, elements, diffusivity, absorption, source_func
     return phi
 
 
-# ---------------------------------------------------------------------------
-# Mesh quality and utilities
-# ---------------------------------------------------------------------------
+
+
+
 
 def triangle_area(vertices):
-    """
-    Compute signed area of triangle.
-
-    A = 0.5 * | (x1-x0)*(y2-y0) - (x2-x0)*(y1-y0) |
-
-    Parameters
-    ----------
-    vertices : ndarray, shape (3, 2)
-
-    Returns
-    -------
-    area : float
-    """
     v = np.asarray(vertices, dtype=float)
     area = 0.5 * abs((v[1, 0] - v[0, 0]) * (v[2, 1] - v[0, 1])
                      - (v[2, 0] - v[0, 0]) * (v[1, 1] - v[0, 1]))
@@ -321,13 +188,6 @@ def triangle_area(vertices):
 
 
 def mesh_quality_min_angle(nodes, elements):
-    """
-    Compute minimum interior angle across all triangles.
-
-    Returns
-    -------
-    min_angle_deg : float
-    """
     nodes = np.asarray(nodes, dtype=float)
     elements = np.asarray(elements, dtype=int)
     min_angle = np.inf

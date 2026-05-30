@@ -1,31 +1,10 @@
-"""
-main.py
-
-DNA 损伤修复分子动力学综合模拟平台
-====================================
-
-科学问题:
-  本程序围绕 DNA 双链断裂 (DSB) 修复的分子机制，整合多尺度计算方法：
-  - 染色质三维拓扑结构离散化与体积分析
-  - 修复蛋白（KU80、PARP1 等）的布朗动力学搜索
-  - γH2AX 信号波与 PARP1 聚集的反应-扩散动力学
-  - 修复蛋白构象自由能景观的降维与插值
-  - 电静力学 Poisson-Boltzmann 方程求解
-  - 弹性网络刚度矩阵组装与矩阵链优化
-
-运行方式:
-  python main.py
-
-输出:
-  控制台打印各子模块的科学计算结果与数值精度指标。
-"""
 
 import numpy as np
 import time
 import os
 import sys
 
-# 确保模块路径正确
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dna_topology import (
@@ -75,32 +54,30 @@ from io_parser import (
 
 
 def print_section(title: str) -> None:
-    """打印带分隔线的章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_dna_topology_module() -> dict:
-    """运行染色质拓扑与四面体网格模块。"""
     print_section("模块 1: 染色质三维拓扑离散化 (tet_mesh_quad + tet_mesh_to_xml)")
 
-    # 生成简化核小体阵列四面体网格
+
     mesh = generate_nucleosome_tet_mesh(
         n_rings=4, n_theta=8, n_z=4,
         major_radius=5.5, minor_radius=3.3, pitch=2.7
     )
     print(f"  生成网格: {mesh.n_nodes} 个节点, {mesh.n_elements} 个单元")
 
-    # 计算网格总体积
+
     vol_sum, _ = mesh.integrate_nodal_values(np.ones(mesh.n_nodes))
     print(f"  网格总体积: {vol_sum:.4f} nm^3")
 
-    # 计算表面积
+
     surface_area = mesh.compute_surface_area()
     print(f"  边界表面积: {surface_area:.4f} nm^2")
 
-    # 模拟 γH2AX 密度场并计算修复腔室体积
+
     np.random.seed(1)
     gamma_density = np.exp(-np.sum(mesh.nodes ** 2, axis=1) / (2.0 * 50.0 ** 2))
     gamma_density = gamma_density / np.max(gamma_density)
@@ -110,7 +87,7 @@ def run_dna_topology_module() -> dict:
     print(f"  DSB 修复腔室体积 (threshold=0.15): {vol_repair:.4f} nm^3")
     print(f"  总 γH2AX 信号量: {total_signal:.4f}")
 
-    # XML 输出验证
+
     xml_str = mesh.to_xml_string()
     print(f"  XML 网格字符串长度: {len(xml_str)} 字符")
 
@@ -123,24 +100,23 @@ def run_dna_topology_module() -> dict:
 
 
 def run_brownian_dynamics_module() -> dict:
-    """运行布朗动力学模块。"""
     print_section("模块 2: 修复蛋白布朗动力学 (normal_ode + henon_orbit)")
 
-    # KU80 搜索时间模拟
+
     result = simulate_ku80_search_time(n_proteins=20, n_steps=2000)
     print(f"  模拟蛋白数: 20")
     print(f"  平均首次通过时间 (MFPT): {result['mfpt_us']:.2f} μs")
     print(f"  结合分数: {result['binding_fraction']:.3f}")
     print(f"  最终 MSD: {result['msd_final_nm2']:.2f} nm^2")
 
-    # Henon 混沌映射验证
+
     x = np.linspace(-0.9, 0.9, 100)
     y = np.linspace(-0.9, 0.9, 100)
     X, Y = np.meshgrid(x, y)
     X_map, Y_map = henon_crowding_map(X.ravel(), Y.ravel(), c=0.98, n_iter=5)
     print(f"  Henon 映射后均值位移: {np.mean(np.abs(X_map - X.ravel())):.6f}")
 
-    # 正态分布 ODE 解验证
+
     t = np.linspace(-3.0, 3.0, 100)
     y_gauss = normal_distribution_ode_solution(t, sigma0=1.0)
     print(f"  高斯分布积分校验: {np.trapezoid(y_gauss, t):.6f} (理论值: 1.0)")
@@ -149,11 +125,10 @@ def run_brownian_dynamics_module() -> dict:
 
 
 def run_reaction_diffusion_module() -> dict:
-    """运行反应-扩散模块。"""
     print_section("模块 3: γH2AX 信号波与 PARP1 扩散 (gray_scott + porous_medium)")
 
-    # Gray-Scott γH2AX 波模拟
-    # du, dv 按 dx^2 缩放以保持无量纲扩散数一致
+
+
     gs_result = simulate_gamma_h2ax_wave(
         nx=128, ny=128, nt=8000,
         f=0.03, k=0.062, du=16.0, dv=8.0,
@@ -163,7 +138,7 @@ def run_reaction_diffusion_module() -> dict:
     print(f"  总 γH2AX 量: {gs_result['total_gamma_h2ax']:.2f}")
     print(f"  最大 v 浓度: {gs_result['max_v']:.4f}")
 
-    # 多孔介质方程 PARP1 扩散
+
     pm_result = simulate_parp1_nonlinear_diffusion(
         nx=256, nt=400, dt=0.01, dx=0.1, m=3.0,
     )
@@ -171,7 +146,7 @@ def run_reaction_diffusion_module() -> dict:
     print(f"  数值解总质量: {pm_result['total_mass_numerical']:.6f}")
     print(f"  精确解总质量: {pm_result['total_mass_exact']:.6f}")
 
-    # PDE 残差验证
+
     x_test = np.linspace(-5.0, 5.0, 50)
     res = porous_medium_residual(x_test, t=1.0, m=3.0)
     print(f"  Barenblatt 解 PDE 残差范数: {np.linalg.norm(res):.6e}")
@@ -183,14 +158,13 @@ def run_reaction_diffusion_module() -> dict:
 
 
 def run_energy_landscape_module() -> dict:
-    """运行能量景观模块。"""
     print_section("模块 4: 修复蛋白构象能量景观 (sammon_data + pwl_interp_2d)")
 
-    # 生成模拟的二面角数据（RAD51 构象采样）
+
     np.random.seed(99)
     n_frames = 300
     n_dihedrals = 8
-    # 构造两个主要构象态 + 噪声
+
     state_a = np.random.randn(n_dihedrals) * 0.3
     state_b = np.random.randn(n_dihedrals) * 0.3 + np.array([2.0, -1.5, 1.0, 0.5, -0.8, 1.2, -0.3, 0.7])
 
@@ -201,44 +175,42 @@ def run_energy_landscape_module() -> dict:
         else:
             dihedrals[i, :] = state_b + np.random.randn(n_dihedrals) * 0.2
 
-    # TODO (Hole 4): 调用 energy_landscape.py 中的 build_free_energy_surface 构建自由能表面，
-    # 并处理返回结果，打印能垒高度、局部极小值个数等信息。
-    # 关键要求:
-    #   - build_free_energy_surface 内部会执行 Hole 2 中的自由能计算 (F = -k_B T ln P)，
-    #     因此本模块的修复必须与 energy_landscape.py 中的科学公式协同
-    #   - pwl_interp_2d 调用时需注意 free_energy_ev 的维度约定（是否转置 .T）
-    #   - 返回结果应为包含 'grid_x', 'grid_y', 'free_energy_ev', 'local_minima', 'barrier_height_ev' 的字典
-    fel_result = None  # 请替换为实际的 build_free_energy_surface 调用与结果处理
+
+
+
+
+
+
+
+    fel_result = None
 
     return fel_result
 
 
 def run_sparse_solver_module() -> dict:
-    """运行稀疏求解器模块。"""
     print_section("模块 5: Poisson-Boltzmann 电静力学 (plasma_matrix + r8gb)")
 
-    # TODO (Hole 3): 调用 sparse_solver.py 中的 solve_nonlinear_pb 求解一维非线性 PB 方程，
-    # 并打印收敛信息与电势极值。
-    # 关键要求:
-    #   - 参数 n, domain_length, max_iter, tol 需与 sparse_solver.py 中 solve_nonlinear_pb 的接口匹配
-    #   - 该函数内部会调用 assemble_poisson_boltzmann_jacobian (Hole 1)，因此本模块的修复
-    #     必须与 sparse_solver.py 中的 Jacobian 组装逻辑协同
-    #   - 返回结果应为包含 'success', 'iterations', 'residual_norm', 'phi' 等键的字典
-    pb_result = None  # 请替换为实际的 solve_nonlinear_pb 调用与结果处理
 
-    # TODO: 使用 BandedLU 求解器进行自洽验证。
-    # 注意: BandedLU 的带宽参数 ml, mu 必须与 assemble_poisson_boltzmann_jacobian
-    # 返回的 Jacobian 矩阵结构一致（当前为三对角，ml=1, mu=1）。
-    residual = None  # 请替换为实际的带状 LU 求解残差计算
+
+
+
+
+
+
+    pb_result = None
+
+
+
+
+    residual = None
 
     return pb_result
 
 
 def run_matrix_operations_module() -> dict:
-    """运行矩阵操作模块。"""
     print_section("模块 6: ENM 刚度矩阵与矩阵链优化 (matrix_assemble + matrix_chain + mm_to_msm)")
 
-    # 矩阵链最优次序
+
     dims = [30, 35, 15, 5, 10, 20, 25]
     cost, s = matrix_chain_optimal_order(dims)
     opt_expr = build_optimal_parenthesization(s, 0, len(dims) - 2)
@@ -248,7 +220,7 @@ def run_matrix_operations_module() -> dict:
     print(f"  最优加括号方式: {opt_expr}")
     print(f"  总方案数 (Catalan): {cat_num}")
 
-    # 弹性网络刚度矩阵组装
+
     np.random.seed(3)
     n_nodes = 20
     coords = np.random.randn(n_nodes, 3) * 10.0
@@ -256,12 +228,12 @@ def run_matrix_operations_module() -> dict:
     print(f"  ENM 刚度矩阵尺寸: {H.shape}")
     print(f"  刚度矩阵条件数估计: {np.linalg.cond(H):.4e}")
 
-    # 零空间维度（平移/转动模式）
+
     eigvals = np.linalg.eigvalsh(H)
     n_zero = np.sum(np.abs(eigvals) < 1e-8)
     print(f"  零特征值个数 (刚性运动模式): {n_zero}")
 
-    # Matrix Market I/O 验证
+
     temp_file = "/tmp/test_enm_matrix.mtx"
     write_matrix_market(temp_file, H, rep="coordinate", symm="symmetric")
     H_read, rows, cols, entries, rep, field, symm = read_matrix_market(temp_file)
@@ -269,7 +241,7 @@ def run_matrix_operations_module() -> dict:
     diff = np.max(np.abs(H - H_read))
     print(f"  读写一致性误差: {diff:.6e}")
 
-    # 张量缩并代价估计
+
     tensor_cost = compute_optimal_tensor_contraction_cost(
         [(30, 35), (35, 15), (15, 5), (5, 10), (10, 20), (20, 25)],
         [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)],
@@ -283,10 +255,9 @@ def run_matrix_operations_module() -> dict:
 
 
 def run_io_parser_module() -> dict:
-    """运行 I/O 解析模块。"""
     print_section("模块 7: TEC 数据解析与自适应网格加密 (tec_io + image_double)")
 
-    # 构造模拟 TEC 数据
+
     np.random.seed(5)
     node_coord = np.array([
         [0.0, 0.0, 0.0],
@@ -294,16 +265,16 @@ def run_io_parser_module() -> dict:
         [0.0, 1.0, 0.0],
         [0.0, 0.0, 1.0],
         [0.5, 0.5, 0.0],
-    ], dtype=np.float64).T  # (3, 5)
+    ], dtype=np.float64).T
 
     element_node = np.array([
         [0, 1, 2, 3],
         [1, 2, 3, 4],
-    ], dtype=np.int64).T  # (4, 2)
+    ], dtype=np.int64).T
 
     node_data = np.array([
         [1.0, 0.8, 0.9, 1.1, 0.85],
-    ], dtype=np.float64)  # (1, 5)
+    ], dtype=np.float64)
 
     tec_content = build_tec_file(
         node_coord, element_node, node_data,
@@ -311,15 +282,15 @@ def run_io_parser_module() -> dict:
     )
     print(f"  生成 TEC 文件内容长度: {len(tec_content)} 字符")
 
-    # 解析回读
+
     parsed = parse_tec_file(tec_content)
     print(f"  解析结果: {parsed['node_num']} 节点, {parsed['element_num']} 单元")
     print(f"  空间维度: {parsed['dim_num']}, 变量数: {len(parsed['variable_names'])}")
 
-    # 自适应网格加密
+
     np.random.seed(8)
     field = np.zeros((32, 32))
-    # 在中心制造高梯度区
+
     for i in range(32):
         for j in range(32):
             r = np.sqrt((i - 16) ** 2 + (j - 16) ** 2)
@@ -332,7 +303,7 @@ def run_io_parser_module() -> dict:
     for lvl, arr in enumerate(amr_levels):
         print(f"    层级 {lvl}: 形状 {arr.shape}, 总和 {np.sum(arr):.6f}")
 
-    # 网格加倍验证
+
     doubled = grid_double_resolution(field, mode="2d")
     print(f"  网格加倍后形状: {doubled.shape}")
     print(f"  加倍前后积分守恒误差: {abs(np.sum(field) - np.sum(doubled)):.6e}")
@@ -341,7 +312,6 @@ def run_io_parser_module() -> dict:
 
 
 def main():
-    """统一入口函数，零参数可运行。"""
     print("\n" + "#" * 70)
     print("#  DNA 损伤修复分子动力学综合模拟平台")
     print("#  科学领域: 分子动力学 — DNA损伤修复分子机制")
@@ -350,7 +320,7 @@ def main():
 
     start_time = time.time()
 
-    # 执行各模块
+
     results_topology = run_dna_topology_module()
     results_brownian = run_brownian_dynamics_module()
     results_rd = run_reaction_diffusion_module()

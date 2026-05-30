@@ -1,48 +1,13 @@
-"""
-data_io.py
-==========
-催化剂孔扩散与表面反应模拟系统的数据读写模块。
-
-基于种子项目 1420_xy_io 的核心思想重构：
-- 原项目负责 XY 坐标点集的文本读写；
-- 在本系统中承担催化剂孔结构节点数据、浓度-温度剖面数据、
-  以及二维截面采样点数据的持久化与加载职责。
-
-所有读写操作均包含边界校验与异常处理，确保工程鲁棒性。
-"""
 
 import os
 import numpy as np
 
 
 class DataIOException(Exception):
-    """数据 I/O 异常基类。"""
     pass
 
 
 def read_xy_profile(filename):
-    """
-    从文本文件中读取一维剖面数据（如径向坐标与浓度/温度）。
-
-    文件格式：每行两个浮点数，以空格/制表符分隔，
-    第一列为位置坐标 x，第二列为物理量 y。
-    以 '#' 开头的行为注释，空行自动跳过。
-
-    Parameters
-    ----------
-    filename : str
-        输入文件路径。
-
-    Returns
-    -------
-    x : ndarray, shape (n,)
-    y : ndarray, shape (n,)
-
-    Raises
-    ------
-    DataIOException
-        文件不存在、格式错误或数据为空时抛出。
-    """
     if not os.path.isfile(filename):
         raise DataIOException(f"文件不存在: {filename}")
 
@@ -74,7 +39,7 @@ def read_xy_profile(filename):
     y = np.array(y_list, dtype=float)
 
     if not np.all(np.diff(x) >= 0):
-        # 允许非严格递增，但给出警告性质的排序
+
         idx = np.argsort(x)
         x = x[idx]
         y = y[idx]
@@ -83,18 +48,6 @@ def read_xy_profile(filename):
 
 
 def write_xy_profile(filename, x, y, header=None):
-    """
-    将一维剖面数据写入文本文件。
-
-    Parameters
-    ----------
-    filename : str
-        输出文件路径。
-    x, y : ndarray
-        坐标与物理量数组，长度必须一致。
-    header : str, optional
-        文件头部注释（自动添加 '#' 前缀）。
-    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     if x.shape != y.shape:
@@ -112,16 +65,6 @@ def write_xy_profile(filename, x, y, header=None):
 
 
 def read_pore_structure(filename):
-    """
-    读取二维催化剂孔截面采样点数据。
-
-    文件格式：每行两个浮点数 (x, y)，表示孔壁或活性位点坐标。
-    基于 xy_io 的思想扩展为二维数据结构。
-
-    Returns
-    -------
-    points : ndarray, shape (n, 2)
-    """
     if not os.path.isfile(filename):
         raise DataIOException(f"文件不存在: {filename}")
 
@@ -143,14 +86,6 @@ def read_pore_structure(filename):
 
 
 def write_pore_structure(filename, points, header=None):
-    """
-    写入二维孔结构采样点数据。
-
-    Parameters
-    ----------
-    points : ndarray, shape (n, 2)
-    header : str, optional
-    """
     points = np.asarray(points, dtype=float)
     if points.ndim != 2 or points.shape[1] != 2:
         raise DataIOException("points 必须是形状为 (n, 2) 的数组")
@@ -165,6 +100,5 @@ def write_pore_structure(filename, points, header=None):
 
 
 def ensure_dir(path):
-    """确保目录存在，若不存在则递归创建。"""
     if not os.path.isdir(path):
         os.makedirs(path, exist_ok=True)

@@ -1,31 +1,8 @@
-"""
-微反应器混合与反应强化多尺度计算框架 — 统一入口
-================================================
-PROJECT_138: 化学工程 - 微反应器混合与反应强化
-
-本程序基于 15 个种子项目的核心算法，融合构建了一个面向微反应器
-设计优化的博士级计算框架。无需任何输入参数，直接运行即可得到
-完整的数值分析结果。
-
-执行流程：
-    1. 对流-扩散-反应 PDE 稳态求解
-    2. 催化剂最优分布 (CVT)
-    3. 反应动力学参数估计 (QR 最小二乘)
-    4. 稳态稳定性特征值分析
-    5. 质量-能量耦合平衡定点迭代
-    6. 降阶模型基函数构造 (MGS)
-    7. 混合质量多变量统计度量
-    8. 操作条件优化 (黄金分割 + Newton)
-    9. 稀疏 skyline 矩阵运算
-   10. 反应器网络拓扑分析
-   11. 薄板热应力分析 (双调和方程)
-   12. 离散催化剂负载整数规划
-"""
 
 import sys
 import numpy as np
 
-# 设置随机种子以保证可复现
+
 np.random.seed(138)
 
 from reactor_pde_solver import MicroreactorPDESolver
@@ -53,9 +30,9 @@ def main():
     print("PROJECT_138 | 化学工程 | 零参数运行")
     print("=" * 70)
 
-    # =====================================================================
-    # 1. 对流-扩散-反应 PDE 稳态求解 (基于 schroedinger_linear_pde)
-    # =====================================================================
+
+
+
     print_section("1. 微通道对流-扩散-反应 PDE 稳态求解")
 
     pde_solver = MicroreactorPDESolver(
@@ -86,13 +63,13 @@ def main():
     print(f"  Peclet 数 Pe = {Pe:.2e}")
     print(f"  Damköhler 数 Da = {Da:.2e}")
 
-    # =====================================================================
-    # 2. 催化剂最优分布 CVT (基于 cvt, florida_cvt_geo)
-    # =====================================================================
+
+
+
     print_section("2. 微反应器催化剂 CVT 最优分布")
 
     def gaussian_catalyst_density(pts: np.ndarray) -> np.ndarray:
-        # 中心高斯加权，模拟入口附近需要更多催化剂
+
         center = np.array([0.5, 0.5])
         dist2 = np.sum((pts - center) ** 2, axis=1)
         return np.exp(-dist2 / 0.15) + 0.1
@@ -114,12 +91,12 @@ def main():
     print(f"  最大移动距离 = {max_shift:.6e}")
     print(f"  均匀度指数 η = {uniformity:.4f}")
 
-    # =====================================================================
-    # 3. 反应动力学参数估计 (基于 qr_solve)
-    # =====================================================================
+
+
+
     print_section("3. 反应动力学参数 QR 最小二乘估计")
 
-    # 生成合成实验数据 (使用中等范围参数，保证数值稳定性)
+
     A_true = 5.0e4
     Ea_true = 12000.0
     n_true = 0.85
@@ -128,7 +105,7 @@ def main():
     T_data = np.linspace(300.0, 400.0, n_data)
     C_data = np.linspace(100.0, 600.0, n_data)
     r_true = A_true * np.exp(-Ea_true / (R_gas * T_data)) * (C_data ** n_true)
-    # 使用相对较小的均匀噪声，避免小值被淹没
+
     noise = np.random.normal(0.0, 0.03 * np.median(r_true), n_data)
     r_exp = r_true + noise
     r_exp = np.maximum(r_exp, 1.0e-3)
@@ -141,9 +118,9 @@ def main():
     print(f"  估计参数: A={A_est:.2e}, Ea={Ea_est:.1f}, n={n_est:.3f}")
     print(f"  残差范数 ||r_pred - r_exp|| = {res_norm:.4f}")
 
-    # =====================================================================
-    # 4. 稳态稳定性特征值分析 (基于 chladni_figures)
-    # =====================================================================
+
+
+
     print_section("4. 反应器稳态线性稳定性特征值分析")
 
     stability = ReactorStabilityAnalyzer(
@@ -171,9 +148,9 @@ def main():
     print(f"  临界 Da 区间: [{Da_stable:.3f}, {Da_unstable:.3f}]")
     print(f"  热爆炸风险指数 I_TE = {risk_index:.4f}")
 
-    # =====================================================================
-    # 5. 质量-能量耦合平衡定点迭代 (基于 cobweb_plot)
-    # =====================================================================
+
+
+
     print_section("5. 全混流微反应器质量-能量耦合平衡")
 
     cstr_solver = MassEnergyBalanceSolver(
@@ -197,12 +174,12 @@ def main():
     print(f"  定点映射导数 |dG/dT| = {bifurcation_idx:.4f}")
     print(f"  分岔风险: {'低' if bifurcation_idx < 0.8 else '高'}")
 
-    # =====================================================================
-    # 6. 降阶模型基函数构造 (基于 gram_schmidt)
-    # =====================================================================
+
+
+
     print_section("6. POD 降阶模型基函数 (Modified Gram-Schmidt)")
 
-    # 生成快照：不同壁温下的稳态温度场
+
     n_snapshots = 20
     snapshots = np.zeros((len(T_ss), n_snapshots))
     T_wall_range = np.linspace(330.0, 380.0, n_snapshots)
@@ -227,9 +204,9 @@ def main():
     print(f"  POD 能量占比: {energy_ratio*100:.2f}%")
     print(f"  降阶重构误差: {reduction_err:.4e}")
 
-    # =====================================================================
-    # 7. 混合质量统计度量 (基于 normal01_multivariate_distance)
-    # =====================================================================
+
+
+
     print_section("7. 微反应器混合质量多变量统计度量")
 
     mixer = MixingQualityAnalyzer(ideal_mean=500.0, ideal_std=40.0)
@@ -240,7 +217,7 @@ def main():
     cv_multi = mixer.compute_multivariate_cv(samples_mixed)
     D_kl = mixer.compute_kl_divergence(samples_mixed)
     eta_mix = mixer.compute_mixing_efficiency_index(samples_mixed)
-    # 两区对比
+
     zone_a = samples_mixed[:1000]
     zone_b = samples_mixed[1000:]
     D_M, D_B = mixer.statistical_distance_between_zones(zone_a, zone_b)
@@ -250,20 +227,20 @@ def main():
     print(f"  混合效率指数 η_mix = {eta_mix:.4f}")
     print(f"  区间 Mahalanobis 距离 = {D_M:.4f}, Bhattacharyya 距离 = {D_B:.4f}")
 
-    # =====================================================================
-    # 8. 操作条件优化 (基于 test_opt, golden_section)
-    # =====================================================================
+
+
+
     print_section("8. 反应器操作条件优化")
 
     optimizer = ReactorOptimizer()
 
-    # 单参数优化：停留时间
+
     def obj_tau(tau_val: float) -> float:
-        # 模拟目标：转化率 / (1 + 压降 ∝ tau)
+
         k_eff = A_est * np.exp(-Ea_est / (R_gas * 350.0))
         X = 1.0 - np.exp(-k_eff * tau_val)
-        penalty = 0.01 * tau_val  # 压降惩罚
-        return -(X - penalty)  # 最小化负目标 = 最大化目标
+        penalty = 0.01 * tau_val
+        return -(X - penalty)
 
     tau_opt, f_opt, _, _ = optimizer.golden_section_search(
         obj_tau, 0.5, 60.0, max_iter=60, x_tol=1.0e-6
@@ -271,20 +248,20 @@ def main():
     print(f"  黄金分割搜索 - 最优停留时间 τ = {tau_opt:.3f} s")
     print(f"  对应目标值 = {-f_opt:.4f}")
 
-    # 多参数优化 (Rosenbrock 型测试)
+
     x_opt_ros, f_opt_ros = optimizer.optimize_reactor_conditions(n_params=4)
     print(f"  Newton 优化 - 最优参数: {x_opt_ros}")
     print(f"  目标函数值 = {f_opt_ros:.6e}")
 
-    # =====================================================================
-    # 9. 稀疏 skyline 矩阵运算 (基于 r8ss)
-    # =====================================================================
+
+
+
     print_section("9. 有限元稀疏 Skyline 矩阵运算")
 
     n_mat = 50
     lower = np.ones(n_mat) * (-1.0)
     lower[0] = 0.0
-    diagonal = np.ones(n_mat) * 2.01  # 对角占优
+    diagonal = np.ones(n_mat) * 2.01
     upper = np.ones(n_mat) * (-1.0)
     upper[-1] = 0.0
 
@@ -303,19 +280,19 @@ def main():
     print(f"  线性系统求解残差 = {np.linalg.norm(A_dense @ x_solve - x_test):.2e}")
     print(f"  条件数估计 ≈ {cond_est:.2e}")
 
-    # =====================================================================
-    # 10. 反应器网络拓扑分析 (基于 digraph_arc, graph_arc)
-    # =====================================================================
+
+
+
     print_section("10. 微反应器网络拓扑设计与流路分析")
 
     net = MicroreactorNetworkTopology(n_nodes=8)
-    # 构建一个分配网络（树状）+ 收集网络（反向树）
+
     edges_distributor = [(0,1), (0,2), (1,3), (1,4), (2,5), (2,6), (6,7)]
     for u, v in edges_distributor:
         net.add_edge(u, v)
     has_circuit, has_path = net.is_eulerian()
     euler_path = net.find_eulerian_path()
-    # Pruefer 编码演示
+
     tree_edges = net.generate_optimal_distribution_tree(root=0)
     pruefer_code = net.tree_to_pruefer(tree_edges)
     n_spanning = net.count_spanning_trees()
@@ -329,9 +306,9 @@ def main():
     print(f"  网络均匀度指数: {net_uniformity:.4f}")
     print(f"  Pruefer 码: {pruefer_code}")
 
-    # =====================================================================
-    # 11. 薄板热应力分析 (基于 biharmonic_exact)
-    # =====================================================================
+
+
+
     print_section("11. 微反应器薄板双调和热应力分析")
 
     thermal = ThermalStressAnalyzer(
@@ -343,11 +320,11 @@ def main():
     Xg, Yg = np.meshgrid(x_grid, y_grid)
     delta_T_field = 80.0 * np.exp(-(Xg**2 + Yg**2) / (0.01**2))
 
-    # 使用小振幅参数，避免应力数值爆炸
+
     sigma_x, sigma_y, tau_xy, sigma_vm = thermal.compute_thermal_stresses(
         Xg, Yg, delta_T_field, a=1.0e-6, b=0.0, c=0.0, d=0.0, e=1.0, f=0.0, g=80.0
     )
-    # 验证双调和残差
+
     residual_biharm = thermal.biharmonic_residual(
         Xg, Yg, a=1.0e-6, b=0.0, c=0.0, d=0.0, e=1.0, f=0.0, g=80.0
     )
@@ -362,12 +339,12 @@ def main():
     print(f"  安全系数 SF = {sf:.3f}")
     print(f"  热冲击参数 Θ = {theta_shock:.4f}")
 
-    # =====================================================================
-    # 12. 离散催化剂负载整数规划 (基于 diophantine_nd)
-    # =====================================================================
+
+
+
     print_section("12. 离散催化剂负载整数规划")
 
-    a_load = np.array([2.5, 3.0, 4.0, 5.5, 6.0])  # 单位负载量
+    a_load = np.array([2.5, 3.0, 4.0, 5.5, 6.0])
     budget_load = 50.0
     dioph = DiscreteCatalystLoadingOptimizer(a_load, budget_load)
     sols, n_sols = dioph.solve_exact_nonnegative(max_solutions=200)
@@ -385,9 +362,9 @@ def main():
     print(f"  贪心解: {x_greedy}, 目标 = {obj_greedy:.4f}")
     print(f"  贪心解利用率: {util_greedy:.4f}, 均匀度: {unif_greedy:.4f}")
 
-    # =====================================================================
-    # 汇总
-    # =====================================================================
+
+
+
     print_section("计算结果汇总")
     print(f"  PDE 稳态转化率:         {X_conv*100:.2f}%")
     print(f"  CVT 催化剂均匀度:       {uniformity:.4f}")

@@ -1,47 +1,8 @@
-"""
-kmeans_clustering.py
-====================
-K-means clustering for poroelastic parameter zone identification.
-
-Incorporates the core K-means algorithm (ASA136) for partitioning
-nodes or elements into homogeneous material zones based on their
-wave velocity, permeability, or other physical attributes.
-
-This enables identification of geological facies or lithological
-units within a heterogeneous porous medium.
-"""
 
 import numpy as np
 
 
 def kmeans(a, k, iter_max=100, init_centers=None):
-    """
-    K-means clustering algorithm (Hartigan-Wong).
-
-    Parameters
-    ----------
-    a : ndarray, shape (m, n)
-        Data points in n-dimensional space.
-    k : int
-        Number of clusters.
-    iter_max : int
-        Maximum iterations.
-    init_centers : ndarray, optional
-        Initial cluster centers, shape (k, n).
-
-    Returns
-    -------
-    c : ndarray, shape (k, n)
-        Final cluster centers.
-    ic1 : ndarray, shape (m,)
-        Cluster assignment for each point.
-    nc : ndarray, shape (k,)
-        Number of points in each cluster.
-    wss : ndarray, shape (k,)
-        Within-cluster sum of squares.
-    ifault : int
-        Error indicator (0=ok, 1=empty cluster, 2=max iter, 3=bad k).
-    """
     a = np.asarray(a, dtype=float)
     m, n = a.shape
 
@@ -51,7 +12,7 @@ def kmeans(a, k, iter_max=100, init_centers=None):
     if init_centers is not None:
         c = np.asarray(init_centers, dtype=float).copy()
     else:
-        # Random initialization
+
         idx = np.random.choice(m, k, replace=False)
         c = a[idx, :].copy()
 
@@ -59,7 +20,7 @@ def kmeans(a, k, iter_max=100, init_centers=None):
     ic2 = np.zeros(m, dtype=int)
     dt = np.zeros(2)
 
-    # Initial assignment: find two closest centers for each point
+
     for i in range(m):
         ic1[i] = 0
         ic2[i] = 1
@@ -81,7 +42,7 @@ def kmeans(a, k, iter_max=100, init_centers=None):
                     dt[0] = db
                     ic1[i] = l
 
-    # Update centers
+
     nc = np.zeros(k, dtype=int)
     c[:, :] = 0.0
     for i in range(m):
@@ -95,7 +56,7 @@ def kmeans(a, k, iter_max=100, init_centers=None):
     for l in range(k):
         c[l, :] /= nc[l]
 
-    # Iterative refinement (simplified optimal-transfer + quick-transfer)
+
     an1 = np.zeros(k)
     an2 = np.zeros(k)
     for l in range(k):
@@ -110,7 +71,7 @@ def kmeans(a, k, iter_max=100, init_centers=None):
     indx = 0
 
     for _ in range(iter_max):
-        # Optimal transfer stage
+
         for i in range(m):
             l1 = ic1[i]
             l2 = ic2[i]
@@ -118,7 +79,7 @@ def kmeans(a, k, iter_max=100, init_centers=None):
             r1 = np.sum((a[i, :] - c[l1, :]) ** 2) * an1[l1]
 
             if r2 < r1 and nc[l1] > 1:
-                # Transfer point i from l1 to l2
+
                 nc[l1] -= 1
                 nc[l2] += 1
                 aa = float(nc[l1])
@@ -128,12 +89,12 @@ def kmeans(a, k, iter_max=100, init_centers=None):
                 an1[l2] = aa / (aa - 1.0) if aa > 1.0 else np.inf
                 an2[l2] = aa / (aa + 1.0)
 
-                # Update centers incrementally
+
                 c[l1, :] = (c[l1, :] * (nc[l1] + 1) - a[i, :]) / max(nc[l1], 1)
                 c[l2, :] = (c[l2, :] * (nc[l2] - 1) + a[i, :]) / max(nc[l2], 1)
 
                 ic1[i] = l2
-                # Recompute ic2
+
                 dt_min = np.inf
                 dt_second = np.inf
                 ic2[i] = l1
@@ -156,7 +117,7 @@ def kmeans(a, k, iter_max=100, init_centers=None):
         if indx >= m:
             break
 
-    # Compute WSS
+
     wss = np.zeros(k)
     c[:, :] = 0.0
     for i in range(m):
@@ -172,29 +133,10 @@ def kmeans(a, k, iter_max=100, init_centers=None):
 
 
 def cluster_velocity_zones(nodes, velocity_field, k=3):
-    """
-    Cluster nodes into k zones based on wave velocity magnitude.
-
-    Parameters
-    ----------
-    nodes : ndarray, shape (m, 2)
-        Spatial coordinates.
-    velocity_field : ndarray, shape (m, 2)
-        Velocity vectors.
-    k : int
-        Number of clusters.
-
-    Returns
-    -------
-    zones : ndarray, shape (m,)
-        Zone index for each node.
-    centers : ndarray, shape (k, 3)
-        Cluster centers (x, y, |v|).
-    """
     v_mag = np.linalg.norm(velocity_field, axis=1).reshape(-1, 1)
     features = np.hstack([nodes, v_mag])
     c, ic1, nc, wss, fault = kmeans(features, k)
     if fault != 0:
-        # Fallback: equal partitioning
+
         ic1 = np.floor(np.linspace(0, k - 1e-6, len(nodes))).astype(int)
     return ic1, c

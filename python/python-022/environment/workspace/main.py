@@ -1,27 +1,3 @@
-"""
-main.py
-=======
-惯性约束聚变（ICF）内爆多物理耦合模拟的统一入口。
-
-本程序基于 15 个种子科研项目的核心算法，在等离子体物理领域合成构建。
-运行方式：
-    python main.py
-
-无任何命令行参数，所有物理参数在 icf_parameters.py 中定义。
-
-计算流程：
-1. 初始化靶丸几何与计算网格
-2. 初始化激光入射几何
-3. 时间循环（直到 T_MAX）：
-   a. 激光能量沉积
-   b. 电子热传导
-   c. 流体动力学推进
-   d. 聚变反应率与 alpha 沉积
-   e. 离子-电子能量弛豫
-   f. 不稳定性增长分析
-   g. 自适应时间步长
-4. 后处理与输出统计
-"""
 
 import numpy as np
 import time
@@ -46,7 +22,6 @@ from time_integrator import RKF45Integrator
 
 
 def print_banner():
-    """打印程序标题。"""
     print("=" * 72)
     print("  惯性约束聚变（ICF）内爆多物理耦合模拟")
     print("  Inertial Confinement Fusion Implosion Simulation")
@@ -55,7 +30,6 @@ def print_banner():
 
 
 def initialize_simulation():
-    """初始化所有模拟对象。"""
     print("[初始化] 生成径向计算网格 ...")
     mesh = RadialMesh(n_cells=NP.N_RADIAL)
     print(f"         网格单元数: {mesh.n_cells}, 节点数: {mesh.n_nodes}")
@@ -97,7 +71,6 @@ def initialize_simulation():
 
 
 def run_simulation(mesh, beams, hydro, perturbation):
-    """执行主时间循环。"""
     print("[主循环] 开始时间推进 ...")
     print(f"         最大模拟时间: {NP.T_MAX*1e9:.2f} ns")
     print()
@@ -106,7 +79,7 @@ def run_simulation(mesh, beams, hydro, perturbation):
     step = 0
     integrator = RKF45Integrator()
 
-    # 历史记录（用于后处理）
+
     history = {
         "time": [],
         "kinetic_energy": [],
@@ -117,7 +90,7 @@ def run_simulation(mesh, beams, hydro, perturbation):
         "implosion_velocity": [],
     }
 
-    # 预计算激光几何沉积权重
+
     laser_geom_weights = compute_deposition_profile(beams, mesh.r)
 
     start_time = time.time()
@@ -125,29 +98,29 @@ def run_simulation(mesh, beams, hydro, perturbation):
     while t < NP.T_MAX and step < 50000:
         n_cells = mesh.n_cells
 
-        # 1. 计算激光功率与沉积
+
         P_laser = laser_power_time(t)
         laser_dep = compute_laser_deposition_1d(
             mesh.cell_centers(), mesh.r, hydro.rho, hydro.T_e,
-            np.ones(n_cells) * TP.ablator_atomic_number,  # 简化 Z_eff
+            np.ones(n_cells) * TP.ablator_atomic_number,
             P_laser, t, n_samples=101
         )
-        # 结合几何权重
+
         for i in range(n_cells):
             laser_dep[i] *= (1.0 + laser_geom_weights[i])
 
-        # 2. 聚变反应率
-        n_d = hydro.rho * PC.AVOGADRO / (2.5 * 1.0e-3) * 0.5  # 50% D
-        n_t = n_d  # 50% T
+
+        n_d = hydro.rho * PC.AVOGADRO / (2.5 * 1.0e-3) * 0.5
+        n_t = n_d
         fusion_rate_density = compute_fusion_rate_density(n_d, n_t, hydro.T_i)
         alpha_dep = alpha_deposition_local(fusion_rate_density, hydro.vol)
         fusion_heating = alpha_dep / np.maximum(hydro.rho, 1.0e-30)
 
-        # 3. 热传导
-        # TODO: Z_eff 和平均原子质量的准备逻辑需要与 hydrodynamics.py 中
-        # _update_pressure 使用的 Saha 电离模型保持一致。当前简化的
-        # Z_eff 赋值（ablator 用固定原子序数，DT 用 1.0）与 Saha 方程
-        # 计算结果可能不一致，需要统一电离度计算接口。
+
+
+
+
+
         Z_eff_cells = np.ones(n_cells) * TP.ablator_atomic_number
         for i in range(n_cells):
             zone = mesh.get_material_zone(i)
@@ -156,9 +129,9 @@ def run_simulation(mesh, beams, hydro, perturbation):
             elif zone == "gas":
                 Z_eff_cells[i] = 1.0
 
-        # TODO: electron_number_density 的调用需要确保 Z_eff 和平均原子质量
-        # 的数组长度和取值范围匹配。当前使用 np.where 的条件判断可能与
-        # mesh.get_material_zone 的结果不一致，需要统一材料区识别逻辑。
+
+
+
         n_e_cells = electron_number_density(hydro.rho, Z_eff_cells,
                                             np.where(mesh.cell_centers() >= TP.R_DT_ICE,
                                                      TP.ablator_average_atomic_mass, 2.5))
@@ -173,10 +146,10 @@ def run_simulation(mesh, beams, hydro, perturbation):
             )
             hydro.T_e = T_e_new
         except Exception as e:
-            # 热传导失败时退化为显式更新
+
             print(f"         [警告] 热传导求解失败于 t={t*1e9:.3f} ns: {e}")
 
-        # 4. 离子-电子能量弛豫
+
         for i in range(n_cells):
             zone = mesh.get_material_zone(i)
             A_ion = TP.ablator_average_atomic_mass if zone == "ablator" else 2.5
@@ -190,12 +163,12 @@ def run_simulation(mesh, beams, hydro, perturbation):
             hydro.T_i[i] = max(E_i_new / max(1.5 * n_i * PC.BOLTZMANN, 1.0e-30), 1.0)
             hydro.T_e[i] = max(E_e_new / max(1.5 * n_e_cells[i] * PC.BOLTZMANN, 1.0e-30), 1.0)
 
-        # 5. 流体动力学推进
+
         conduction_work = np.zeros(n_cells)
         hydro.advance(dt, laser_dep / np.maximum(hydro.rho, 1.0e-30),
                       fusion_heating, conduction_work)
 
-        # 6. 不稳定性分析（每 100 步）
+
         if step % 100 == 0:
             mode_growth = compute_mode_growth_spectrum(
                 hydro.rho, mesh.cell_centers(), hydro.u, mode_range=range(1, 12)
@@ -204,7 +177,7 @@ def run_simulation(mesh, beams, hydro, perturbation):
         else:
             feedthrough = 0.0
 
-        # 7. 记录历史
+
         ke = hydro.get_kinetic_energy()
         ie = hydro.get_internal_energy()
         max_rho = np.max(hydro.rho)
@@ -220,18 +193,18 @@ def run_simulation(mesh, beams, hydro, perturbation):
         history["fusion_rate"].append(total_fusion)
         history["implosion_velocity"].append(implosion_v)
 
-        # 8. 时间推进
+
         t += dt
         step += 1
 
-        # 每 500 步输出状态
+
         if step % 500 == 0 or t >= NP.T_MAX:
             elapsed = time.time() - start_time
             print(f"  Step {step:5d} | t = {t*1e9:7.3f} ns | dt = {dt*1e12:6.3f} ps | "
                   f"rho_max = {max_rho:10.3e} | T_max = {max_T:10.3e} | "
                   f"KE = {ke:10.3e} | Fusion = {total_fusion:10.3e}")
 
-        # 终止条件检查
+
         if max_rho > 1.0e6 or max_T > 5.0e8:
             print(f"\n[终止] 达到极端压缩状态: rho_max={max_rho:.3e}, T_max={max_T:.3e}")
             break
@@ -246,7 +219,6 @@ def run_simulation(mesh, beams, hydro, perturbation):
 
 
 def postprocess_and_report(history):
-    """后处理与统计输出。"""
     print()
     print("=" * 72)
     print("  模拟结果统计")
@@ -266,18 +238,18 @@ def postprocess_and_report(history):
     print(f"  最终内能:            {ie[-1]:.6e} J")
     print(f"  聚变反应率积分:      {np.trapezoid(fusion, times):.6e} reactions")
 
-    #  Lawson 判据近似
+
     n_peak = np.max(rho) * PC.AVOGADRO / (2.5 * 1.0e-3)
     tau_approx = times[-1]
     lawson = n_peak * tau_approx
     print(f"  Lawson 参数 n*tau:   {lawson:.6e} s/m^3")
     print(f"  点火判据 (约 1e20):  {'满足' if lawson > 1.0e20 else '未满足'}")
 
-    # 中子蒙特卡洛（简化）
+
     print()
     print("[后处理] 中子输运蒙特卡洛统计 ...")
     mc = NeutronMC(n_samples=2000)
-    # 使用最终状态做简化输运
+
     n_cells = len(history["max_density"])
     r_dummy = np.linspace(0.0, TP.R_ABLATION, n_cells)
     rho_dummy = np.full(n_cells, np.mean(rho))
@@ -299,7 +271,6 @@ def postprocess_and_report(history):
 
 
 def main():
-    """统一入口函数。"""
     print_banner()
     mesh, beams, hydro, perturbation = initialize_simulation()
     history = run_simulation(mesh, beams, hydro, perturbation)

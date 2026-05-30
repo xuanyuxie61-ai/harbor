@@ -1,26 +1,14 @@
-"""
-Adaptive Spatial Sampling and Indexing
-=======================================
-Derived from 536_hilbert_curve_3d (3D Hilbert space-filling curve) and
-253_cvt_circle_nonuniform (CVT Lloyd iteration for non-uniform density).
-
-Provides:
-- 3D Hilbert curve-based spatial hashing for fast nearest-neighbor lookup
-  in jet clustering (mapping 3D momentum space to 1D index).
-- Centroidal Voronoi Tessellation (CVT) with Lloyd iteration for adaptive
-  sampling of parton momentum distributions.
-"""
 
 import numpy as np
 
 
-# =============================================================================
-# 3D Hilbert Curve (from 536_hilbert_curve_3d)
-# =============================================================================
+
+
+
 
 _HILBERT_ROTATION_TABLE = np.array([
-    # For each octant (0..7): (swap_axis, negate_mask)
-    # Simplified rotation for 3D Hilbert curve construction
+
+
     [0, 0, 0],
     [0, 0, 1],
     [0, 1, 0],
@@ -33,7 +21,6 @@ _HILBERT_ROTATION_TABLE = np.array([
 
 
 def _hilbert_scalar_h_to_xyz(h, n_bits=8):
-    """Scalar version of Hilbert h->(x,y,z)."""
     x = y = z = 0
     state = 0
     for i in range(n_bits - 1, -1, -1):
@@ -81,21 +68,6 @@ def _hilbert_scalar_h_to_xyz(h, n_bits=8):
 
 
 def hilbert_h_to_xyz(h, n_bits=8):
-    """
-    Convert 1D Hilbert index h to 3D coordinates (x,y,z) on a 2^n_bits cube.
-    
-    Parameters
-    ----------
-    h : int or array of ints
-        Linear Hilbert index.
-    n_bits : int
-        Number of bits per dimension (grid size = 2^n_bits).
-    
-    Returns
-    -------
-    ndarray, shape (..., 3)
-        Integer coordinates in [0, 2^n_bits - 1].
-    """
     h = np.asarray(h, dtype=np.int64)
     scalar = (h.ndim == 0)
     h_flat = np.atleast_1d(h)
@@ -108,7 +80,6 @@ def hilbert_h_to_xyz(h, n_bits=8):
 
 
 def _hilbert_scalar_xyz_to_h(x, y, z, n_bits=8):
-    """Scalar version of Hilbert (x,y,z)->h."""
     h = 0
     state = 0
     for i in range(n_bits - 1, -1, -1):
@@ -156,21 +127,6 @@ def _hilbert_scalar_xyz_to_h(x, y, z, n_bits=8):
 
 
 def hilbert_xyz_to_h(coords, n_bits=8):
-    """
-    Convert 3D coordinates (x,y,z) to 1D Hilbert index h.
-    
-    Parameters
-    ----------
-    coords : ndarray, shape (..., 3)
-        Integer coordinates in [0, 2^n_bits - 1].
-    n_bits : int
-        Number of bits per dimension.
-    
-    Returns
-    -------
-    ndarray of ints
-        Hilbert index.
-    """
     coords = np.asarray(coords, dtype=np.int64)
     scalar = (coords.ndim == 1 and coords.shape[0] == 3)
     c_flat = np.atleast_2d(coords)
@@ -187,21 +143,8 @@ def hilbert_xyz_to_h(coords, n_bits=8):
 
 
 class HilbertSpatialIndex:
-    """
-    Spatial index for 3D points using Hilbert curve ordering.
-    Useful for accelerating nearest-neighbor searches in jet clustering
-    over particle momentum space (px, py, pz).
-    """
     
     def __init__(self, n_bits=8, bbox=None):
-        """
-        Parameters
-        ----------
-        n_bits : int
-            Resolution bits per dimension (grid size = 2^n_bits).
-        bbox : list of (min, max) tuples, optional
-            Bounding box. Defaults to unit cube.
-        """
         self.n_bits = n_bits
         self.grid_size = 1 << n_bits
         if bbox is None:
@@ -211,24 +154,21 @@ class HilbertSpatialIndex:
         self.indices = []
     
     def _world_to_grid(self, p):
-        """Map continuous 3D point to integer grid coordinates."""
         p = np.asarray(p, dtype=float)
         grid = np.zeros(3, dtype=np.int64)
         for dim in range(3):
             low, high = self.bbox[dim]
-            # Clamp to bounding box
+
             t = (p[dim] - low) / (high - low)
             t = max(0.0, min(1.0, t))
             grid[dim] = int(t * (self.grid_size - 1))
         return grid
     
     def add_point(self, point, idx):
-        """Register a point with an external index."""
         self.points.append(np.asarray(point, dtype=float))
         self.indices.append(idx)
     
     def build_index(self):
-        """Build Hilbert-ordered index array."""
         if len(self.points) == 0:
             self.ordered = np.array([], dtype=int)
             return
@@ -240,28 +180,24 @@ class HilbertSpatialIndex:
         self.sorted_h = np.sort(h_vals)
     
     def range_query(self, center, radius):
-        """
-        Return candidate indices within a cubic bounding box of given radius.
-        Actual distance filtering must be done by caller.
-        """
         if len(self.points) == 0:
             return []
         
         center = np.asarray(center, dtype=float)
         candidates = []
         
-        # Compute grid coordinate range
+
         gmin = self._world_to_grid(center - radius)
         gmax = self._world_to_grid(center + radius)
         
-        # Convert corners to Hilbert indices and scan sorted array
+
         h_min = hilbert_xyz_to_h(gmin.reshape(1, 3), self.n_bits)[0]
         h_max = hilbert_xyz_to_h(gmax.reshape(1, 3), self.n_bits)[0]
         
         if h_min > h_max:
             h_min, h_max = h_max, h_min
         
-        # Binary search in sorted_h
+
         left = np.searchsorted(self.sorted_h, h_min, side='left')
         right = np.searchsorted(self.sorted_h, h_max, side='right')
         
@@ -271,44 +207,17 @@ class HilbertSpatialIndex:
         return candidates
 
 
-# =============================================================================
-# CVT Lloyd Iteration (from 253_cvt_circle_nonuniform)
-# =============================================================================
+
+
+
 
 def cvt_lloyd_2d(n_generators, density_func, n_samples=20000,
                  max_iter=50, tol=1e-5, seed=42, domain=None):
-    """
-    Generate a 2D Centroidal Voronoi Tessellation via Lloyd iteration.
-    
-    Parameters
-    ----------
-    n_generators : int
-        Number of Voronoi generators (centroids).
-    density_func : callable
-        ρ(x,y) -> float, non-negative density function.
-    n_samples : int
-        Monte Carlo sample size per iteration for centroid approximation.
-    max_iter : int
-        Maximum Lloyd iterations.
-    tol : float
-        Generator displacement tolerance for convergence.
-    seed : int
-        RNG seed.
-    domain : list of (low, high) tuples, optional
-        Default unit square.
-    
-    Returns
-    -------
-    generators : ndarray, shape (n_generators, 2)
-        Final generator positions.
-    info : dict
-        Iteration count and final displacement.
-    """
     rng = np.random.default_rng(seed)
     if domain is None:
         domain = [(0.0, 1.0), (0.0, 1.0)]
     
-    # Initial random generators
+
     gens = np.zeros((n_generators, 2), dtype=float)
     for d in range(2):
         gens[:, d] = rng.uniform(domain[d][0], domain[d][1], size=n_generators)
@@ -317,28 +226,28 @@ def cvt_lloyd_2d(n_generators, density_func, n_samples=20000,
     highs = np.array([domain[d][1] for d in range(2)])
     
     for it in range(max_iter):
-        # Monte Carlo sample points
+
         samples = lows + rng.uniform(0.0, 1.0, size=(n_samples, 2)) * (highs - lows)
         weights = np.array([density_func(s[0], s[1]) for s in samples])
         weights = np.maximum(weights, 1e-15)
         
-        # Assign each sample to nearest generator
-        # Compute distances efficiently
-        diffs = samples[:, np.newaxis, :] - gens[np.newaxis, :, :]  # (n_samples, n_gen, 2)
-        dists2 = np.sum(diffs**2, axis=2)  # (n_samples, n_gen)
+
+
+        diffs = samples[:, np.newaxis, :] - gens[np.newaxis, :, :]
+        dists2 = np.sum(diffs**2, axis=2)
         nearest = np.argmin(dists2, axis=1)
         
-        # Update generators to weighted centroids
+
         new_gens = np.zeros_like(gens)
         for j in range(n_generators):
             mask = (nearest == j)
             if np.any(mask):
                 new_gens[j] = np.average(samples[mask], axis=0, weights=weights[mask])
             else:
-                # Empty cell: reseed randomly
+
                 new_gens[j] = lows + rng.uniform(0.0, 1.0, size=2) * (highs - lows)
         
-        # Check convergence
+
         displacement = np.max(np.linalg.norm(new_gens - gens, axis=1))
         gens = new_gens
         if displacement < tol:
@@ -349,15 +258,14 @@ def cvt_lloyd_2d(n_generators, density_func, n_samples=20000,
 
 
 def test_adaptive_sampling():
-    """Validate Hilbert index round-trip and CVT convergence."""
-    # Hilbert round-trip
+
     n_bits = 4
     h_vals = np.arange(0, 2**(3*n_bits), 7)
     coords = hilbert_h_to_xyz(h_vals, n_bits)
     h_back = hilbert_xyz_to_h(coords, n_bits)
     assert np.all(h_vals == h_back), "Hilbert round-trip failed"
     
-    # Hilbert spatial index
+
     idx = HilbertSpatialIndex(n_bits=6, bbox=[(-100, 100), (-100, 100), (-100, 100)])
     rng = np.random.default_rng(123)
     pts = rng.uniform(-50, 50, size=(200, 3))
@@ -367,7 +275,7 @@ def test_adaptive_sampling():
     cands = idx.range_query(np.zeros(3), 20.0)
     assert len(cands) > 0, "Hilbert index query returned no candidates"
     
-    # CVT on non-uniform density (Gaussian peak at center)
+
     def rho(x, y):
         return np.exp(-5.0 * ((x - 0.5)**2 + (y - 0.5)**2)) + 0.1
     

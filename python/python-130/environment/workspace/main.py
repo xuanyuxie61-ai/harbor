@@ -1,40 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-================================================================================
-MAIN ENTRY POINT: Multi-Scale Synaptic Plasticity Simulation
-================================================================================
-
-This program orchestrates a comprehensive computational analysis of synaptic
-plasticity and neurotransmitter dynamics across multiple spatial and temporal
-scales in cortical neural networks.
-
-Scientific Problem:
--------------------
-Understanding how synaptic weights evolve under the combined influence of:
-1. Spatial diffusion of plasticity-related proteins (PRPs) along dendrites
-2. Wave-like propagation of long-term potentiation (LTP) through tissue
-3. Stochastic fluctuations in individual synaptic weights
-4. Metabolic resource constraints on protein synthesis
-5. Homeostatic regulation maintaining network stability
-6. Geometric constraints from cortical tissue morphology
-7. Spectral characteristics of population neural activity
-8. Nonlinear synaptic transmission (NMDA receptor dynamics)
-
-The simulation integrates all 15 seed algorithms into a unified framework
-for analyzing neuroplasticity and synaptic weight dynamics.
-
-Running:
---------
-    python main.py
-
-No command-line arguments required.
-================================================================================
-"""
 
 import numpy as np
 import sys
 
-# Ensure the project directory is in the path
+
 sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
 
 from cable_diffusion import simulate_protein_diffusion, stability_limit
@@ -49,7 +18,6 @@ from synaptic_nonlinearity import compute_polynomial_approximation_error, evalua
 
 
 def print_section(title: str):
-    """Print a formatted section header."""
     width = 70
     print("\n" + "=" * width)
     print(f"  {title}")
@@ -57,22 +25,18 @@ def print_section(title: str):
 
 
 def print_subsection(title: str):
-    """Print a formatted subsection header."""
     print(f"\n--- {title} ---")
 
 
 def main():
-    """
-    Execute the full multi-scale synaptic plasticity simulation pipeline.
-    """
     print("=" * 70)
     print("  MULTI-SCALE SYNAPTIC PLASTICITY SIMULATION")
     print("  Domain: Neuroplasticity and Synaptic Weights")
     print("=" * 70)
 
-    # ========================================================================
-    # 1. CORTICAL MESH GENERATION
-    # ========================================================================
+
+
+
     print_section("1. CORTICAL MESH GENERATION & NEIGHBOR ANALYSIS")
     print("   (From: hand_mesh2d + triangulation_triangle_neighbors)")
 
@@ -86,9 +50,9 @@ def main():
     print(f"  Boundary edges:        {mesh['n_boundary_edges']}")
     print(f"  Neighbor array shape:  {mesh['neighbors'].shape}")
 
-    # ========================================================================
-    # 2. PROTEIN DIFFUSION ALONG DENDRITES
-    # ========================================================================
+
+
+
     print_section("2. PROTEIN DIFFUSION ALONG DENDRITIC CABLES")
     print("   (From: laplacian_matrix - discrete Laplacian operators)")
 
@@ -106,26 +70,26 @@ def main():
     print(f"  Final max concentration: {np.max(c_hist[-1]):.6f}")
     print(f"  Final mean concentration: {np.mean(c_hist[-1]):.6f}")
 
-    # ========================================================================
-    # 3. LTP WAVE PROPAGATION
-    # ========================================================================
+
+
+
     print_section("3. LTP WAVE PROPAGATION (Fisher-KPP Reaction-Diffusion)")
     print("   (From: fisher_exact + rk1)")
 
-    # TODO: Call simulate_ltp_wave with appropriate parameters for LTP wave
-    # propagation simulation, then call verify_fisher_exact for exact-solution
-    # verification. Use the returned values to print wave propagation results
-    # including theoretical minimum speed, exact solution error, wave front
-    # position estimate, and maximum potentiation.
+
+
+
+
+
     pass
 
-    # ========================================================================
-    # 4. VESICLE RELEASE PROBABILITY
-    # ========================================================================
+
+
+
     print_section("4. SYNAPTIC VESICLE RELEASE PROBABILITY")
     print("   (From: sphere_integrals + circle_rule)")
 
-    # Sphere monomial integrals
+
     I000 = sphere_monomial_integral((0, 0, 0))
     I200 = sphere_monomial_integral((2, 0, 0))
     I220 = sphere_monomial_integral((2, 2, 0))
@@ -146,9 +110,9 @@ def main():
     print(f"  Mean quantal variance: {np.mean(vesicle['var_q']):.4f}")
     print(f"  Mean bouton radius:    {np.mean(vesicle['R_vals']):.4f} μm")
 
-    # ========================================================================
-    # 5. METABOLIC RESOURCE ALLOCATION
-    # ========================================================================
+
+
+
     print_section("5. METABOLIC RESOURCE ALLOCATION FOR PLASTICITY")
     print("   (From: change_greedy - greedy optimization)")
 
@@ -164,9 +128,9 @@ def main():
         print(f"    Cost efficiency:       {m['cost_efficiency']:.4f}")
         print(f"    Gini coefficient:      {m['gini_coefficient']:.4f}")
 
-    # ========================================================================
-    # 6. HOMEOSTATIC DYNAMICS
-    # ========================================================================
+
+
+
     print_section("6. HOMEOSTATIC SYNAPTIC WEIGHT REGULATION")
     print("   (From: spring_ode + pendulum_nonlinear_exact)")
 
@@ -187,9 +151,9 @@ def main():
     print(f"  Network size:              {homeo['network_theta'].shape[1]} neurons")
     print(f"  Final phase std:           {np.std(homeo['network_theta'][-1]):.4f} rad")
 
-    # ========================================================================
-    # 7. STOCHASTIC WEIGHT EVOLUTION
-    # ========================================================================
+
+
+
     print_section("7. STOCHASTIC SYNAPTIC WEIGHT EVOLUTION")
     print("   (From: black_scholes - geometric Brownian motion)")
 
@@ -218,9 +182,9 @@ def main():
     print(f"  Mean option value:       {portfolio['mean_value']:.4f}")
     print(f"  Max option value:        {np.max(portfolio['options']):.4f}")
 
-    # ========================================================================
-    # 8. SPECTRAL ANALYSIS
-    # ========================================================================
+
+
+
     print_section("8. NEURAL FIELD SPECTRAL ANALYSIS")
     print("   (From: fft_serial + trig_interp + interp_chebyshev)")
 
@@ -236,9 +200,9 @@ def main():
     print(f"  Trigonometric error:     {interp_err['trig_error']:.6e}")
     print(f"  Chebyshev error:         {interp_err['cheb_error']:.6e}")
 
-    # ========================================================================
-    # 9. SYNAPTIC NONLINEARITY
-    # ========================================================================
+
+
+
     print_section("9. SYNAPTIC NONLINEARITY (NMDA Receptor)")
     print("   (From: polynomial - multivariate polynomial operations)")
 
@@ -255,9 +219,9 @@ def main():
     for i in idx:
         print(f"  V={V_test[i]:5.1f}mV: I_exact={I_exact[i]:8.4f}, I_poly={I_poly[i]:8.4f}, diff={abs(I_exact[i]-I_poly[i]):.4e}")
 
-    # ========================================================================
-    # 10. INTEGRATED SUMMARY
-    # ========================================================================
+
+
+
     print_section("10. INTEGRATED SUMMARY")
     print("""
 This simulation integrates 15 seed algorithms into a unified framework

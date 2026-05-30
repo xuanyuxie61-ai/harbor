@@ -1,19 +1,9 @@
-"""
-euler_reactive_solver.py
-二维可压缩反应 Euler 方程数值求解器
-融合来源：978_r8crs（稀疏矩阵存储与矩阵-向量乘法）
-"""
 import numpy as np
 from combustion_utils import check_positive, sound_speed_from_prho
 from reaction_kinetics import ReactiveState, euler_flux_x, euler_flux_y, chemical_source_term
 
 
 class SparseCRS:
-    r"""
-    压缩稀疏行 (Compressed Sparse Row, CSR/CRS) 格式矩阵。
-    用于隐式时间推进时的 Jacobian 存储。
-    融合来源：978_r8crs。
-    """
 
     def __init__(self, m, n, row, col, val):
         self.m = m
@@ -24,10 +14,6 @@ class SparseCRS:
         self.nz = len(val)
 
     def multiply(self, x):
-        r"""
-        计算 y = A * x，其中 A 为 CRS 格式矩阵。
-        对应 r8crs_mv。
-        """
         x = np.asarray(x, dtype=float)
         if x.shape[0] != self.n:
             raise ValueError(f"x size {x.shape[0]} != matrix cols {self.n}")
@@ -39,10 +25,6 @@ class SparseCRS:
         return y
 
     def multiply_transpose(self, x):
-        r"""
-        计算 y = A^T * x。
-        对应 r8crs_mtv。
-        """
         x = np.asarray(x, dtype=float)
         if x.shape[0] != self.m:
             raise ValueError(f"x size {x.shape[0]} != matrix rows {self.m}")
@@ -55,14 +37,6 @@ class SparseCRS:
 
 
 class ReactiveEulerSolver:
-    r"""
-    二维反应 Euler 方程求解器。
-
-    方程:
-        dU/dt + dF(U)/dx + dG(U)/dy = omega(U)
-
-    采用显式 TVD Runge-Kutta 3 阶时间推进 + 空间 Lax-Friedrichs 通量。
-    """
 
     def __init__(self, nx, ny, dx, dy, gamma=1.4, Q=2.5e6,
                  A=1.0e8, Ea=8.314e4, n_order=1.0, W_mol=0.029):
@@ -84,12 +58,6 @@ class ReactiveEulerSolver:
 
     def initialize_cj_planar_wave(self, D, rho0, p0, u0=0.0, v0=0.0,
                                    lambda0=0.0, width_factor=5.0):
-        r"""
-        初始化一维 CJ 平面爆轰波（沿 x 方向）。
-        波前在左侧（x=0 处），波后处于 CJ 平衡态。
-        使用 tanh 型初始剖面:
-            lambda(x) = 0.5 * (1 + tanh((x - x0) / delta))
-        """
         from combustion_utils import cj_detonation_velocity, sound_speed_from_prho
         check_positive(D, "D")
         check_positive(rho0, "rho0")
@@ -103,7 +71,7 @@ class ReactiveEulerSolver:
         rho1 = rho0 * rho_ratio
         u1 = D * (1.0 - rho0 / rho1)
 
-        # 比内能
+
         e0 = p0 / ((self.gamma - 1.0) * rho0) + self.Q
         e1 = p1 / ((self.gamma - 1.0) * rho1)
 
@@ -112,7 +80,7 @@ class ReactiveEulerSolver:
 
         for i in range(self.nx):
             x = i * self.dx
-            # tanh 过渡
+
             s = 0.5 * (1.0 + np.tanh((x - x0) / delta))
             rho = rho0 + (rho1 - rho0) * s
             u = u0 + (u1 - u0) * s
@@ -123,15 +91,9 @@ class ReactiveEulerSolver:
             self.U[i, :, :] = state.to_conservative()
 
     def _rhs(self, U):
-        r"""
-        计算 dU/dt = -dF/dx - dG/dy + omega。
-        """
         return self._spatial_rhs(U) + self._source_rhs(U)
 
     def _spatial_rhs(self, U):
-        r"""
-        空间导数右端项（无源项）。
-        """
         nx, ny, nvar = U.shape
         dUdt = np.zeros_like(U)
 
@@ -164,9 +126,6 @@ class ReactiveEulerSolver:
         return dUdt
 
     def _source_rhs(self, U):
-        r"""
-        化学反应源项。
-        """
         nx, ny, nvar = U.shape
         dUdt = np.zeros_like(U)
         for i in range(nx):
@@ -178,12 +137,6 @@ class ReactiveEulerSolver:
         return dUdt
 
     def step_rk3(self, dt):
-        r"""
-        TVD Runge-Kutta 3 阶时间步进:
-            U^(1) = U^n + dt * L(U^n)
-            U^(2) = 3/4 U^n + 1/4 U^(1) + 1/4 dt * L(U^(1))
-            U^(n+1) = 1/3 U^n + 2/3 U^(2) + 2/3 dt * L(U^(2))
-        """
         check_positive(dt, "dt")
         U0 = self.U.copy()
 
@@ -196,17 +149,13 @@ class ReactiveEulerSolver:
         L3 = self._rhs(U2)
         self.U = (1.0 / 3.0) * U0 + (2.0 / 3.0) * U2 + (2.0 / 3.0) * dt * L3
 
-        # 数值鲁棒性：密度和内能截断
+
         for i in range(self.nx):
             for j in range(self.ny):
                 self.U[i, j, 0] = max(self.U[i, j, 0], 1.0e-9)
                 self.U[i, j, 4] = max(0.0, min(self.U[i, j, 4], self.U[i, j, 0]))
 
     def compute_cfl_dt(self, cfl=0.3):
-        r"""
-        基于 CFL 条件计算时间步长:
-            dt = CFL * min(dx, dy) / max(|u|+a, |v|+a)
-        """
         max_speed = 1.0e-12
         for i in range(self.nx):
             for j in range(self.ny):
@@ -220,9 +169,6 @@ class ReactiveEulerSolver:
         return dt
 
     def advance(self, t_final, cfl=0.3, n_print=10):
-        r"""
-        推进到 t_final，自动 CFL 时间步长。
-        """
         t = 0.0
         step = 0
         while t < t_final:

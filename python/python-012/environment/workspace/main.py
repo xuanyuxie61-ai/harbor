@@ -1,32 +1,9 @@
-"""
-Topological Insulator Surface State Transport: Main Simulation
-===============================================================
-
-This is the unified entry point for the quantum transport simulation
-of 3D topological insulator surface states with magnetic doping and disorder.
-
-Scientific Problem:
--------------------
-Compute the anomalous Hall conductivity, spin Hall conductivity, and
-longitudinal conductivity of magnetically doped topological insulator
-surface states (e.g., Cr-doped (Bi,Sb)2Te3), including:
-
-1. Gapped Dirac cone band structure with hexagonal warping
-2. Berry curvature and intrinsic anomalous Hall effect
-3. Disorder scattering (Born approximation, self-consistent T-matrix)
-4. Skew scattering and side-jump contributions
-5. Finite-size tight-binding verification
-6. Thermoelectric coefficients
-
-The code runs with zero parameters and prints all results to stdout
-and output files.
-"""
 
 import numpy as np
 import os
 import sys
 
-# Ensure all modules can be found
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dirac_surface import DiracSurfaceHamiltonian, effective_mass_tensor
@@ -43,9 +20,6 @@ from io_manager import IOManager
 
 
 def run_simulation():
-    """
-    Execute the full transport simulation pipeline.
-    """
     print("=" * 70)
     print("  Topological Insulator Surface State Transport Simulation")
     print("  Quantum Anomalous Hall Effect & Spin Transport")
@@ -54,15 +28,15 @@ def run_simulation():
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
     io = IOManager(output_dir)
 
-    # =====================================================================
-    # Section 1: Material Parameters and Hamiltonian
-    # =====================================================================
+
+
+
     print("\n[1] Initializing Dirac Surface Hamiltonian...")
 
-    # Parameters for Cr-doped (Bi,Sb)2Te3 (QAH insulator)
-    v_F = 4.5e5          # m/s
-    Delta = 0.025        # eV (exchange gap from magnetic doping)
-    lambda_w = 25.0      # eV·nm^3 (hexagonal warping for Bi2Te3)
+
+    v_F = 4.5e5
+    Delta = 0.025
+    lambda_w = 25.0
 
     H = DiracSurfaceHamiltonian(v_F=v_F, Delta=Delta, lambda_w=lambda_w)
 
@@ -76,12 +50,12 @@ def run_simulation():
     print(f"  Delta = {Delta:.3f} eV")
     print(f"  lambda_w = {lambda_w:.1f} eV·nm^3")
 
-    # =====================================================================
-    # Section 2: Fermi Surface Geometry
-    # =====================================================================
+
+
+
     print("\n[2] Computing Fermi Surface Geometry...")
 
-    E_F = 0.12  # eV, Fermi level above the gap
+    E_F = 0.12
     fs = FermiSurface(hamiltonian=H, E_F=E_F)
 
     k_F = fs.fermi_wavevector()
@@ -97,45 +71,45 @@ def run_simulation():
     print(f"  Cyclotron mass m_c = {m_c:.4e} kg")
     print(f"  Cyclotron frequency (B=1T) = {omega_c:.4e} rad/s")
 
-    # Test ellipsoid Fermi surface (project 332 connection)
+
     kx_ell, ky_ell = fs.sample_momentum_ellipsoid(a_ratio=1.0, b_ratio=1.15, n_samples=100)
     print(f"  Ellipsoidal FS anisotropy: b/a = 1.15")
 
-    # Chord length distributions (projects 178, 230)
+
     chord_circle = fs.chord_length_distribution_circle(n_samples=2000)
     mean_chord = np.mean(chord_circle)
     print(f"  Mean chord length on circular FS = {mean_chord:.4e} 1/m")
 
-    # =====================================================================
-    # Section 3: Berry Curvature and Anomalous Hall Effect
-    # =====================================================================
+
+
+
     print("\n[3] Computing Berry Curvature and Chern Number...")
 
     berry = BerryCurvatureCalculator(H)
 
-    # Compute Berry curvature at a few points
+
     k_test = np.linspace(0.0, 1e9, 5)
     for k in k_test:
         omega = berry.berry_curvature_analytical(k, 0.0, band='lower')
         print(f"  Omega({k:.2e}, 0) = {omega:.4e} m^2")
 
-    # Chern number
+
     C = berry.chern_number(k_max=5e9, n_k=300, method='analytical')
     print(f"  Chern number C = {C:.4f} (expected ≈ -0.5 for lower band)")
 
-    # Berry phase around a loop
+
     theta_loop = np.linspace(0.0, 2.0 * np.pi, 100)
     k_path = np.column_stack((1e9 * np.cos(theta_loop), 1e9 * np.sin(theta_loop)))
     gamma = berry.berry_phase_1d(k_path)
     print(f"  Berry phase (loop at k=1e9) = {gamma:.4f} rad")
 
-    # =====================================================================
-    # Section 4: Disorder Scattering
-    # =====================================================================
+
+
+
     print("\n[4] Computing Disorder Scattering Rates...")
 
-    n_imp = 5e14       # m^-2
-    V0 = 0.3           # eV·nm^2
+    n_imp = 5e14
+    V0 = 0.3
     disorder = DisorderScattering(
         hamiltonian=H, n_imp=n_imp, V0=V0, disorder_type='delta'
     )
@@ -154,32 +128,32 @@ def run_simulation():
     print(f"  Diffusion constant D = {D_diff:.4e} m^2/s")
     print(f"  Skew scattering rate = {skew_rate:.4e} 1/s")
 
-    # Self-energy
+
     sigma_re, sigma_im = disorder.self_energy_born(E_F_J, n_k=300)
     print(f"  Self-energy Re[Sigma] = {sigma_re:.4e} J")
     print(f"  Self-energy Im[Sigma] = {sigma_im:.4e} J")
 
-    # =====================================================================
-    # Section 5: Transport Coefficients (Kubo Formula)
-    # =====================================================================
+
+
+
     print("\n[5] Computing Transport Coefficients...")
 
-    # TODO HOLE 3: Instantiate KuboConductivity and compute transport coefficients.
-    # Required steps:
-    #   1. Create kubo = KuboConductivity(H, disorder)
-    #   2. Compute sigma_xx = kubo.dc_conductivity_semicalassical(E_F)
-    #   3. Compute sigma_ah = kubo.intrinsic_anomalous_hall(E_F, n_k=300, k_max=2e10)
-    #   4. Compute sigma_total, sigma_int, sigma_skew, sigma_sj from
-    #      kubo.total_hall_conductivity(E_F, n_k=300, k_max=2e10)
-    #   5. Compute sigma_spin = kubo.spin_hall_conductivity(E_F, n_k=300, k_max=2e10)
-    #   6. Compute thermoelectric S, L = kubo.thermoelectric_coefficients(E_F, T=10.0)
-    #   7. Print all results (use e2_over_h = E_CHARGE^2 / H_PLANCK for unit conversion)
-    #   8. Assign all variables so they are available for the results dict below.
+
+
+
+
+
+
+
+
+
+
+
     raise NotImplementedError("HOLE 3: Kubo transport calculation in main not implemented")
 
-    # =====================================================================
-    # Section 6: Tight-Binding Finite-Size Verification
-    # =====================================================================
+
+
+
     print("\n[6] Tight-Binding Lattice Model (Finite Size)...")
 
     tb = TightBindingSurface(Nx=20, Ny=20, a=2.0, v_F=v_F, Delta=Delta,
@@ -191,24 +165,24 @@ def run_simulation():
     print(f"  Energy range: [{np.min(energies_tb)/1.602176634e-19:.4f}, "
           f"{np.max(energies_tb)/1.602176634e-19:.4f}] eV")
 
-    # Check for edge states
+
     profile, edge_weight = tb.edge_state_probability(evecs_tb, band_index=0)
     print(f"  Edge state weight (lowest band) = {edge_weight:.4f}")
 
-    # Finite-size conductivity
+
     sigma_tb = tb.finite_size_conductivity(E_F, T=0.0, eta=1e-22)
     print(f"  Finite-size conductivity = {sigma_tb:.4e} S")
 
-    # =====================================================================
-    # Section 7: Spectral Integration Tests
-    # =====================================================================
+
+
+
     print("\n[7] Spectral Integration Methods...")
 
     lat = LatticeIntegrator(dim=2)
     jq = JacobiQuadrature()
     mc = MonteCarloIntegrator(seed=42)
 
-    # Test Fibonacci lattice rule: integrate k^2 over circular FS
+
     def test_func(x):
         kx = x[0] * 2e10 - 1e10
         ky = x[1] * 2e10 - 1e10
@@ -217,62 +191,62 @@ def run_simulation():
     q_fib = lat.fibonacci_lattice_rule(8, test_func, bounds=[(0.0, 1.0), (0.0, 1.0)])
     print(f"  Fibonacci lattice integral = {q_fib:.4e}")
 
-    # Test Jacobi quadrature: DOS integral
+
     dos_func = lambda e: max(0.0, abs(e)) / (2.0 * np.pi * (H.hbar * H.v_F) ** 2)
     q_jac = jq.integrate(dos_func, n=32, alpha=0.0, beta=0.0,
                          a=-0.2 * 1.602176634e-19, b=0.2 * 1.602176634e-19)
     print(f"  Gauss-Jacobi DOS integral = {q_jac:.4e}")
 
-    # Monte Carlo over BZ
+
     def mc_func(kx, ky):
         return np.exp(-(kx ** 2 + ky ** 2) / (1e10 ** 2))
     q_mc, err_mc = mc.integrate_2d_brillouin_zone(mc_func, k_max=2e10, n_samples=10000)
     print(f"  Monte Carlo BZ integral = {q_mc:.4e} ± {err_mc:.4e}")
 
-    # =====================================================================
-    # Section 8: Self-Consistent Nonlinear Solver
-    # =====================================================================
+
+
+
     print("\n[8] Self-Consistent Nonlinear Solutions...")
 
     solver = NonlinearSolver(max_iter=100, tol=1e-10)
 
-    # Example: find root of f(x) = x^2 - 2
+
     f_test = lambda x: x ** 2 - 2.0
     root_snyder, it_snyder = solver.snyder_method(f_test, 1.0, 2.0)
     print(f"  Snyder method: sqrt(2) = {root_snyder:.10f} (iter={it_snyder})")
 
-    # Find Fermi level from carrier density
-    target_n = 2e16  # m^-2
+
+    target_n = 2e16
     E_F_solved = solver.find_fermi_level(
         carrier_density=target_n, temperature=0.0, hamiltonian=H, method='snyder'
     )
     print(f"  Fermi level for n={target_n:.2e} m^-2: E_F = {E_F_solved:.4f} eV")
 
-    # Self-consistent scattering time
+
     tau_sc = solver.self_consistent_scattering_time(E_F, disorder)
     print(f"  Self-consistent tau = {tau_sc:.4e} s")
 
-    # =====================================================================
-    # Section 9: Special Functions
-    # =====================================================================
+
+
+
     print("\n[9] Special Function Evaluations...")
 
     tg = TrigammaFunction()
     val_tg, _ = tg.evaluate(1.0)
     print(f"  Trigamma(1) = {val_tg:.10f} (expected pi^2/6 = {np.pi**2/6:.10f})")
 
-    # Carlson elliptic integrals for anisotropic Fermi surface
+
     carlson = CarlsonEllipticIntegrals(errtol=1e-6)
     rf_val, _ = carlson.rf(1.0, 2.0, 3.0)
     rd_val, _ = carlson.rd(1.0, 2.0, 3.0)
     print(f"  R_F(1,2,3) = {rf_val:.10f}")
     print(f"  R_D(1,2,3) = {rd_val:.10f}")
 
-    # Ellipsoid surface area
+
     area_ell = carlson.ellipsoid_surface_area(3.0, 2.0, 1.0)
     print(f"  Ellipsoid area (a=3,b=2,c=1) = {area_ell:.4f}")
 
-    # 2D interpolation test
+
     points = np.random.rand(50, 2) * 100
     values = np.sin(points[:, 0] / 10.0) * np.cos(points[:, 1] / 10.0)
     interp = Interpolation2D(points, values)
@@ -283,9 +257,9 @@ def run_simulation():
     print(f"  RBF interpolation at (50,50) = {val_rbf:.6f}")
     print(f"  Exact value = {val_exact:.6f}")
 
-    # =====================================================================
-    # Section 10: Geometry and Sample Shape
-    # =====================================================================
+
+
+
     print("\n[10] Sample Geometry Analysis...")
 
     geom_hex = SampleGeometry(size=50.0, shape='hexagon')
@@ -294,16 +268,16 @@ def run_simulation():
     print(f"  Hexagon area = {area_hex:.2f} nm^2")
     print(f"  Hexagon perimeter = {edge_hex:.2f} nm")
 
-    # Tortoise boundary
+
     geom_tort = SampleGeometry(size=1.0, shape='tortoise')
     area_tort = geom_tort.area()
     edge_tort = geom_tort.edge_length()
     print(f"  Tortoise boundary area = {area_tort:.4f}")
     print(f"  Tortoise boundary length = {edge_tort:.4f}")
 
-    # =====================================================================
-    # Section 11: Write All Results
-    # =====================================================================
+
+
+
     print("\n[11] Writing Output Files...")
 
     results = {
@@ -340,9 +314,9 @@ def run_simulation():
 
     print(f"  Output written to: {output_dir}")
 
-    # =====================================================================
-    # Summary
-    # =====================================================================
+
+
+
     print("\n" + "=" * 70)
     print("  SIMULATION COMPLETE")
     print("=" * 70)

@@ -1,31 +1,3 @@
-"""
-performance_bench.py
-====================
-Performance benchmarking utilities for subdomain direct solvers
-and parallel finite element assembly, based on the LINPACK benchmark.
-
-Integrates concepts from:
-  * linpack_bench_backslash (dense linear solve performance metrics)
-
-Mathematical background
------------------------
-For a dense n x n linear system solved by LU factorization
-(2/3 n^3 floating-point operations) plus forward/backward
-substitution (2 n^2 operations), the total FLOP count is:
-    FLOPs = (2/3) n^3 + 2 n^2
-
-Performance in MFLOPS:
-    MFLOPS = FLOPs / (10^6 * t_seconds)
-
-For banded SPD matrices with bandwidth m, the Cholesky factorization
-cost is approximately:
-    FLOPs_band = n m^2 - (1/3) m^3
-
-Error metrics:
-    Residual infinity norm:    ||r||_inf = ||b - A x||_inf
-    Normalized residual:       ||r||_inf / (||A||_inf * ||x||_inf * epsilon)
-    where epsilon is machine epsilon (~2.2e-16 for double precision).
-"""
 
 import numpy as np
 import time
@@ -34,18 +6,9 @@ from sparse_matrix import BandedSPDMatrix, residual_norm, banded_cholesky_solve
 
 
 def linpack_benchmark_dense(n: int) -> Tuple[float, float, float]:
-    """
-    Dense LINPACK-style benchmark using numpy's LU solver.
 
-    Returns
-    -------
-    time_sec   : Wall-clock time for solve.
-    mflops     : Mega-FLOPS achieved.
-    norm_res   : Normalized residual.
-    """
-    # Generate well-conditioned random matrix
     A = np.random.randn(n, n)
-    A = A @ A.T + n * np.eye(n)  # Make SPD
+    A = A @ A.T + n * np.eye(n)
     x_exact = np.ones(n, dtype=float)
     b = A @ x_exact
 
@@ -72,19 +35,10 @@ def banded_benchmark(
     bandwidth: int,
     n_runs: int = 5
 ) -> Tuple[float, float, float]:
-    """
-    Benchmark banded Cholesky solve for subdomain-local systems.
-
-    Returns
-    -------
-    avg_time   : Average solve time in seconds.
-    mflops     : Estimated MFLOPS.
-    avg_res    : Average normalized residual.
-    """
     times = []
     ress = []
     for _ in range(n_runs):
-        # Random SPD banded matrix
+
         A = BandedSPDMatrix(n, bandwidth)
         for i in range(n):
             diag_val = 2.0 * bandwidth + 1.0 + np.random.rand()
@@ -95,7 +49,7 @@ def banded_benchmark(
                     A.set(i + off, i, off_val)
 
         x_exact = np.ones(n, dtype=float)
-        # Band matvec
+
         b = np.zeros(n, dtype=float)
         for j in range(n):
             for i in range(j, min(n, j + bandwidth + 1)):
@@ -113,7 +67,7 @@ def banded_benchmark(
         ress.append(res)
 
     avg_time = float(np.mean(times))
-    # FLOPs for banded Cholesky: ~ n * bandwidth^2
+
     flops = n * bandwidth ** 2
     mflops = flops / (1e6 * max(avg_time, 1e-9))
     avg_res = float(np.mean(ress))
@@ -125,10 +79,6 @@ def subdomain_solver_benchmark(
     bandwidth: int = 3,
     n_runs: int = 3
 ) -> dict:
-    """
-    Benchmark suite across multiple subdomain sizes.
-    Returns a dictionary of results.
-    """
     results = {}
     for n in subdomain_sizes:
         t, m, r = banded_benchmark(n, bandwidth, n_runs)
@@ -141,13 +91,6 @@ def parallel_efficiency_estimate(
     n_subdomains: int,
     comm_fraction: float = 0.1
 ) -> float:
-    """
-    Amdahl's law estimate of parallel speedup:
-        S(p) = 1 / (s + (1-s)/p)
-    where s is the serial fraction.
-
-    Efficiency = S(p) / p.
-    """
     if n_subdomains <= 0:
         return 0.0
     if serial_time <= 0:
@@ -159,7 +102,6 @@ def parallel_efficiency_estimate(
 
 
 def report_benchmark(results: dict):
-    """Print formatted benchmark report."""
     print("=" * 60)
     print("Subdomain Solver Benchmark Report")
     print("=" * 60)

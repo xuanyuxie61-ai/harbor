@@ -1,18 +1,10 @@
-"""
-integer_utils.py
-==============
-Integer arithmetic utilities adapted from i4lib.
-Provides combinatorial functions, prime tables, quasi-random sequences,
-and exact integer linear algebra tools required for DG polynomial indexing,
-sparse matrix pattern analysis, and high-dimensional quadrature.
-"""
 
 import numpy as np
 from typing import List, Tuple
 
-# ---------------------------------------------------------------------------
-# Prime table: first 1600 primes (up to 13499)
-# ---------------------------------------------------------------------------
+
+
+
 _PRIMES = np.array([
     2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,
     73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,
@@ -167,7 +159,6 @@ _PRIMES = np.array([
 
 
 def i4_gcd(i: int, j: int) -> int:
-    """Euclidean algorithm for greatest common divisor."""
     i = abs(int(i))
     j = abs(int(j))
     while j != 0:
@@ -176,14 +167,12 @@ def i4_gcd(i: int, j: int) -> int:
 
 
 def i4_lcm(i: int, j: int) -> int:
-    """Least common multiple."""
     if i == 0 or j == 0:
         return 0
     return abs(i * j) // i4_gcd(i, j)
 
 
 def i4_choose(n: int, k: int) -> int:
-    """Binomial coefficient C(n,k) with overflow-safe multiplicative formula."""
     if k < 0 or k > n:
         return 0
     if k == 0 or k == n:
@@ -196,7 +185,6 @@ def i4_choose(n: int, k: int) -> int:
 
 
 def i4_factorial(n: int) -> int:
-    """Factorial n!."""
     if n < 0:
         raise ValueError("Factorial undefined for negative integers.")
     result = 1
@@ -206,7 +194,6 @@ def i4_factorial(n: int) -> int:
 
 
 def i4_factorial2(n: int) -> int:
-    """Double factorial n!!"""
     if n < 0:
         if n % 2 == 0:
             raise ValueError("Double factorial undefined for even negative integers.")
@@ -219,7 +206,6 @@ def i4_factorial2(n: int) -> int:
 
 
 def prime_list(n: int) -> np.ndarray:
-    """Return first n primes from the internal table."""
     if n < 1:
         return np.array([], dtype=np.int64)
     if n > len(_PRIMES):
@@ -228,10 +214,6 @@ def prime_list(n: int) -> np.ndarray:
 
 
 def halton_sequence(i: int, m: int) -> np.ndarray:
-    """
-    Compute the I-th element of the M-dimensional Halton quasi-random sequence.
-    Returns an array of shape (m,) in [0,1].
-    """
     if m < 1:
         return np.array([], dtype=np.float64)
     primes = prime_list(m)
@@ -252,15 +234,11 @@ def halton_sequence(i: int, m: int) -> np.ndarray:
 
 
 def i4mat_rref(a: np.ndarray) -> np.ndarray:
-    """
-    Integer row-reduced echelon form (IRREF) via exact integer Gaussian elimination.
-    Returns integer matrix in RREF with pseudo-determinant information implicit.
-    """
     a = a.astype(np.int64).copy()
     m, n = a.shape
     row = 0
     for col in range(n):
-        # Find pivot
+
         pivot_row = None
         max_val = 0
         for i in range(row, m):
@@ -270,10 +248,10 @@ def i4mat_rref(a: np.ndarray) -> np.ndarray:
                 pivot_row = i
         if pivot_row is None or max_val == 0:
             continue
-        # Swap
+
         if pivot_row != row:
             a[[pivot_row, row], :] = a[[row, pivot_row], :]
-        # Normalize pivot row by GCD
+
         pivot = a[row, col]
         row_gcd = 0
         for j in range(col, n):
@@ -281,7 +259,7 @@ def i4mat_rref(a: np.ndarray) -> np.ndarray:
         if row_gcd > 1:
             a[row, :] //= row_gcd
             pivot //= row_gcd
-        # Eliminate other rows
+
         for i in range(m):
             if i != row and a[i, col] != 0:
                 factor = a[i, col]
@@ -299,10 +277,6 @@ def i4mat_rref(a: np.ndarray) -> np.ndarray:
 
 
 def multi_index_to_dof(p: int, dim: int) -> List[Tuple[int, ...]]:
-    """
-    Generate all multi-indices alpha with |alpha| <= p in dim dimensions.
-    Used for polynomial degree-of-freedom indexing in DG methods.
-    """
     if dim == 1:
         return [(i,) for i in range(p + 1)]
     result = []
@@ -314,15 +288,10 @@ def multi_index_to_dof(p: int, dim: int) -> List[Tuple[int, ...]]:
 
 
 def dof_count(p: int, dim: int) -> int:
-    """Number of degrees of freedom for polynomial space P_p in dim dimensions."""
     return i4_choose(p + dim, dim)
 
 
 def bandwidth_from_connectivity(elements: np.ndarray, n_dof_per_node: int = 1) -> Tuple[int, int, int]:
-    """
-    Compute matrix bandwidth from element-node connectivity.
-    Returns (ml, mu, bandwidth) where bandwidth = ml + 1 + mu.
-    """
     n_elem, n_node_per_elem = elements.shape
     ml = 0
     mu = 0

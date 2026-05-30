@@ -1,29 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-main.py
-=======
-Unified entry point for the base-isolated building seismic time-history
-analysis and optimization system.
-
-This script executes the full workflow without requiring any command-line
-arguments:
-  1. Structural model initialization (10-story shear building)
-  2. Modal analysis and period verification
-  3. Isolation bearing parameter optimization
-  4. Synthetic ground-motion generation (3-component, fused)
-  5. Nonlinear time-history analysis (Newmark-beta implicit integration)
-  6. Response post-processing (drift, shear, energy)
-  7. Numerical verification suite
-  8. Summary output
-
-Scientific domain:  Structural Mechanics — Seismic Response Time-History
-Analysis and Base Isolation Design.
-"""
 
 import numpy as np
 import time
 
-# Project modules
+
 from structure_model import ShearBuildingModel
 from modal_analysis import ModalAnalysis
 from isolation_bearing import IsolationSystem
@@ -37,9 +17,8 @@ from verification import VerificationSuite
 
 
 def iso_force_closure(iso_system):
-    """Closure returning isolation force as a function of (u, v)."""
     def force(u, v):
-        # Only the base DOF (index 0) interacts with isolation
+
         F = np.zeros_like(u)
         F[0] = iso_system.total_force(float(u[0]), float(v[0]))
         return F
@@ -53,12 +32,12 @@ def main():
     print("=" * 70)
     t_start = time.time()
 
-    # ================================================================== #
-    # Step 1: Structural model
-    # ================================================================== #
+
+
+
     print("\n[Step 1] Initializing structural model...")
     n_story = 10
-    story_heights = np.full(n_story, 3.5)   # 3.5 m typical story
+    story_heights = np.full(n_story, 3.5)
     story_masses = np.linspace(1.2e6, 8.0e5, n_story)
     story_stiffness = np.linspace(8.0e8, 2.0e8, n_story)
 
@@ -78,9 +57,9 @@ def main():
     print(f"  Total height: {model.total_height:.2f} m")
     print(f"  Total mass: {np.sum(np.diag(M)):,.0f} kg")
 
-    # ================================================================== #
-    # Step 2: Modal analysis
-    # ================================================================== #
+
+
+
     print("\n[Step 2] Performing modal analysis...")
     modal = ModalAnalysis(M, K, n_modes=5)
     periods = modal.get_periods()
@@ -92,9 +71,9 @@ def main():
     n_needed = modal.truncation_error(target_ratio=0.90)
     print(f"  Modes needed for 90% mass participation: {n_needed}")
 
-    # ================================================================== #
-    # Step 3: Isolation bearing optimization
-    # ================================================================== #
+
+
+
     print("\n[Step 3] Optimizing isolation bearing parameters...")
     M_total = float(np.sum(np.diag(M)))
     W_total = M_total * 9.81
@@ -113,7 +92,7 @@ def main():
     print(f"  Estimated period: {best_design['period_est']:.3f} s")
     print(f"  Objective value:  {best_design['objective']:.4f}")
 
-    # Initialize isolation system with optimized parameters
+
     iso_system = IsolationSystem(
         n_bearings=best_design["n_bearings"],
         Q_d_per=best_design["Q_d_per"],
@@ -121,16 +100,16 @@ def main():
     )
     iso_system.reset()
 
-    # Update structural stiffness with isolation contribution
+
     k_iso_elastic = iso_system.k_e_total
     k_iso_post = iso_system.k_d_total
-    # We use an effective initial stiffness for the linear K matrix
+
     model.update_isolation_stiffness(k_iso_post)
     M, C, K = model.get_matrices()
 
-    # ================================================================== #
-    # Step 4: Ground motion generation
-    # ================================================================== #
+
+
+
     print("\n[Step 4] Generating synthetic ground motion...")
     dt = 0.01
     t_max = 20.0
@@ -140,9 +119,9 @@ def main():
     print(f"  Duration: {t_max:.1f} s, dt = {dt:.3f} s, steps = {len(t)}")
     print(f"  PGA (fused): {np.max(np.abs(a_g_fused)):.3f} m/s^2")
 
-    # ================================================================== #
-    # Step 5: Time-history analysis
-    # ================================================================== #
+
+
+
     print("\n[Step 5] Running nonlinear time-history analysis...")
     integrator = NewmarkBetaIntegrator(
         M=M,
@@ -155,18 +134,18 @@ def main():
         tol=1e-8,
     )
 
-    # Initial conditions
+
     u0 = np.zeros(n_dof, dtype=float)
     v0 = np.zeros(n_dof, dtype=float)
     a0 = np.zeros(n_dof, dtype=float)
 
-    # Isolation force function
+
     iso_force_func = iso_force_closure(iso_system)
 
-    # Pre-allocate isolation force history
+
     iso_force_history = np.zeros(len(t), dtype=float)
 
-    # Manual integration loop (to record iso force at each step)
+
     n_time = len(t)
     U = np.zeros((n_time, n_dof), dtype=float)
     V = np.zeros((n_time, n_dof), dtype=float)
@@ -192,9 +171,9 @@ def main():
 
     print("  Time-history integration complete.")
 
-    # ================================================================== #
-    # Step 6: Response analysis
-    # ================================================================== #
+
+
+
     print("\n[Step 6] Computing response quantities...")
     analyzer = ResponseAnalyzer(
         U=U,
@@ -218,13 +197,13 @@ def main():
     print(f"  Max floor acceleration:     {summary['max_floor_accel_g']:.3f} g")
     print(f"  Energy balance error:       {summary['energy_balance_error']:.3e}")
 
-    # ================================================================== #
-    # Step 7: Quadrature-based structural checks
-    # ================================================================== #
+
+
+
     print("\n[Step 7] Performing quadrature-based structural checks...")
-    # Bearing contact pressure integration
-    bearing_radius = 0.25   # m
-    p_uniform = 5.0e6       # Pa uniform pressure
+
+    bearing_radius = 0.25
+    p_uniform = 5.0e6
     def pressure_func(x, y):
         return p_uniform * np.ones_like(x)
 
@@ -234,8 +213,8 @@ def main():
     print(f"  Theoretical contact force:          {F_theoretical/1e3:.1f} kN")
     print(f"  Quadrature relative error:          {abs(F_contact - F_theoretical)/F_theoretical:.3e}")
 
-    # Pyramid consistent mass matrix
-    rho_concrete = 2500.0   # kg/m^3
+
+    rho_concrete = 2500.0
     base_area = 20.0 * 20.0
     height = 3.5
     M_pyramid = pyramid_consistent_mass(rho_concrete, base_area, height)
@@ -245,9 +224,9 @@ def main():
     print(f"  Lumped mass (reference):            {m_lumped:,.0f} kg")
     print(f"  Mass matrix relative error:         {abs(m_total_pyramid - m_lumped)/m_lumped:.3e}")
 
-    # ================================================================== #
-    # Step 8: Numerical verification
-    # ================================================================== #
+
+
+
     print("\n[Step 8] Running numerical verification suite...")
     verifier = VerificationSuite(M, K, C)
     phi = modal.get_modal_matrix()
@@ -260,9 +239,9 @@ def main():
     else:
         print("\n  >>> SOME VERIFICATION TESTS FAILED (see details above) <<<")
 
-    # ================================================================== #
-    # Step 9: Final summary
-    # ================================================================== #
+
+
+
     elapsed = time.time() - t_start
     print("\n" + "=" * 70)
     print("  ANALYSIS COMPLETE")

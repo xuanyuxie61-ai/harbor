@@ -1,20 +1,9 @@
-"""
-main.py
-六足机器人多足步态优化系统 —— 统一入口。
-
-本项目基于 15 个种子项目的核心算法，围绕"机器人学：多足机器人步态优化"
-领域，融合构造了一个博士级科研计算系统。
-
-运行方式：
-    python main.py
-无需任何参数，程序将自动执行完整的步态优化流程并输出结果。
-"""
 
 import numpy as np
 import os
 import sys
 
-# 确保模块路径正确
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils import Timer, check_numerical_singularity, gershgorin_discs
@@ -29,9 +18,6 @@ from chaotic_search import GaitParameterOptimizer
 
 
 def build_default_robot_config() -> str:
-    """
-    构建默认六足机器人 URDF-like XML 配置字符串（供 xml2struct 解析）。
-    """
     xml = """<?xml version="1.0"?>
 <robot name="hexapod">
   <link name="base_link">
@@ -88,14 +74,11 @@ def build_default_robot_config() -> str:
 
 
 def demo_kinematics_and_contact():
-    """
-    演示模块1：运动学正解、逆解、接触几何与关节限位约束。
-    """
     print("\n" + "=" * 60)
     print("[Demo 1] 机器人运动学与接触几何")
     print("=" * 60)
 
-    # DH 参数: [theta_offset, d, a, alpha] (Craig 约定)
+
     dh = np.array([
         [0.0,   0.0, 0.04,  np.pi / 2],
         [0.0,   0.0, 0.12,  0.0],
@@ -116,7 +99,7 @@ def demo_kinematics_and_contact():
     J = leg.jacobian(q_test)
     print(f"Jacobian = \n{J}")
 
-    # 数值逆运动学
+
     target = np.array([0.15, 0.05, -0.18])
     q_inv = leg.inverse_kinematics_numerical(target, q_test)
     T_check, _ = leg.forward_kinematics(q_inv)
@@ -125,14 +108,14 @@ def demo_kinematics_and_contact():
     print(f"求解关节角 q_inv = {q_inv}")
     print(f"逆解误差 = {err_inv:.6e}")
 
-    # 关节限位约束
+
     jlc = JointLimitConstraint(limits, safety_margin=0.05)
     dist = jlc.geodesic_distance_to_limit(q_inv)
     print(f"关节到限位测地距离 = {dist}")
     grad = jlc.penalty_gradient(q_inv)
     print(f"限位惩罚梯度 = {grad}")
 
-    # 接触几何
+
     foot = FootContactGeometry(mu=0.8, contact_radius=0.02)
     f_test = np.array([5.0, 2.0, 20.0])
     n_test = np.array([0.0, 0.0, 1.0])
@@ -141,16 +124,13 @@ def demo_kinematics_and_contact():
     tau_contact = foot.contact_moment(f_test, np.array([0.01, 0.0, 0.0]))
     print(f"接触力矩 = {tau_contact}")
 
-    # Gershgorin 圆盘分析 Jacobian 条件
+
     centers, radii = gershgorin_discs(J @ J.T)
     print(f"Jacobian^T·J 的 Gershgorin 圆盘中心 = {centers}")
     print(f"圆盘半径 = {radii}")
 
 
 def demo_terrain_and_mesh():
-    """
-    演示模块2：地形三角网格、四边形插值、STL 解析。
-    """
     print("\n" + "=" * 60)
     print("[Demo 2] 地形建模与足部接触面")
     print("=" * 60)
@@ -159,12 +139,12 @@ def demo_terrain_and_mesh():
     print(f"示例地形：顶点数 = {len(terrain.vertices)}, 面片数 = {len(terrain.faces)}")
     print(f"地形 AABB = [{terrain.aabb_min}, {terrain.aabb_max}]")
 
-    # 查询高度
+
     xq, yq = 0.0, 0.0
     z, normal, face_idx = terrain.query_height(xq, yq)
     print(f"查询点 ({xq}, {yq}) -> 高度 z = {z:.6f}, 法向量 = {normal}, 面片 = {face_idx}")
 
-    # 四边形地形补丁
+
     quad_nodes = np.array([
         [-0.5, -0.5, 0.0],
         [0.5, -0.5, 0.0],
@@ -178,7 +158,7 @@ def demo_terrain_and_mesh():
     print(f"Jacobian = \n{J_mid}")
     print(f"法向量 = {n_mid}")
 
-    # 写入临时三角网格文件并读取（测试 triangle_io 功能）
+
     tmp_dir = os.path.dirname(os.path.abspath(__file__))
     node_file = os.path.join(tmp_dir, "tmp_terrain.node")
     elem_file = os.path.join(tmp_dir, "tmp_terrain.ele")
@@ -194,11 +174,11 @@ def demo_terrain_and_mesh():
     terrain2 = TriangulatedTerrain.from_node_element(node_file, elem_file)
     print(f"从文件读取的地形：顶点数 = {len(terrain2.vertices)}, 面片数 = {len(terrain2.faces)}")
 
-    # 清理临时文件
+
     os.remove(node_file)
     os.remove(elem_file)
 
-    # STL 解析测试（生成一个简单 ASCII STL 字符串）
+
     stl_file = os.path.join(tmp_dir, "tmp_terrain.stl")
     with open(stl_file, 'w') as f:
         f.write("solid test\n")
@@ -216,35 +196,29 @@ def demo_terrain_and_mesh():
 
 
 def demo_gait_dynamics():
-    """
-    演示模块3：CPG 网络、梯形法 ODE 积分、支撑-摆动自动机、单腿动力学。
-    """
     print("\n" + "=" * 60)
     print("[Demo 3] 步态动力学与 CPG 控制")
     print("=" * 60)
 
-    # TODO: 补全 demo_gait_dynamics 的完整实现。
-    # 本函数需要完成以下任务：
-    # 1. 初始化 CPGNetwork（6个耦合Hopf振荡器）
-    # 2. 使用 TrapezoidalIntegrator 对 CPG.rhs 进行时间积分（t∈[0,3]，300步）
-    # 3. 提取最终相位与振幅
-    # 4. 使用 StanceSwingAutomaton 根据 CPG 相位更新支撑/摆动状态
-    # 5. 构建 LegDynamics 并调用 dynamics 计算关节加速度
-    # 6. 调用 state_space_rhs 演示一阶状态空间形式
-    # 注意：此 demo 依赖 gait_dynamics.py 中 CPGNetwork.rhs 和
-    # TrapezoidalIntegrator.integrate 的正确实现。
+
+
+
+
+
+
+
+
+
+
     raise NotImplementedError("Hole 3: 请补全 demo_gait_dynamics 的实现")
 
 
 def demo_numerical_solvers():
-    """
-    演示模块4：Cholesky 分解、块三对角求解、FFT、Vandermonde、矩阵乘法。
-    """
     print("\n" + "=" * 60)
     print("[Demo 4] 大规模数值线性代数")
     print("=" * 60)
 
-    # Cholesky 分解
+
     A_chol = np.array([
         [4.0, 2.0, 1.0],
         [2.0, 5.0, 2.0],
@@ -259,7 +233,7 @@ def demo_numerical_solvers():
     print(f"Cholesky 求解 x = {x_chol}")
     print(f"残差 ||Ax-b|| = {np.linalg.norm(A_chol @ x_chol - b_chol):.6e}")
 
-    # 块三对角求解
+
     block_solver = BlockTridiagonalSolver(block_size=3)
     N_blocks = 4
     lower = [np.eye(3) * 0.1 for _ in range(N_blocks - 1)]
@@ -271,12 +245,12 @@ def demo_numerical_solvers():
     for i, xi in enumerate(x_bt):
         print(f"  x_{i} = {xi}")
 
-    # FFT 功率谱密度
+
     fft_solver = Radix2FFT()
     dt = 0.01
     t_signal = np.arange(0, 2.0, dt)
     signal = np.sin(2.0 * np.pi * 5.0 * t_signal) + 0.5 * np.sin(2.0 * np.pi * 12.0 * t_signal)
-    # 补零到 2 的幂
+
     N_pow2 = 2 ** int(np.ceil(np.log2(len(signal))))
     signal_padded = np.zeros(N_pow2)
     signal_padded[:len(signal)] = signal
@@ -284,16 +258,16 @@ def demo_numerical_solvers():
     peak_idx = np.argmax(psd[:N_pow2 // 2])
     print(f"FFT 功率谱密度峰值频率 ≈ {freqs[peak_idx]:.2f} Hz")
 
-    # Vandermonde 求解
+
     vand = VandermondeSolver()
     x_nodes = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-    b_vand = np.array([2.0, 5.0, 10.0, 17.0, 26.0])  # 对应 p(x) = x^2 + 1
+    b_vand = np.array([2.0, 5.0, 10.0, 17.0, 26.0])
     coeffs, info = vand.solve(x_nodes, b_vand)
     print(f"Vandermonde 求解 info = {info}, 系数 = {coeffs}")
     p_eval = vand.evaluate(x_nodes, coeffs, np.array([2.5]))
     print(f"插值验证 p(2.5) = {p_eval[0]:.6f} (理论 7.25)")
 
-    # 矩阵乘法基准
+
     A_mm = np.random.rand(64, 48)
     B_mm = np.random.rand(48, 32)
     C_mm = MatrixMultiplyBenchmark.multiply(A_mm, B_mm)
@@ -301,14 +275,11 @@ def demo_numerical_solvers():
 
 
 def demo_trajectory_planning():
-    """
-    演示模块5：TSP 落点排序、多项式摆动轨迹。
-    """
     print("\n" + "=" * 60)
     print("[Demo 5] 足端轨迹规划")
     print("=" * 60)
 
-    # TSP 落点排序
+
     candidates = np.array([
         [0.12, 0.08, 0.0],
         [0.15, 0.05, 0.0],
@@ -321,7 +292,7 @@ def demo_trajectory_planning():
     print(f"候选落点 TSP 最优排序 = {best_perm}")
     print(f"最短路径 = {min_cost:.6f}, 平均 = {avg_cost:.6f}, 最长 = {max_cost:.6f}")
 
-    # 多项式摆动轨迹
+
     traj = PolynomialSwingTrajectory()
     coeffs = traj.fit_quintic(
         T=0.3,
@@ -333,7 +304,7 @@ def demo_trajectory_planning():
     p_mid, v_mid, a_mid = traj.evaluate(coeffs, 0.15)
     print(f"t=0.15: p={p_mid:.6f}, v={v_mid:.6f}, a={a_mid:.6f}")
 
-    # 综合足端轨迹规划
+
     planner = FootfallPlanner(swing_height=0.05, swing_period=0.3)
     perm, sorted_pts = planner.plan_footholds(candidates)
     print(f"FootfallPlanner 排序结果 = {perm}")
@@ -347,14 +318,11 @@ def demo_trajectory_planning():
 
 
 def demo_stability_analysis():
-    """
-    演示模块6：支撑多边形、ZMP、支撑图中心性、LP 约束。
-    """
     print("\n" + "=" * 60)
     print("[Demo 6] 稳定性分析与约束优化")
     print("=" * 60)
 
-    # 支撑多边形
+
     foot_positions = np.array([
         [0.15, 0.10],
         [0.18, -0.08],
@@ -371,14 +339,14 @@ def demo_stability_analysis():
     margin = support.distance_to_boundary(com)
     print(f"COM = {com}, 在支撑多边形内？ {inside}, 边界距离 = {margin:.6f}")
 
-    # ZMP
+
     stab = StabilityMargin(robot_mass=5.0)
     com_3d = np.array([0.05, 0.02, 0.12])
     a_com = np.array([0.1, 0.05, 0.0])
     zmp = stab.zmp_position(com_3d, a_com, np.zeros(3), np.zeros((6, 3)), foot_positions)
     print(f"ZMP 位置 = {zmp}")
 
-    # 支撑图中心性（PageRank）
+
     graph = SupportGraphCentrality(n_legs=6)
     stance_state = np.array([1, 1, 0, 1, 0, 1])
     coupling = np.ones((6, 6)) * 0.5 + np.eye(6) * 1.0
@@ -387,7 +355,7 @@ def demo_stability_analysis():
     print(f"支撑图 PageRank 中心性 = {pr}")
     print(f"最稳定腿索引 = {np.argmax(pr)}")
 
-    # LP 约束
+
     lp = LinearStabilityConstraint()
     A_cons, b_cons = lp.com_feasible_region(support, margin=0.02)
     print(f"COM 可行域约束矩阵 A 形状 = {A_cons.shape}")
@@ -395,17 +363,14 @@ def demo_stability_analysis():
 
 
 def demo_chaotic_optimization():
-    """
-    演示模块7：混沌全局优化步态参数。
-    """
     print("\n" + "=" * 60)
     print("[Demo 7] 混沌全局步态参数优化")
     print("=" * 60)
 
-    # 模拟的稳定性与能量函数（用于演示）
+
     def fake_stability(params):
         T, stride, h, k, d = params
-        # 随机的但确定性的映射
+
         return 0.05 + 0.1 * np.sin(T * 3) * np.cos(stride * 10) - 0.01 * d
 
     def fake_energy(params):
@@ -424,9 +389,6 @@ def demo_chaotic_optimization():
 
 
 def demo_config_parsing():
-    """
-    演示模块8：XML 配置解析。
-    """
     print("\n" + "=" * 60)
     print("[Demo 8] 机器人配置 XML 解析")
     print("=" * 60)
@@ -441,9 +403,6 @@ def demo_config_parsing():
 
 
 def run_full_pipeline():
-    """
-    执行完整计算流程，包含计时与数值鲁棒性检查。
-    """
     timer = Timer()
     print("\n" + "#" * 60)
     print("# 六足机器人多足步态优化系统 —— 完整演示")
@@ -463,7 +422,7 @@ def run_full_pipeline():
     print(f"# 全部演示完成，总耗时 = {elapsed:.4f} 秒")
     print("#" * 60)
 
-    # 全局数值检查
+
     print("\n[全局数值鲁棒性检查]")
     test_mats = [
         np.eye(5),

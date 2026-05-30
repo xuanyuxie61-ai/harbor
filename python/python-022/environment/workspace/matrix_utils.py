@@ -1,22 +1,8 @@
-"""
-Sparse Matrix Utilities for ICF Simulation
-
-Based on:
-- rcm (Project 1016): Reverse Cuthill-McKee reordering
-- r83v (Project 967): Tridiagonal matrix conjugate gradient solver
-
-Provides sparse matrix solvers essential for radiation diffusion,
-heat conduction, and implicit hydrodynamics in 1D spherical geometry.
-"""
 
 import numpy as np
 
 
 def degree(root, adj_row, adj, mask, node_num):
-    """
-    Compute degrees of nodes in connected component.
-    Based on degree() from rcm project.
-    """
     deg = np.zeros(node_num, dtype=int)
     perm = np.zeros(node_num, dtype=int)
     iccsze = 0
@@ -58,11 +44,6 @@ def degree(root, adj_row, adj, mask, node_num):
 
 
 def rcm(root, adj_row, adj, mask, node_num):
-    """
-    Reverse Cuthill-McKee reordering algorithm.
-    Reduces bandwidth of sparse matrices for efficient solution.
-    Based on rcm() from Project 1016.
-    """
     if node_num < 1:
         raise ValueError("RCM: illegal NODE_NUM.")
     if root < 0 or root >= node_num:
@@ -113,10 +94,6 @@ def rcm(root, adj_row, adj, mask, node_num):
 
 
 def r83v_mv(n, a, b, c, x_vec):
-    """
-    Multiply an R83V tridiagonal matrix by a vector.
-    Based on r83v_mv from Project 967.
-    """
     x_vec = np.asarray(x_vec).flatten()
     y = np.zeros(n)
     y[0] = b[0] * x_vec[0]
@@ -129,10 +106,6 @@ def r83v_mv(n, a, b, c, x_vec):
 
 
 def r83v_cg(n, a, b, c, ax, x0, tol=1e-12, max_iter=None):
-    """
-    Conjugate gradient method for R83V tridiagonal system.
-    Based on r83v_cg from Project 967.
-    """
     ax = np.asarray(ax).flatten()
     x = np.asarray(x0).flatten().copy()
     if max_iter is None:
@@ -161,28 +134,6 @@ def r83v_cg(n, a, b, c, ax, x0, tol=1e-12, max_iter=None):
 
 
 def build_tridiagonal_from_fem(stiffness, mass, dt, theta=0.5):
-    """
-    Build tridiagonal system for theta-method time stepping:
-    (M + theta*dt*K) u^{n+1} = (M - (1-theta)*dt*K) u^n + dt*b
-
-    Parameters
-    ----------
-    stiffness : ndarray, shape (N, N)
-        Stiffness matrix (sparse but small, we extract tridiagonal).
-    mass : ndarray, shape (N, N)
-        Mass matrix.
-    dt : float
-        Time step.
-    theta : float
-        Theta parameter (0.5 = Crank-Nicolson).
-
-    Returns
-    -------
-    a, b, c : ndarrays
-        Tridiagonal coefficients for LHS.
-    rhs_mat : ndarray
-        RHS matrix.
-    """
     N = stiffness.shape[0]
     lhs = mass + theta * dt * stiffness
     rhs_mat = mass - (1.0 - theta) * dt * stiffness

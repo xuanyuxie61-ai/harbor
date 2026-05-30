@@ -1,53 +1,8 @@
-"""
-2D Energy Balance Model Finite Element Solver
-=============================================
-Solves the 2D energy balance equation on a spherical domain using
-finite element method with T6 (6-node quadratic) triangular elements.
-
-Incorporates:
-- FEM assembly from 403_fem2d_heat
-- Sparse row storage from 996_r8sr
-- T6 triangulation from 1343_triangulation_order6_contour
-
-Governing Equation:
--------------------
-C_p * dT/dt - div(D * grad(T)) + (B + d(alpha*Q)/dT) * T = (1-alpha)*Q - A
-
-Discretized with backward Euler in time and quadratic FEM in space:
-    (M/dt + K + B_mass) * T^{n+1} = M/dt * T^n + F_Q
-where M is mass matrix, K is stiffness matrix, F_Q is insolation forcing.
-"""
 
 import numpy as np
 
 
 def r8sr_mv(n, nz, row_ptr, col_idx, diag, off, x):
-    """
-    Sparse row matrix-vector multiply.
-    From 996_r8sr.
-
-    Parameters
-    ----------
-    n : int
-        Matrix dimension.
-    nz : int
-        Number of off-diagonal nonzeros.
-    row_ptr : ndarray
-        Row pointers.
-    col_idx : ndarray
-        Column indices for off-diagonal entries.
-    diag : ndarray
-        Diagonal entries.
-    off : ndarray
-        Off-diagonal entries.
-    x : ndarray
-        Vector to multiply.
-
-    Returns
-    -------
-    ndarray
-        Product b = A * x.
-    """
     x = np.asarray(x, dtype=float).flatten()
     diag = np.asarray(diag, dtype=float).flatten()
     b = diag * x
@@ -59,9 +14,6 @@ def r8sr_mv(n, nz, row_ptr, col_idx, diag, off, x):
 
 
 def r8sr_zeros(n):
-    """
-    Create empty sparse row storage structure.
-    """
     return {
         'n': n,
         'nz': 0,
@@ -73,22 +25,6 @@ def r8sr_zeros(n):
 
 
 def dense_to_r8sr(A, tol=1e-14):
-    """
-    Convert dense matrix to sparse row format.
-    From 996_r8sr.
-
-    Parameters
-    ----------
-    A : ndarray
-        Dense matrix.
-    tol : float
-        Zero tolerance.
-
-    Returns
-    -------
-    dict
-        Sparse matrix in r8sr format.
-    """
     n = A.shape[0]
     diag = np.diag(A).copy()
     row_ptr = np.zeros(n + 1, dtype=int)
@@ -115,9 +51,6 @@ def dense_to_r8sr(A, tol=1e-14):
 
 
 def r8sr_to_dense(sr):
-    """
-    Convert sparse row format back to dense matrix.
-    """
     n = sr['n']
     A = np.zeros((n, n))
     np.fill_diagonal(A, sr['diag'])
@@ -129,25 +62,7 @@ def r8sr_to_dense(sr):
 
 
 def assemble_t6_element(nodes_xy, node_vals=None):
-    """
-    Compute T6 triangular element contributions.
-    6-node quadratic triangle with nodes:
-        1, 2, 3 (vertices), 4 (mid 1-2), 5 (mid 2-3), 6 (mid 3-1)
-    From 403_fem2d_heat basis_11_t6.
 
-    Parameters
-    ----------
-    nodes_xy : ndarray, shape (6, 2)
-        Node coordinates.
-    node_vals : ndarray, optional
-        Values at nodes for interpolation.
-
-    Returns
-    -------
-    area : float
-        Triangle area.
-    """
-    # Vertices
     x1, y1 = nodes_xy[0]
     x2, y2 = nodes_xy[1]
     x3, y3 = nodes_xy[2]
@@ -156,25 +71,6 @@ def assemble_t6_element(nodes_xy, node_vals=None):
 
 
 def basis_t3(x, y, nodes_xy):
-    """
-    Linear (T3) basis functions and gradients at point (x, y).
-
-    Parameters
-    ----------
-    x, y : float
-        Evaluation point.
-    nodes_xy : ndarray, shape (3, 2)
-        Triangle vertices.
-
-    Returns
-    -------
-    phi : ndarray
-        Basis function values [phi1, phi2, phi3].
-    dphi_dx : ndarray
-        x-derivatives.
-    dphi_dy : ndarray
-        y-derivatives.
-    """
     x1, y1 = nodes_xy[0]
     x2, y2 = nodes_xy[1]
     x3, y3 = nodes_xy[2]
@@ -199,9 +95,6 @@ def basis_t3(x, y, nodes_xy):
 
 
 def gauss_triangle_points(order=3):
-    """
-    Gaussian quadrature points for triangles.
-    """
     if order == 1:
         return np.array([[1.0/3.0, 1.0/3.0]]), np.array([0.5])
     elif order == 3:
@@ -231,32 +124,6 @@ def gauss_triangle_points(order=3):
 
 
 def fem_heat_assemble(nodes, elements, k_coef_func, rhs_func, quad_order=3):
-    """
-    Assemble FEM system for heat equation on 2D domain.
-    From 403_fem2d_heat assemble_heat.
-
-    Equation: -div(k * grad(u)) + c * u = f
-
-    Parameters
-    ----------
-    nodes : ndarray, shape (N, 2)
-        Node coordinates.
-    elements : ndarray, shape (M, 3)
-        Triangle connectivity (T3).
-    k_coef_func : callable
-        Diffusion coefficient k(x, y).
-    rhs_func : callable
-        Right-hand side f(x, y).
-    quad_order : int
-        Quadrature order.
-
-    Returns
-    -------
-    A : ndarray
-        Stiffness matrix (dense for small problems).
-    F : ndarray
-        Right-hand side vector.
-    """
     n_nodes = len(nodes)
     n_elem = len(elements)
     A = np.zeros((n_nodes, n_nodes))
@@ -269,16 +136,16 @@ def fem_heat_assemble(nodes, elements, k_coef_func, rhs_func, quad_order=3):
         x = nodes[elem_nodes, 0]
         y = nodes[elem_nodes, 1]
 
-        # Triangle vertices
+
         xy = np.column_stack([x, y])
 
-        # Area
+
         area = 0.5 * abs((x[1] - x[0]) * (y[2] - y[0]) - (x[2] - x[0]) * (y[1] - y[0]))
         if area < 1e-15:
             continue
 
         for qp, w in zip(quad_pts, quad_w):
-            # Map from reference to physical
+
             xi, eta = qp
             x_phys = x[0] + (x[1] - x[0]) * xi + (x[2] - x[0]) * eta
             y_phys = y[0] + (y[1] - y[0]) * xi + (y[2] - y[0]) * eta
@@ -303,25 +170,6 @@ def fem_heat_assemble(nodes, elements, k_coef_func, rhs_func, quad_order=3):
 
 
 def apply_dirichlet_bc(A, F, bc_nodes, bc_values):
-    """
-    Apply Dirichlet boundary conditions.
-    From 403_fem2d_heat assemble_boundary.
-
-    Parameters
-    ----------
-    A : ndarray
-        System matrix.
-    F : ndarray
-        RHS vector.
-    bc_nodes : list or ndarray
-        Boundary node indices.
-    bc_values : ndarray
-        Boundary values.
-
-    Returns
-    -------
-    A, F : modified arrays.
-    """
     A = A.copy()
     F = F.copy()
     n = A.shape[0]
@@ -338,42 +186,6 @@ def apply_dirichlet_bc(A, F, bc_nodes, bc_values):
 def solve_ebm_fem(nodes, elements, insolation_field, T_initial, dt, n_steps,
                   D_diffusivity=0.3, heat_capacity=1.0e6, albedo_field=None,
                   boundary_nodes=None, boundary_temp=None):
-    """
-    Solve 2D Energy Balance Model using FEM.
-
-    Equation:
-    C_p * dT/dt - D * Laplacian(T) + B * T = (1-alpha)*Q - A
-
-    Parameters
-    ----------
-    nodes : ndarray, shape (N, 2)
-        Node coordinates (e.g., sin(lat), lon).
-    elements : ndarray, shape (M, 3)
-        Triangle connectivity.
-    insolation_field : ndarray
-        Insolation at each node.
-    T_initial : ndarray
-        Initial temperature.
-    dt : float
-        Time step.
-    n_steps : int
-        Number of time steps.
-    D_diffusivity : float
-        Diffusivity.
-    heat_capacity : float
-        Heat capacity per unit area.
-    albedo_field : ndarray, optional
-        Albedo at each node.
-    boundary_nodes : list, optional
-        Boundary node indices.
-    boundary_temp : float, optional
-        Boundary temperature.
-
-    Returns
-    -------
-    T_history : ndarray, shape (n_steps+1, N)
-        Temperature evolution.
-    """
     n_nodes = len(nodes)
     T = np.array(T_initial, dtype=float)
     T_history = np.zeros((n_steps + 1, n_nodes))
@@ -382,17 +194,17 @@ def solve_ebm_fem(nodes, elements, insolation_field, T_initial, dt, n_steps,
     if albedo_field is None:
         albedo_field = np.zeros(n_nodes)
 
-    # Budyko parameters
+
     A_budyko = 203.3
     B_budyko = 2.09
 
-    # Assemble constant stiffness matrix
+
     def k_func(x, y):
         return D_diffusivity
 
     K, _ = fem_heat_assemble(nodes, elements, k_func, lambda x, y: 0.0)
 
-    # Mass matrix (lumped)
+
     M = np.zeros((n_nodes, n_nodes))
     for e in range(len(elements)):
         elem = elements[e]
@@ -403,14 +215,14 @@ def solve_ebm_fem(nodes, elements, insolation_field, T_initial, dt, n_steps,
             M[elem[i], elem[i]] += area / 3.0
 
     for step in range(n_steps):
-        # TODO: Compute albedo feedback and radiative forcing.
-        # Hint: The albedo parameterization must be consistent with
-        # insolation.py::albedo_feedback(). The OLR should use Budyko
-        # parameters A_budyko=203.3 and B_budyko=2.09.
-        # After computing alpha and forcing, assemble the system matrix and RHS.
+
+
+
+
+
         raise NotImplementedError("Hole_2: EBM albedo and forcing computation is not implemented.")
 
-        # Apply BC
+
         if boundary_nodes is not None and boundary_temp is not None:
             sys_mat, rhs = apply_dirichlet_bc(sys_mat, rhs, boundary_nodes,
                                                np.full(len(boundary_nodes), boundary_temp))
@@ -418,7 +230,7 @@ def solve_ebm_fem(nodes, elements, insolation_field, T_initial, dt, n_steps,
         try:
             T_new = np.linalg.solve(sys_mat, rhs)
         except np.linalg.LinAlgError:
-            # Fallback to pseudo-inverse for singular systems
+
             T_new = np.linalg.lstsq(sys_mat, rhs, rcond=None)[0]
 
         T_new = np.clip(T_new, 200.0, 350.0)
@@ -429,10 +241,6 @@ def solve_ebm_fem(nodes, elements, insolation_field, T_initial, dt, n_steps,
 
 
 def create_spherical_mesh(n_lat=18, n_lon=36):
-    """
-    Create a simple spherical mesh mapped to 2D (sin(lat), lon).
-    Returns nodes and triangle elements.
-    """
     lats = np.linspace(-90, 90, n_lat)
     lons = np.linspace(0, 360, n_lon)
 

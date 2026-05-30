@@ -1,129 +1,22 @@
 # -*- coding: utf-8 -*-
-"""
-hfb_selfconsistent.py
-=====================
-Hartree-Fock-Bogoliubov (HFB) self-consistent mean-field solver.
-
-Inspired by the **general-matrix conjugate-gradient** routine *r8ge_cg*,
-this module solves the HFB equations iteratively using a CG-accelerated
-BCS-like pairing model.
-
-Physical model
---------------
-The HFB quasiparticle Hamiltonian in the canonical basis reads
-
-.. math::
-    \mathcal{H} = \begin{pmatrix}
-    h - \lambda & \Delta \\
-    \Delta & -(h - \lambda)
-    \end{pmatrix} \;,
-
-where :math:`h` is the Hartree-Fock single-particle Hamiltonian,
-:math:`\lambda` is the chemical potential (Fermi energy), and
-:math:`\Delta` is the pairing gap.
-
-The BCS gap equation for a schematic constant pairing interaction is
-
-.. math::
-    \Delta = G \sum_{k>0} u_k v_k \;,
-
-with the BCS occupation amplitudes
-
-.. math::
-    u_k^2 = \frac{1}{2}\left(1 + \frac{\epsilon_k - \lambda}{E_k}\right),
-    \qquad
-    v_k^2 = 1 - u_k^2 \;,
-
-and the quasiparticle energy
-
-.. math::
-    E_k = \sqrt{(\epsilon_k - \lambda)^2 + \Delta^2} \;.
-
-The particle-number constraint fixes :math:`\lambda`:
-
-.. math::
-    N = 2\sum_{k>0} v_k^2 \;.
-
-Iterative scheme
-----------------
-1. Start with initial :math:`\Delta^{(0)}` and :math:`\lambda^{(0)}`.
-2. Build HFB matrix :math:`\mathcal{H}`.
-3. Solve eigenproblem; update :math:`u_k, v_k`.
-4. Update :math:`\Delta` and :math:`\lambda` from constraints.
-5. Repeat until convergence.
-
-The linear system inside each iteration (density-matrix update) is solved
-by a conjugate-gradient method analogous to *r8ge_cg*.
-"""
 
 import numpy as np
 from constants import G_PAIRING
 
 
 def bcs_occupation(epsilon, lambda_, Delta):
-    r"""
-    BCS occupation amplitudes and quasiparticle energies.
-
-    Parameters
-    ----------
-    epsilon : ndarray
-        Single-particle energies :math:`\epsilon_k`.
-    lambda_ : float
-        Chemical potential :math:`\lambda`.
-    Delta : float
-        Pairing gap :math:`\Delta`.
-
-    Returns
-    -------
-    u2, v2, E : ndarray
-        :math:`u_k^2, v_k^2, E_k`.
-    """
     E = np.sqrt((epsilon - lambda_) ** 2 + Delta ** 2)
-    # Protect against exact zero denominator
+
     E = np.where(E < 1e-14, 1e-14, E)
     u2 = 0.5 * (1.0 + (epsilon - lambda_) / E)
     v2 = 1.0 - u2
-    # Clamp to [0,1]
+
     u2 = np.clip(u2, 0.0, 1.0)
     v2 = np.clip(v2, 0.0, 1.0)
     return u2, v2, E
 
 
 def conjugate_gradient_solve(A, b, x0=None, tol=1e-12, maxiter=None):
-    r"""
-    Conjugate-gradient method for a symmetric positive-definite matrix.
-
-    Solves :math:`A x = b` with the classic CG iteration:
-
-    .. math::
-        r^{(0)} &= b - A x^{(0)} \\
-        p^{(0)} &= r^{(0)} \\
-        \alpha_k &= \frac{r^{(k)\!T} r^{(k)}}{p^{(k)\!T} A p^{(k)}} \\
-        x^{(k+1)} &= x^{(k)} + \alpha_k p^{(k)} \\
-        r^{(k+1)} &= r^{(k)} - \alpha_k A p^{(k)} \\
-        \beta_k &= \frac{r^{(k+1)\!T} r^{(k+1)}}{r^{(k)\!T} r^{(k)}} \\
-        p^{(k+1)} &= r^{(k+1)} + \beta_k p^{(k)}
-
-    Parameters
-    ----------
-    A : ndarray, shape (n, n)
-        SPD matrix.
-    b : ndarray, shape (n,)
-        Right-hand side.
-    x0 : ndarray, optional
-        Initial guess.
-    tol : float
-        Residual tolerance.
-    maxiter : int, optional
-        Maximum iterations (default n).
-
-    Returns
-    -------
-    x : ndarray
-        Solution vector.
-    info : dict
-        Convergence information.
-    """
     n = b.size
     if maxiter is None:
         maxiter = n
@@ -157,47 +50,13 @@ def conjugate_gradient_solve(A, b, x0=None, tol=1e-12, maxiter=None):
 def solve_hfb_bcs(epsilon, target_N, G=None,
                   Delta0=1.0, lambda0=None,
                   tol=1e-10, max_iter=200):
-    r"""
-    Self-consistent BCS solver with pairing.
-
-    Parameters
-    ----------
-    epsilon : ndarray
-        Single-particle energies (sorted ascending).
-    target_N : int
-        Target particle number (neutrons or protons).
-    G : float, optional
-        Pairing strength.  Defaults to :math:`25/A` MeV scaled.
-    Delta0 : float
-        Initial pairing gap in MeV.
-    lambda0 : float, optional
-        Initial chemical potential.  Defaults to median of epsilon.
-    tol : float
-        Convergence tolerance.
-    max_iter : int
-        Maximum self-consistency iterations.
-
-    Returns
-    -------
-    result : dict
-        Dictionary with keys:
-        - 'lambda': chemical potential
-        - 'Delta': pairing gap
-        - 'u2', 'v2': occupation amplitudes
-        - 'E': quasiparticle energies
-        - 'E_pair': pairing energy
-        - 'E_total': total HF+BCS energy
-        - 'entropy': thermal entropy (zero-T limit)
-        - 'converged': bool
-        - 'iterations': int
-    """
     epsilon = np.asarray(epsilon, dtype=float)
     n_sp = epsilon.size
     if n_sp == 0:
         raise ValueError("Empty single-particle spectrum.")
 
     if G is None:
-        # Schematic: G = 25 / A MeV, use average A ~ target_N*2 for estimate
+
         A_est = max(int(target_N * 2), 1)
         G = 25.0 / A_est
 
@@ -211,17 +70,17 @@ def solve_hfb_bcs(epsilon, target_N, G=None,
     for it in range(max_iter):
         u2, v2, E = bcs_occupation(epsilon, lambda_, Delta)
 
-        # Pairing gap update
+
         Delta_new = G * np.sum(u2 * v2)
-        # Particle number constraint via bisection on lambda
+
         def particle_number(lambda_):
             _, v2_tmp, _ = bcs_occupation(epsilon, lambda_, Delta_new)
             return 2.0 * np.sum(v2_tmp)
 
-        # Newton-Raphson for lambda
+
         N_current = particle_number(lambda_)
         if abs(N_current - target_N) > 0.01:
-            # Simple secant step
+
             lambda_plus = lambda_ + 1.0
             lambda_minus = lambda_ - 1.0
             N_plus = particle_number(lambda_plus)
@@ -229,7 +88,7 @@ def solve_hfb_bcs(epsilon, target_N, G=None,
             for _ in range(50):
                 if abs(N_current - target_N) < 0.001:
                     break
-                # Secant method
+
                 dN = N_plus - N_minus
                 if abs(dN) < 1e-12:
                     break
@@ -256,13 +115,13 @@ def solve_hfb_bcs(epsilon, target_N, G=None,
 
     u2, v2, E = bcs_occupation(epsilon, lambda_, Delta)
 
-    # Pairing energy: E_pair = -Δ²/G  (schematic)
+
     E_pair = -(Delta ** 2) / G if G > 0 else 0.0
 
-    # Total HF+BCS energy
+
     E_total = 2.0 * np.sum(v2 * epsilon) + E_pair
 
-    # Entropy (zero-T BCS limit → very small but non-zero for numerical stability)
+
     s = -2.0 * np.sum(u2 * np.log(np.clip(u2, 1e-30, 1.0))
                      + v2 * np.log(np.clip(v2, 1e-30, 1.0)))
 
@@ -282,25 +141,7 @@ def solve_hfb_bcs(epsilon, target_N, G=None,
 
 
 def hfb_density_matrix(u2, v2, phi):
-    r"""
-    Build one-body density matrix :math:`\rho_{ij}` in the single-particle basis.
 
-    .. math::
-        \rho_{ij} = \sum_{k} v_k^2 \,\phi_i^{(k)} \phi_j^{(k)}
-
-    Parameters
-    ----------
-    u2, v2 : ndarray
-        BCS occupation amplitudes.
-    phi : ndarray, shape (n_basis, n_states)
-        Single-particle wave functions.
-
-    Returns
-    -------
-    rho : ndarray, shape (n_basis, n_basis)
-        Density matrix.
-    """
-    # v2 weighting
     weights = np.sqrt(np.clip(v2, 0.0, 1.0))
     weighted = phi * weights[np.newaxis, :]
     rho = weighted @ weighted.T
@@ -308,24 +149,6 @@ def hfb_density_matrix(u2, v2, phi):
 
 
 def hfb_pairing_tensor(u2, v2, phi):
-    r"""
-    Build pairing tensor :math:`\kappa_{ij}`.
-
-    .. math::
-        \kappa_{ij} = \sum_{k} u_k v_k \,\phi_i^{(k)} \phi_j^{(k)}
-
-    Parameters
-    ----------
-    u2, v2 : ndarray
-        BCS amplitudes.
-    phi : ndarray
-        Wave functions.
-
-    Returns
-    -------
-    kappa : ndarray
-        Pairing tensor.
-    """
     uv = np.sqrt(np.clip(u2 * v2, 0.0, 0.25))
     weighted = phi * uv[np.newaxis, :]
     kappa = weighted @ weighted.T

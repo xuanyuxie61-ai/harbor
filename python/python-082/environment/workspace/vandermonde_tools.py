@@ -1,74 +1,15 @@
-"""
-vandermonde_tools.py
-====================
-Vandermonde matrix utilities and Discontinuous Galerkin (DG) spectral operators.
-
-Incorporates core algorithms from:
-- 1385_vandermonde_interp_2d : 2D Vandermonde interpolation matrix for
-  polynomial reconstruction of displacement fields over damaged elements.
-- 274_dg1d_maxwell : 1D DG operators (Jacobi polynomials, differentiation
-  matrices, lift operators) adapted for high-order strain field approximation
-  across composite ply interfaces.
-
-Scientific role:
-    Provides high-order polynomial interpolation and spectral differentiation
-    for strain/stress fields in composite damage analysis. The DG framework
-    allows discontinuities in displacement gradients across ply boundaries,
-    which is essential for capturing delamination and matrix cracking.
-
-Key formulas:
------------
-1. 1D Vandermonde matrix on Legendre-Gauss-Lobatto nodes:
-   V_{ij} = P_{j-1}(r_i),  i=1..N+1, j=1..N+1
-   where P_n are normalized Legendre polynomials.
-
-2. Differentiation matrix:
-   D_r = V_r * V^{-1}
-   where (V_r)_{ij} = dP_{j-1}/dr (r_i)
-
-3. 2D Vandermonde interpolation (total degree M):
-   For n data points (x_i, y_i) and polynomial
-   p(x,y) = sum_{s=0}^{M} sum_{ex+ey=s} c_{ex,ey} x^{ex} y^{ey}
-   the Vandermonde matrix is:
-   A_{i,j} = x_i^{ex} * y_i^{ey}
-
-4. Jacobi polynomial recurrence (orthonormal):
-   P_0(x) = 1/sqrt(gamma0)
-   P_1(x) = ((alpha+beta+2)*x/2 + (alpha-beta)/2) / sqrt(gamma1)
-   a_n P_{n+1} = (x - b_n) P_n - a_{n-1} P_{n-1}
-
-5. Legendre-Gauss-Lobatto nodes (collocation points):
-   Roots of (1-x^2) P'_N(x) = 0, used for spectral element discretization.
-"""
 
 import numpy as np
 
 
 def jacobi_polynomial(x, alpha, beta, N):
-    """
-    Evaluate normalized Jacobi polynomial P_N^{(alpha,beta)}(x).
-
-    Parameters
-    ----------
-    x : array_like
-        Evaluation points.
-    alpha, beta : float
-        Jacobi parameters (>-1).
-    N : int
-        Polynomial degree.
-
-    Returns
-    -------
-    P : ndarray
-        Values of P_N at x.
-    """
     x = np.asarray(x, dtype=float)
     if alpha <= -1.0 or beta <= -1.0:
         raise ValueError("Jacobi parameters must be > -1.")
     if N < 0:
         return np.zeros_like(x)
 
-    # Gamma function via scipy if available, else use math.gamma
+
     try:
         from math import gamma as _gamma
     except ImportError:
@@ -76,7 +17,7 @@ def jacobi_polynomial(x, alpha, beta, N):
             return np.exp(_gammaln(z))
 
     def _gammaln(z):
-        # Lanczos approximation for log-gamma
+
         if z < 0.5:
             return np.log(np.pi) - np.log(np.sin(np.pi * z)) - _gammaln(1.0 - z)
         p = [76.18009172947146, -86.50532032941677,
@@ -126,10 +67,6 @@ def jacobi_polynomial(x, alpha, beta, N):
 
 
 def grad_jacobi_polynomial(x, alpha, beta, N):
-    """
-    Derivative of Jacobi polynomial: d/dx P_N^{(alpha,beta)}(x).
-    Uses the identity: dP_N/dx = sqrt(N*(N+alpha+beta+1)) * P_{N-1}^{(alpha+1,beta+1)}
-    """
     if N == 0:
         return np.zeros_like(np.asarray(x, dtype=float))
     x = np.asarray(x, dtype=float)
@@ -138,20 +75,6 @@ def grad_jacobi_polynomial(x, alpha, beta, N):
 
 
 def vandermonde_1d(N, r):
-    """
-    Initialize 1D Vandermonde matrix V_{ij} = P_{j-1}(r_i).
-
-    Parameters
-    ----------
-    N : int
-        Polynomial order.
-    r : ndarray
-        Node coordinates in reference element [-1, 1].
-
-    Returns
-    -------
-    V : ndarray, shape (len(r), N+1)
-    """
     r = np.asarray(r, dtype=float)
     V = np.zeros((len(r), N + 1))
     for j in range(N + 1):
@@ -160,9 +83,6 @@ def vandermonde_1d(N, r):
 
 
 def grad_vandermonde_1d(N, r):
-    """
-    Initialize gradient of Vandermonde matrix (V_r)_{ij} = dP_{j-1}/dr(r_i).
-    """
     r = np.asarray(r, dtype=float)
     Vr = np.zeros((len(r), N + 1))
     for j in range(N + 1):
@@ -171,26 +91,9 @@ def grad_vandermonde_1d(N, r):
 
 
 def differentiation_matrix_1d(N, r, V):
-    """
-    Compute 1D differentiation matrix D_r = V_r * V^{-1}.
-
-    Parameters
-    ----------
-    N : int
-        Order.
-    r : ndarray
-        Nodes.
-    V : ndarray
-        Vandermonde matrix.
-
-    Returns
-    -------
-    Dr : ndarray
-        Differentiation matrix.
-    """
     Vr = grad_vandermonde_1d(N, r)
-    # Solve V^T * Dr^T = Vr^T  =>  Dr = Vr * inv(V)
-    # Use least squares for stability if V is near-singular
+
+
     try:
         Dr = Vr @ np.linalg.inv(V)
     except np.linalg.LinAlgError:
@@ -199,28 +102,23 @@ def differentiation_matrix_1d(N, r, V):
 
 
 def jacobi_gauss_lobatto(alpha, beta, N):
-    """
-    Compute Legendre-Gauss-Lobatto nodes (alpha=beta=0).
-    These are the collocation points for spectral elements:
-    x_0 = -1, x_N = 1, and the interior nodes are roots of P'_{N}(x).
-    """
     if N == 0:
         return np.array([-1.0, 1.0])
     if N == 1:
         return np.array([-1.0, 0.0, 1.0])
 
-    # Interior nodes: eigenvalues of Jacobi matrix with modified last row
-    # For LGL: use Newton iteration on P_{N-1}^{(1,1)}(x)
+
+
     from math import cos, pi
     x = np.zeros(N + 1)
     x[0] = -1.0
     x[N] = 1.0
 
-    # Initial guess from Chebyshev nodes
+
     for i in range(1, N):
         x[i] = -cos(pi * i / N)
 
-    # Newton iteration for P'_{N}(x) = 0
+
     eps = 1e-14
     for _ in range(100):
         P = jacobi_polynomial(x[1:N], 1.0, 1.0, N - 1)
@@ -234,29 +132,6 @@ def jacobi_gauss_lobatto(alpha, beta, N):
 
 
 def vandermonde_interp_2d_matrix(n, m, x, y):
-    """
-    Compute 2D Vandermonde interpolation matrix for total degree M.
-
-    Given n = T(M+1) data points (x_i, y_i), construct the matrix A such that
-    A * c = z, where c are the polynomial coefficients and z are the data values.
-
-    The polynomial basis is ordered lexicographically by total degree s:
-    p(x,y) = sum_{s=0}^{M} sum_{ex=s}^{0} c_{ex, s-ex} x^{ex} y^{s-ex}
-
-    Parameters
-    ----------
-    n : int
-        Number of data points. Must equal T(M+1) = (M+1)(M+2)/2.
-    m : int
-        Total polynomial degree.
-    x, y : ndarray, shape (n,)
-        Data locations.
-
-    Returns
-    -------
-    A : ndarray, shape (n, n)
-        Vandermonde matrix.
-    """
     x = np.asarray(x, dtype=float).flatten()
     y = np.asarray(y, dtype=float).flatten()
     if len(x) != n or len(y) != n:
@@ -277,25 +152,6 @@ def vandermonde_interp_2d_matrix(n, m, x, y):
 
 
 def polynomial_value_2d(n, c, m, x, y):
-    """
-    Evaluate 2D polynomial with coefficients c at points (x, y).
-
-    Parameters
-    ----------
-    n : int
-        Number of coefficients (= T(M+1)).
-    c : ndarray, shape (n,)
-        Coefficients in the same order as vandermonde_interp_2d_matrix.
-    m : int
-        Degree.
-    x, y : float or ndarray
-        Evaluation points.
-
-    Returns
-    -------
-    value : ndarray
-        Polynomial values.
-    """
     c = np.asarray(c, dtype=float).flatten()
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)

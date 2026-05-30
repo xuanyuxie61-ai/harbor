@@ -1,49 +1,13 @@
-"""
-utils.py
-数值相对论引力波模拟系统的底层工具模块。
-
-融合种子项目:
-- 342_euclid: 欧几里得最大公约数算法 → 用于有理数近似与周期分析
-- 126_burgers_time_inviscid: 无粘Burgers方程 → 数值激波稳定性测试
-- 1041_robertson_ode: 刚性ODE系统 → 多时间尺度数值稳定性基准
-- 1059_sawtooth_ode: 锯齿波驱动振子 → 周期性驱动的测试信号
-- 767_midpoint_fixed: 固定点中点法 → 隐式时间积分器
-
-核心公式:
-1. 刚性ODE系统的隐式中点离散:
-   y_{n+1} = y_n + h * f(t_n + h/2, (y_n + y_{n+1})/2)
-
-2. Burgers方程守恒形式:
-   ∂u/∂t + ∂(u^2/2)/∂x = 0
-   采用Godunov数值通量:
-   F_{i+1/2} = max{f(u_i), f(u_{i+1})} 当 u_i > u_{i+1} (激波)
-   F_{i+1/2} = min{f(u_i), f(u_{i+1})} 当 u_i < u_{i+1} (稀疏波)
-
-3. Robertson化学反应刚性系统:
-   dy1/dt = -0.04*y1 + 1e4*y2*y3
-   dy2/dt =  0.04*y1 - 1e4*y2*y3 - 3e7*y2^2
-   dy3/dt =                         3e7*y2^2
-
-4. 锯齿波驱动振子:
-   d^2x/dt^2 + ω_0^2 x = s(t),  s(t) = 2*(t/T - floor(t/T + 1/2))
-"""
 
 import numpy as np
 from numpy.linalg import norm
 
 
-# ---------------------------------------------------------------------------
-# 欧几里得算法 (源自 342_euclid)
-# ---------------------------------------------------------------------------
+
+
+
 
 def euclidean_gcd(a: int, b: int) -> int:
-    """
-    欧几里得算法计算最大公约数。
-    在引力波周期分析中用于约化频率比为有理数，
-    例如将轨道周期与自旋进动周期的比值 p/q 化为最简形式。
-
-    公式:  gcd(a, b) = gcd(b, a mod b),  gcd(a, 0) = |a|
-    """
     if not isinstance(a, (int, np.integer)) or not isinstance(b, (int, np.integer)):
         raise TypeError("euclidean_gcd 要求整数输入")
     a = int(np.abs(a))
@@ -56,11 +20,6 @@ def euclidean_gcd(a: int, b: int) -> int:
 
 
 def rational_approximation(x: float, max_denominator: int = 1000):
-    """
-    利用欧几里得算法将有理数近似为最简分数。
-    用于引力波 chirp 质量比的连分数展开:
-       η = μ / M  = m1*m2 / (m1+m2)^2
-    """
     if x <= 0:
         raise ValueError(" rational_approximation 要求正实数输入 ")
     if max_denominator <= 0:
@@ -69,7 +28,7 @@ def rational_approximation(x: float, max_denominator: int = 1000):
     best_num, best_den = int(round(x)), 1
     best_err = abs(x - best_num)
     
-    # Stern-Brocot 树搜索最优有理近似
+
     low_num, low_den = int(np.floor(x)), 1
     high_num, high_den = int(np.floor(x)) + 1, 1
     
@@ -94,23 +53,11 @@ def rational_approximation(x: float, max_denominator: int = 1000):
     return best_num, best_den
 
 
-# ---------------------------------------------------------------------------
-# 固定点隐式中点法 (源自 767_midpoint_fixed)
-# ---------------------------------------------------------------------------
+
+
+
 
 def implicit_midpoint_integrator(f, t_span, y0, n_steps, theta=0.5, it_max=15, tol=1e-12):
-    """
-    固定点隐式中点法求解常微分方程组。
-    在数值相对论中用于 ADM 方程的隐式时间演化，
-    具有 A-稳定性，适合刚性问题。
-
-    公式:
-        t_{n+1} = t_n + h
-        y_{n+1} = y_n + h * f(t_n + θh, y_{n+θ})
-        y_{n+θ} = (1 - 1/θ) y_n + (1/θ) y_{n+1}
-
-    当 θ = 1/2 时，为二阶精度的隐式中点法则。
-    """
     y0 = np.atleast_1d(np.asarray(y0, dtype=np.float64))
     m = y0.shape[0]
     t0, tf = float(t_span[0]), float(t_span[1])
@@ -131,7 +78,7 @@ def implicit_midpoint_integrator(f, t_span, y0, n_steps, theta=0.5, it_max=15, t
     for i in range(n_steps):
         tm = t_arr[i] + theta * h
         ym = y_arr[i, :].copy()
-        # 固定点迭代求解隐式方程
+
         for _ in range(it_max):
             fval = np.asarray(f(tm, ym), dtype=np.float64)
             if fval.shape != (m,):
@@ -142,7 +89,7 @@ def implicit_midpoint_integrator(f, t_span, y0, n_steps, theta=0.5, it_max=15, t
             if delta < tol:
                 break
         else:
-            # 固定点迭代未收敛，发出警告但继续
+
             pass
         
         t_arr[i + 1] = t_arr[i] + h
@@ -151,16 +98,11 @@ def implicit_midpoint_integrator(f, t_span, y0, n_steps, theta=0.5, it_max=15, t
     return t_arr, y_arr
 
 
-# ---------------------------------------------------------------------------
-# Robertson 刚性ODE (源自 1041_robertson_ode)
-# ---------------------------------------------------------------------------
+
+
+
 
 def robertson_deriv(t, y):
-    """
-    Robertson 化学反应刚性系统。
-    作为数值相对论多时间尺度问题的刚性基准测试，
-    类比黑洞吸积盘中不同化学组分的不同时标演化。
-    """
     y = np.asarray(y, dtype=np.float64)
     if y.shape[0] != 3:
         raise ValueError("Robertson 系统要求三维状态向量")
@@ -174,19 +116,12 @@ def robertson_deriv(t, y):
 
 
 def test_robertson_stability(t_span=(0.0, 1.0), n_steps=10000):
-    """
-    测试隐式中点法在刚性系统上的稳定性。
-    返回数值解与守恒量 y1+y2+y3 的偏差。
-    
-    注意: Robertson 系统是极度刚性的 (时间尺度 10^-3 到 10^7)，
-    使用极短的时间和大量步数来避免数值溢出。
-    """
     y0 = np.array([1.0, 0.0, 0.0], dtype=np.float64)
     try:
         t, y = implicit_midpoint_integrator(robertson_deriv, t_span, y0, n_steps, it_max=20)
         conservation_error = np.max(np.abs(y[:, 0] + y[:, 1] + y[:, 2] - 1.0))
     except Exception:
-        # 若隐式方法失败，使用显式 Euler 作为 fallback
+
         t = np.linspace(t_span[0], t_span[1], n_steps + 1)
         y = np.zeros((n_steps + 1, 3), dtype=np.float64)
         y[0, :] = y0
@@ -194,36 +129,24 @@ def test_robertson_stability(t_span=(0.0, 1.0), n_steps=10000):
         for i in range(n_steps):
             dy = robertson_deriv(t[i], y[i, :])
             y[i + 1, :] = y[i, :] + dt * dy
-            # 强制守恒
+
             y[i + 1, :] = np.clip(y[i + 1, :], 0.0, 1.0)
             y[i + 1, :] = y[i + 1, :] / np.sum(y[i + 1, :])
         conservation_error = np.max(np.abs(y[:, 0] + y[:, 1] + y[:, 2] - 1.0))
     return t, y, conservation_error
 
 
-# ---------------------------------------------------------------------------
-# 锯齿波驱动振子 (源自 1059_sawtooth_ode)
-# ---------------------------------------------------------------------------
+
+
+
 
 def sawtooth_wave(t, period=1.0, amplitude=1.0):
-    """
-    标准锯齿波函数，用于模拟引力波探测器中的周期性校准信号
-    或双星轨道中的周期性扰动。
-
-    公式:
-        s(t) = A * ( 2*(t/T - floor(t/T + 0.5)) )
-    """
     if period <= 0:
         raise ValueError("period 必须为正")
     return amplitude * (2.0 * (t / period - np.floor(t / period + 0.5)))
 
 
 def sawtooth_oscillator_deriv(t, y, omega0=1.0, period=1.0, amplitude=1.0):
-    """
-    锯齿波驱动的阻尼谐振子:
-        d^2u/dt^2 + ω_0^2 u = s(t)
-    状态向量 y = [u, v], v = du/dt
-    """
     y = np.asarray(y, dtype=np.float64)
     if y.shape[0] != 2:
         raise ValueError("锯齿波振子要求二维状态向量")
@@ -233,9 +156,9 @@ def sawtooth_oscillator_deriv(t, y, omega0=1.0, period=1.0, amplitude=1.0):
     return np.array([dudt, dvdt], dtype=np.float64)
 
 
-# ---------------------------------------------------------------------------
-# 无粘Burgers方程 (源自 126_burgers_time_inviscid)
-# ---------------------------------------------------------------------------
+
+
+
 
 def _burgers_flux(u):
     return 0.5 * u * u
@@ -246,11 +169,6 @@ def _burgers_df(u):
 
 
 def _godunov_numerical_flux(u_left, u_right):
-    """
-    Godunov 数值通量，用于 Burgers 方程的守恒律离散。
-    在数值相对论中，通量分裂技术用于处理双曲型 Einstein 方程
-    中的激波不稳定性。
-    """
     u_left = np.asarray(u_left, dtype=np.float64)
     u_right = np.asarray(u_right, dtype=np.float64)
     
@@ -259,13 +177,13 @@ def _godunov_numerical_flux(u_left, u_right):
         ul = u_left[i]
         ur = u_right[i]
         if ur <= ul:
-            # 激波情形
+
             if (ul + ur) / 2.0 > 0.0:
                 ustar[i] = ul
             else:
                 ustar[i] = ur
         else:
-            # 稀疏波情形
+
             if ul > 0.0:
                 ustar[i] = ul
             elif ur < 0.0:
@@ -276,14 +194,6 @@ def _godunov_numerical_flux(u_left, u_right):
 
 
 def burgers_godunov(u0, nx, nt, t_max, a=-1.0, b=1.0, bc_type='periodic'):
-    """
-    使用 Godunov 方法求解无粘 Burgers 方程。
-    作为数值相对论中激波捕获能力的基准测试。
-
-    方程:  ∂u/∂t + ∂(u^2/2)/∂x = 0,  x∈[a,b], t∈[0,t_max]
-
-    CFL 条件:  dt <= dx / max|u|
-    """
     dx = (b - a) / nx
     dt = t_max / nt
     x = np.linspace(a, b, nx)
@@ -294,16 +204,16 @@ def burgers_godunov(u0, nx, nt, t_max, a=-1.0, b=1.0, bc_type='periodic'):
     
     for n in range(nt):
         unew = np.zeros(nx, dtype=np.float64)
-        # 内部节点
+
         u_left = u[0:-1]
         u_right = u[1:]
         F = _godunov_numerical_flux(u_left, u_right)
         
         unew[1:-1] = u[1:-1] - (dt / dx) * (F[1:] - F[0:-1])
         
-        # 边界条件
+
         if bc_type == 'periodic':
-            # 周期性边界
+
             F_left = _godunov_numerical_flux(np.array([u[-1]]), np.array([u[0]]))[0]
             F_right = _godunov_numerical_flux(np.array([u[-1]]), np.array([u[0]]))[0]
             unew[0] = u[0] - (dt / dx) * (F[0] - F_left)
@@ -314,10 +224,10 @@ def burgers_godunov(u0, nx, nt, t_max, a=-1.0, b=1.0, bc_type='periodic'):
         else:
             raise ValueError(f"不支持的边界条件类型: {bc_type}")
         
-        # CFL 安全检查
+
         cfl = dt / dx * np.max(np.abs(u))
         if cfl > 1.0:
-            # 自适应时间步长调整
+
             dt_adjusted = 0.9 * dx / max(np.max(np.abs(u)), 1e-12)
             ratio = dt_adjusted / dt
             unew = u + ratio * (unew - u)
@@ -328,12 +238,11 @@ def burgers_godunov(u0, nx, nt, t_max, a=-1.0, b=1.0, bc_type='periodic'):
     return x, U
 
 
-# ---------------------------------------------------------------------------
-# 通用数值鲁棒性工具
-# ---------------------------------------------------------------------------
+
+
+
 
 def safe_divide(a, b, fallback=0.0):
-    """安全除法，避免除以零。"""
     a = np.asarray(a, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
     result = np.empty_like(a)
@@ -344,7 +253,6 @@ def safe_divide(a, b, fallback=0.0):
 
 
 def relative_error(y_true, y_approx):
-    """计算相对误差，处理 y_true=0 的情况。"""
     y_true = np.asarray(y_true, dtype=np.float64)
     y_approx = np.asarray(y_approx, dtype=np.float64)
     denom = np.maximum(np.abs(y_true), np.finfo(float).eps)
@@ -352,7 +260,6 @@ def relative_error(y_true, y_approx):
 
 
 def check_finite(arr, name="array"):
-    """检查数组中是否存在 NaN 或 Inf。"""
     arr = np.asarray(arr, dtype=np.float64)
     if not np.all(np.isfinite(arr)):
         n_nan = np.sum(np.isnan(arr))

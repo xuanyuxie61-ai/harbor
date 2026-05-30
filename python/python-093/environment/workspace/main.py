@@ -1,29 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-main.py
-水声传播抛物方程模型 — 统一入口
-
-本项目为博士级科研代码合成项目，研究领域为：
-    声学工程：水声传播抛物方程模型（Parabolic Equation for Underwater Acoustics）
-
-基于 15 个种子项目的核心算法，融合构建一个面向深海复杂环境的三维宽角抛物方程
-（Wide-Angle Parabolic Equation, WAPE）传播建模系统。
-
-运行方式：
-    python main.py
-
-无需任何命令行参数，程序自动完成从环境建模、网格生成、声源初始化、
-PE 步进求解到传播损失分析的全流程，并输出数值结果与诊断信息。
-"""
 
 import numpy as np
 import os
 import sys
 
-# =============================================================================
-# 模块导入
-# =============================================================================
+
+
+
 from environment import OceanEnvironment
 from mesh_builder import generate_depth_grid, generate_range_grid, PEMesh
 from source_field import build_initial_field, source_power_normalization, disk_uniform_sample
@@ -37,7 +21,6 @@ from special_functions import sincn_fun, cisi, alnorm
 
 
 def print_section(title):
-    """打印格式化节标题。"""
     print("\n" + "=" * 72)
     print(f"  {title}")
     print("=" * 72)
@@ -50,9 +33,9 @@ def main():
     print("*  研究领域：声学工程 — 深海复杂环境声传播数值模拟")
     print("*" * 72)
 
-    # ==========================================================================
-    # 1. 海洋环境参数设置
-    # ==========================================================================
+
+
+
     print_section("1. 海洋环境参数设置")
 
     env = OceanEnvironment(
@@ -73,7 +56,7 @@ def main():
         frequency=100.0
     )
 
-    # 海底地形参数：平坦 + 高斯山丘
+
     env.bathymetry_params = {
         'H0': 4000.0,
         'H1': 0.0,
@@ -94,14 +77,14 @@ def main():
     print(f"  最大水深 = {env.depth_max:.1f} m")
     print(f"  吸收系数 = {env.absorption_db_per_km():.4f} dB/km")
 
-    # 声速剖面采样验证
+
     z_test = np.linspace(0, env.depth_max, 5)
     c_test = env.sound_speed(z_test)
     print(f"  声速剖面采样 (m/s): {np.round(c_test, 2)}")
 
-    # ==========================================================================
-    # 2. 计算网格生成
-    # ==========================================================================
+
+
+
     print_section("2. 计算网格生成")
 
     z_max = env.depth_max
@@ -109,8 +92,8 @@ def main():
     stretch_power = 2.5
     z_grid = generate_depth_grid(z_max, nz, stretch_power, z_axis=env.z_axis)
 
-    r_max = 20000.0  # 20 km
-    dr = env.c0 / (4.0 * env.frequency)  # 稳定性条件：λ/4（兼顾精度与速度）
+    r_max = 20000.0
+    dr = env.c0 / (4.0 * env.frequency)
     r_grid = generate_range_grid(r_max, dr)
 
     mesh = PEMesh(r_grid, z_grid, env)
@@ -127,13 +110,13 @@ def main():
     print(f"  有效节点数 = {quality.get('num_valid_nodes', 0)}")
     print(f"  平均纵横比 = {quality.get('aspect_ratio_mean', 0):.3f}")
 
-    # ==========================================================================
-    # 3. 声源初始场生成
-    # ==========================================================================
+
+
+
     print_section("3. 声源初始场生成")
 
-    z_s = 200.0  # 声源深度 200 m
-    w0 = 8.0     # 束腰半径
+    z_s = 200.0
+    w0 = 8.0
     source_type = 'gaussian'
 
     u0 = build_initial_field(
@@ -148,33 +131,33 @@ def main():
     print(f"  源类型 = {source_type}")
     print(f"  初始场能量 = {np.trapezoid(np.abs(u0)**2, z_grid):.6e}")
 
-    # 圆盘声源采样验证（来自 301_disk01_monte_carlo）
+
     disk_samples = disk_uniform_sample(1000, radius=0.5)
     disk_mean_radius = float(np.mean(np.linalg.norm(disk_samples, axis=1)))
     print(f"  圆盘声源均匀采样验证: 平均半径 = {disk_mean_radius:.4f} m (理论=0.3333)")
 
-    # ==========================================================================
-    # 4. 边界条件初始化
-    # ==========================================================================
+
+
+
     print_section("4. 边界条件初始化")
 
     bc_handler = BoundaryConditionHandler(env, mesh)
 
-    # 测试海底导纳迭代（来自 807_nonlin_fixed_point）
+
     gamma_b = bc_handler.compute_seabed_admittance(theta_grazing=0.1)
     print(f"  海底导纳 γ_b = {gamma_b:.4e}")
 
-    # PML 轮廓测试
+
     pml_sigma = bc_handler.pml_profile(z_grid)
     print(f"  PML 最大吸收系数 σ_max = {np.max(pml_sigma):.4f}")
 
-    # 海底多边形编码（来自 905_pram 的边界词思想）
+
     x_poly, y_poly = bc_handler.bathymetry_polygon()
     print(f"  海底边界多边形顶点数 = {len(x_poly)}")
 
-    # ==========================================================================
-    # 5. 宽角抛物方程求解
-    # ==========================================================================
+
+
+
     print_section("5. 宽角抛物方程（WAPE）求解")
 
     solver = ParabolicSolver(env, mesh, bc_handler, method='cn_fd')
@@ -186,9 +169,9 @@ def main():
     e_err = solver.energy_conservation_error()
     print(f"  求解完成。全局能量守恒相对误差 = {e_err:.6e}")
 
-    # ==========================================================================
-    # 6. 简正波模态分析
-    # ==========================================================================
+
+
+
     print_section("6. 简正波模态分析")
 
     mode_analyzer = NormalModeAnalyzer(env, z_min=0.0, z_max=env.depth_max, n_cheb=32)
@@ -209,12 +192,12 @@ def main():
             vg0 = mode_analyzer.modal_group_velocity(phi[:, 0], kr[0])
             print(f"  第1模态群速度 v_g,0 ≈ {vg0:.2f} m/s")
 
-    # 模态激励系数
+
     if phi.shape[1] > 0:
         A_n = mode_analyzer.modal_excitation_coefficients(phi, z_s)
         print(f"  模态激励系数前5个: {np.abs(A_n[:5])}")
 
-    # 离散约束求解验证（来自 899_polyomino_parity）
+
     solver_dio = ModalConstraintSolver()
     n_solutions = solver_dio.solve_inequality_integer(
         a=np.pi / env.depth_max,
@@ -222,9 +205,9 @@ def main():
     )
     print(f"  Diophantine 不等式解数 = {len(n_solutions)}")
 
-    # ==========================================================================
-    # 7. 体积散射与混响分析
-    # ==========================================================================
+
+
+
     print_section("7. 体积散射与混响分析")
 
     scat_model = VolumeScatteringModel(
@@ -243,12 +226,12 @@ def main():
     )
     print(f"  10 km 处混响级 RL = {RL:.2f} dB")
 
-    # 3D 盒子随机距离统计（来自 113_box_distance）
+
     box_stats = BoxDistanceStatistics(a=1000.0, b=500.0, c=200.0, seed=42)
     mu_D, sigma_D = box_stats.mean_distance_monte_carlo(n_samples=20000)
     print(f"  散射体积随机距离统计: μ_D = {mu_D:.2f} m, σ_D = {sigma_D:.2f} m")
 
-    # QMC 散射积分验证（来自 498_hammersley）
+
     def test_integrand(x):
         return np.sin(x[0]) * np.cos(x[1]) * np.exp(-x[2])
 
@@ -260,25 +243,25 @@ def main():
     )
     print(f"  QMC 测试积分结果 = {qmc_val:.8f} (理论≈0.1918)")
 
-    # ==========================================================================
-    # 8. 传播损失计算与后处理
-    # ==========================================================================
+
+
+
     print_section("8. 传播损失计算与后处理")
 
     pl = PropagationLoss(U, r_grid, z_grid, mesh.seafloor_depth)
     tl_coh = pl.coherent_tl()
 
-    # 深度平均 TL
+
     tl_dasl = pl.depth_averaged_tl()
     print(f"  深度平均传播损失（首点）= {tl_dasl[0]:.2f} dB")
     print(f"  深度平均传播损失（末点）= {tl_dasl[-1]:.2f} dB")
 
-    # 固定深度接收器
+
     z_rec = 500.0
     tl_rec = pl.tl_at_receiver(z_rec)
     print(f"  {z_rec:.0f} m 深度接收器 TL（末点）= {tl_rec[-1]:.2f} dB")
 
-    # 接收器阵列（来自 1426_xyzl_display 的 3D 几何）
+
     z_vla = np.linspace(50.0, 1500.0, 16)
     r_vla = np.full_like(z_vla, 30000.0)
     vla = ReceiverArray(r_vla, z_vla)
@@ -286,27 +269,27 @@ def main():
     print(f"  VLA 阵元数 = {vla.n_receivers}")
     print(f"  Dolph-Chebyshev 权值和 = {np.sum(w_dc):.4f}")
 
-    # 收敛区分析
+
     zones = pl.convergence_zone_analysis(tl_coh, threshold_db=3.0)
     print(f"  检测到的收敛区数量 = {len(zones)}")
     if zones:
         for idx, (i, j, rr, zz, tlval) in enumerate(zones[:3]):
             print(f"    收敛区 {idx+1}: r={rr/1000:.1f} km, z={zz:.0f} m, TL={tlval:.2f} dB")
 
-    # 声影区检测
+
     shadows = pl.shadow_zone_detection(tl_coh, tl_threshold=85.0)
     print(f"  声影区检测到的距离步数 = {len(shadows)}")
 
-    # 多径统计
+
     mp_stats = MultipathStatistics(pl, c_water=env.c0)
     tau_spread = mp_stats.delay_spread_estimate(mu_D)
     B_coh = mp_stats.coherence_bandwidth(tau_spread)
     print(f"  估计时延扩展 σ_τ = {tau_spread*1000:.4f} ms")
     print(f"  估计相干带宽 B_c = {B_coh:.2f} Hz")
 
-    # ==========================================================================
-    # 9. 空间相关分析
-    # ==========================================================================
+
+
+
     print_section("9. 空间相关分析")
 
     spat_corr = SpatialCorrelation(U, r_grid, z_grid)
@@ -315,25 +298,25 @@ def main():
     print(f"  水平方向平均相关系数（lag=5）= {np.mean(C_r):.4f}")
     print(f"  深度方向平均相关系数（lag=5）= {np.mean(C_z):.4f}")
 
-    # ==========================================================================
-    # 10. 数值工具验证（来自种子项目核心算法）
-    # ==========================================================================
+
+
+
     print_section("10. 种子项目核心算法验证")
 
-    # 10.1 三角单元积分（来自 1307_triangle_integrals）
+
     tri = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]], dtype=np.float64)
     I_tri = triangle_monomial_integral(1, 1, tri)
     print(f"  参考三角形 x·y 积分 = {I_tri:.6f} (理论=1/24≈0.041667)")
 
-    # 10.2 Chebyshev 转换矩阵（来自 894_polynomial_conversion）
+
     M_cheb = chebyshev_to_monomial_matrix(5)
     print(f"  Chebyshev→Monomial 矩阵行列式 = {np.linalg.det(M_cheb):.6f}")
 
-    # 10.3 二项式系数（来自 044_asa152 的 log-gamma 技巧）
+
     c_20_10 = binomial_coefficient(20, 10)
     print(f"  C(20,10) = {c_20_10:.1f} (理论=184756)")
 
-    # 10.4 sinc 函数与 Ci/Si（来自 1082_sinc）
+
     x_sinc = np.array([0.0, 0.5, 1.0, 2.0])
     sn = sincn_fun(x_sinc)
     print(f"  sinc_n(0,0.5,1.0,2.0) = {np.round(sn, 4)}")
@@ -341,13 +324,13 @@ def main():
     print(f"  Ci(1,5,20) = {np.round(ci_val, 4)}")
     print(f"  Si(1,5,20) = {np.round(si_val, 4)}")
 
-    # 10.5 正态 CDF（来自 044_asa152 的 alnorm）
+
     phi_0 = alnorm(0.0)
     phi_2 = alnorm(2.0)
     print(f"  Φ(0) = {phi_0:.6f} (理论=0.5)")
     print(f"  Φ(2) = {phi_2:.6f} (理论≈0.9772)")
 
-    # 10.6 点是否在多边形内（来自 1265_toms112）
+
     from mesh_builder import point_in_polygon
     x_poly = [0, 10, 10, 0]
     y_poly = [0, 0, 10, 10]
@@ -356,9 +339,9 @@ def main():
     print(f"  点(5,5) 在多边形内 = {inside} (理论=True)")
     print(f"  点(15,5) 在多边形内 = {outside} (理论=False)")
 
-    # ==========================================================================
-    # 11. 结果汇总
-    # ==========================================================================
+
+
+
     print_section("11. 结果汇总")
     print(f"  求解域: 水平 {r_max/1000:.1f} km × 深度 {z_max:.0f} m")
     print(f"  网格规模: {mesh.nr} × {mesh.nz} = {mesh.nr*mesh.nz:,} 节点")

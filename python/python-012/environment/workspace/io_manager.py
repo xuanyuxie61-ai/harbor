@@ -1,41 +1,15 @@
-"""
-Data I/O Manager for Transport Simulations
-===========================================
-Manages structured reading and writing of simulation data,
-inspired by tec_io (project 1197).
-
-Provides:
-- Structured text output for simulation parameters and results
-- Data file parsing utilities
-- Formatted matrix and vector printing
-- Zone-based data organization (similar to Tecplot format)
-
-All output is text-based and non-visual.
-"""
 
 import numpy as np
 import os
 
 
 class IOManager:
-    """
-    Handles data input/output for the transport simulation.
-    """
 
     def __init__(self, output_dir="."):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 
     def write_simulation_header(self, filename, params):
-        """
-        Write simulation parameters to a structured text file.
-
-        Parameters
-        ----------
-        filename : str
-        params : dict
-            Dictionary of simulation parameters.
-        """
         filepath = os.path.join(self.output_dir, filename)
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write("# ==========================================================\n")
@@ -53,46 +27,14 @@ class IOManager:
             f.write("# ==========================================================\n")
 
     def write_matrix(self, filename, matrix, title="Matrix", fmt="%.10e"):
-        """
-        Write a matrix to a text file with formatting.
-
-        Parameters
-        ----------
-        filename : str
-        matrix : ndarray
-        title : str
-        fmt : str
-        """
         filepath = os.path.join(self.output_dir, filename)
         np.savetxt(filepath, matrix, fmt=fmt, header=title, comments='# ')
 
     def write_vector(self, filename, vector, title="Vector", fmt="%.10e"):
-        """
-        Write a vector to a text file.
-
-        Parameters
-        ----------
-        filename : str
-        vector : ndarray
-        title : str
-        fmt : str
-        """
         filepath = os.path.join(self.output_dir, filename)
         np.savetxt(filepath, vector, fmt=fmt, header=title, comments='# ')
 
     def write_zone_data(self, filename, title, variables, data_dict):
-        """
-        Write zone-structured data similar to Tecplot format.
-
-        Parameters
-        ----------
-        filename : str
-        title : str
-        variables : list
-            List of variable names.
-        data_dict : dict
-            Dictionary mapping variable names to 1D arrays.
-        """
         filepath = os.path.join(self.output_dir, filename)
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(f'TITLE = "{title}"\n')
@@ -107,22 +49,9 @@ class IOManager:
                 f.write(' '.join([f'{v:18.10e}' for v in row]) + '\n')
 
     def parse_variable_line(self, line):
-        """
-        Parse a variable definition line.
-
-        Inspired by tec_variable_line_parse (project 1197).
-
-        Parameters
-        ----------
-        line : str
-
-        Returns
-        -------
-        variables : list
-        """
         line = line.strip()
         if line.upper().startswith('VARIABLES'):
-            # Extract quoted strings
+
             vars_list = []
             in_quote = False
             current = ''
@@ -138,18 +67,6 @@ class IOManager:
         return []
 
     def read_zone_data(self, filename):
-        """
-        Read zone-structured data from a file.
-
-        Parameters
-        ----------
-        filename : str
-
-        Returns
-        -------
-        data_dict : dict
-            Dictionary of variable arrays.
-        """
         filepath = os.path.join(self.output_dir, filename)
         if not os.path.exists(filepath):
             return {}
@@ -185,15 +102,6 @@ class IOManager:
         return {k: np.array(v) for k, v in data.items()}
 
     def write_transport_results(self, filename, results):
-        """
-        Write transport coefficient results.
-
-        Parameters
-        ----------
-        filename : str
-        results : dict
-            Dictionary of results.
-        """
         filepath = os.path.join(self.output_dir, filename)
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write("# ==========================================================\n")
@@ -211,17 +119,6 @@ class IOManager:
             f.write("# ==========================================================\n")
 
     def print_matrix_transpose(self, matrix, title="", max_rows=10, max_cols=10):
-        """
-        Pretty-print a matrix in transposed layout.
-
-        Inspired by r8mat_transpose_print from project 1197.
-
-        Parameters
-        ----------
-        matrix : ndarray
-        title : str
-        max_rows, max_cols : int
-        """
         print(f"\n{title}")
         m, n = matrix.shape
         rows_to_print = min(m, max_rows)

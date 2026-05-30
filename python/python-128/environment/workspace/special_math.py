@@ -1,67 +1,24 @@
-"""
-special_math.py
-===============
-博士级科学计算特殊函数库
-
-融合原始项目：
-  - 1096_sncndn：Jacobi 椭圆函数 SN, CN, DN (Bulirsch 算术-几何平均法)
-  - 219_cordic：CORDIC 迭代算法用于高效三角函数计算
-  - 058_atkinson：三对角线性系统 LU 分解与求解
-
-数学物理模型：
-  1. Jacobi 椭圆函数定义：
-       u = ∫_0^φ dt / √(1 - m sin² t)
-       sn(u|m) = sin φ,  cn(u|m) = cos φ,  dn(u|m) = √(1 - m sin² φ)
-  2. CORDIC 旋转矩阵：
-       R_j = [ 1,      -σ_j 2^{-j} ;
-               σ_j 2^{-j},   1      ]
-       其中 σ_j = sign(θ_j)
-  3. 三对角系统 M x = f 的 LU 分解：
-       α_j = a_j / β_{j-1},   β_j = b_j - α_j c_{j-1}
-"""
 
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# Jacobi Elliptic Functions (from 1096_sncndn)
-# ---------------------------------------------------------------------------
+
+
+
 def jacobi_elliptic(u: float, m: float, maxit: int = 25):
-    """
-    计算 Jacobi 椭圆函数 sn(u|m), cn(u|m), dn(u|m)。
-
-    采用 Bulirsch 算术-几何平均 (AGM) 迭代法：
-        令 m_comp = 1 - m，对 m_comp 重复开平方直至收敛：
-            a_{k+1} = (a_k + √(a_k b_k)) / 2
-        收敛后利用反三角函数关系恢复 sn, cn, dn。
-
-    参数
-    ----
-    u : float
-        自变量 u (实数)
-    m : float
-        参数 m (0 ≤ m ≤ 1 为常规情形，m > 1 时自动进行模变换)
-    maxit : int
-        最大迭代次数
-
-    返回
-    ----
-    sn, cn, dn : float
-        Jacobi 椭圆函数值
-    """
     if not np.isfinite(u) or not np.isfinite(m):
         raise ValueError("jacobi_elliptic: u 和 m 必须为有限实数")
 
     m_comp = 1.0 - m
     u_copy = float(u)
 
-    # 边界情况 m = 1
+
     if abs(m_comp) < 1e-15:
         if abs(u_copy) < 1e-15:
             return 0.0, 1.0, 1.0
         return np.tanh(u_copy), 1.0 / np.cosh(u_copy), 1.0 / np.cosh(u_copy)
 
-    # 模变换处理 m > 1
+
     if m > 1.0:
         d = 1.0 - m_comp
         if abs(d) < 1e-15:
@@ -120,9 +77,9 @@ def jacobi_elliptic(u: float, m: float, maxit: int = 25):
     return sn, cn, dn
 
 
-# ---------------------------------------------------------------------------
-# CORDIC Sine/Cosine (from 219_cordic)
-# ---------------------------------------------------------------------------
+
+
+
 CORDIC_ANGLES = np.array([
     7.8539816339744830962E-01, 4.6364760900080611621E-01, 2.4497866312686415417E-01,
     1.2435499454676143503E-01, 6.2418809995957348474E-02, 3.1239833430268276254E-02,
@@ -162,40 +119,19 @@ CORDIC_KPROD = np.array([
 
 
 def cordic_sin_cos(beta: float, n: int = 30):
-    """
-    CORDIC 算法计算 cos(β), sin(β)。
-
-    算法核心：将角度 β 分解为一系列预定小角度 θ_j 的加权和：
-        β = Σ σ_j θ_j,   σ_j ∈ {+1, -1}
-    通过迭代旋转向量 [1, 0]^T，每次旋转角度 σ_j θ_j：
-        x_{j+1} = x_j - σ_j y_j 2^{-j}
-        y_{j+1} = y_j + σ_j x_j 2^{-j}
-    最终乘以收敛常数 K_n = Π_j cos(θ_j) 进行模长校正。
-
-    参数
-    ----
-    beta : float
-        输入角度（弧度）
-    n : int
-        CORDIC 迭代次数（≥10 可获得较好精度）
-
-    返回
-    ----
-    cos_val, sin_val : float
-    """
     if not np.isfinite(beta):
         raise ValueError("cordic_sin_cos: beta 必须为有限实数")
     if n < 1:
         raise ValueError("cordic_sin_cos: 迭代次数 n 必须 ≥ 1")
 
-    # 将角度归约到 [-π, π]
+
     theta = beta % (2.0 * np.pi)
     if theta > np.pi:
         theta -= 2.0 * np.pi
     elif theta < -np.pi:
         theta += 2.0 * np.pi
 
-    # 进一步归约到 [-π/2, π/2]
+
     sign_factor = 1.0
     if theta < -0.5 * np.pi:
         theta += np.pi
@@ -230,44 +166,16 @@ def cordic_sin_cos(beta: float, n: int = 30):
     return sign_factor * x, sign_factor * y
 
 
-# ---------------------------------------------------------------------------
-# Tridiagonal Solver (from 058_atkinson)
-# ---------------------------------------------------------------------------
+
+
+
 def tridiag_solve(a: np.ndarray, b: np.ndarray, c: np.ndarray, f: np.ndarray):
-    """
-    求解三对角线性系统 M x = f，其中：
-        M(i, i-1) = a[i]   (i = 1..n-1, 0-indexed)
-        M(i, i)   = b[i]   (i = 0..n-1)
-        M(i, i+1) = c[i]   (i = 0..n-2)
 
-    采用 LU 分解：
-        α_i = a_i / β_{i-1}
-        β_i = b_i - α_i c_{i-1}
-    前代：  f_i ← f_i - α_i f_{i-1}
-    回代：  x_n = f_n / β_n,  x_i = (f_i - c_i x_{i+1}) / β_i
-
-    参数
-    ----
-    a, b, c, f : np.ndarray
-        一维数组，长度均为 n
-
-    返回
-    ----
-    x : np.ndarray
-        解向量
-
-    TODO (Hole 2): 实现三对角矩阵的 LU 分解与前代/回代求解。
-    注意输入数组 a, b, c, f 的内存覆盖语义与边界条件处理。
-    """
-    # === HOLE 2 BEGIN ===
     raise NotImplementedError("Hole 2: tridiag_solve 尚未实现")
-    # === HOLE 2 END ===
+
 
 
 def tridiag_solve_multi(a, b, c, F):
-    """
-    对多右端项求解三对角系统（用于时间步进中批量求解空间切片）。
-    """
     n = F.shape[0]
     nrhs = F.shape[1] if F.ndim > 1 else 1
     X = np.zeros_like(F)

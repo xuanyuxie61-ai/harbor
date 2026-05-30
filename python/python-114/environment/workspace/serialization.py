@@ -1,30 +1,9 @@
-"""
-serialization.py
-Molecular geometry and simulation data serialization utilities.
-
-Derived from: 1241_tet_mesh_to_xml + 1197_tec_io
-
-Provides structured output of molecular geometries, potential fields,
-and Markov state models in XML and TECPLOT-compatible formats for
-interoperability with external molecular visualization and analysis tools.
-"""
 
 import numpy as np
 from io import StringIO
 
 
 def export_tecplot_2d(filename, x, y, fields, field_names):
-    """
-    Export a 2D scalar field to TECPLOT format.
-
-    Parameters
-    ----------
-    filename : str
-    x : ndarray, shape (nx,)
-    y : ndarray, shape (ny,)
-    fields : list of ndarray, shape (nx, ny)
-    field_names : list of str
-    """
     nx, ny = len(x), len(y)
     var_str = ", ".join(f'"{name}"' for name in (["X", "Y"] + field_names))
     lines = []
@@ -44,15 +23,6 @@ def export_tecplot_2d(filename, x, y, fields, field_names):
 
 
 def export_xml_state(filename, state_dict):
-    """
-    Export simulation state to a simplified XML format.
-
-    Parameters
-    ----------
-    filename : str
-    state_dict : dict
-        Dictionary of scalar and vector quantities.
-    """
     lines = []
     lines.append('<?xml version="1.0"?>')
     lines.append('<SimulationState>')
@@ -71,20 +41,6 @@ def export_xml_state(filename, state_dict):
 
 
 def read_tecplot_zone(data_string):
-    """
-    Read a TECPLOT zone data section (after ZONE line) into structured arrays.
-
-    Parameters
-    ----------
-    data_string : str
-
-    Returns
-    -------
-    data : ndarray
-        Array of shape (nx*ny, n_vars).
-    nx, ny : int
-    var_names : list
-    """
     lines = data_string.strip().splitlines()
     var_names = []
     nx, ny = 1, 1
@@ -94,7 +50,7 @@ def read_tecplot_zone(data_string):
         if not line:
             continue
         if line.upper().startswith("VARIABLES"):
-            # Extract quoted variable names
+
             import re
             var_names = re.findall(r'"([^"]+)"', line)
         elif line.upper().startswith("ZONE"):
@@ -121,9 +77,6 @@ def read_tecplot_zone(data_string):
 
 
 def serialize_sparse_matrix_coo(rows, cols, data, filename):
-    """
-    Write a sparse matrix in COO format to a simple coordinate text file.
-    """
     with open(filename, "w") as f:
         f.write("%%SparseMatrix coordinate real general\n")
         f.write(f"{max(rows)+1} {max(cols)+1} {len(data)}\n")

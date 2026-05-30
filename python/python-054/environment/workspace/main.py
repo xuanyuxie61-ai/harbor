@@ -1,38 +1,10 @@
-"""
-main.py
-================================================================================
-海洋酸化与碳循环综合模拟系统 — 统一入口
-
-项目编号: PROJECT_54
-科学领域: 海洋科学 — 海洋酸化与碳循环
-
-运行方式: python main.py （零参数）
-
-本程序综合集成了以下 15 个种子项目的核心算法：
-    1. shepard_interp_nd        → 稀疏观测数据插值
-    2. zero_muller              → 碳酸盐系统质子平衡求根
-    3. grf_io                   → 海洋区域连通性图网络
-    4. tsp_moler                → 监测站点最优巡航路径
-    5. hermite_cubic            → 垂直剖面高阶插值与层化分析
-    6. mesh_bandwidth           → 有限元网格带宽分析
-    7. opt_golden               → 碳封存深度黄金分割优化
-    8. quadrilateral_mesh       → 二维海洋区域 Q4 网格生成
-    9. euler                    → 碳输送方程显式欧拉积分
-    10. cvt_corn                → 监测传感器 CVT 最优布点
-    11. autocatalytic_ode       → 碳酸盐自催化反应动力学
-    12. image_edge              → 海洋锋面 NEWS 梯度检测
-    13. cube_felippa_rule       → 三维碳库存高斯求积
-    14. tetrahedron_keast_rule  → 非结构化四面体求积
-    15. hypersphere_integrals   → 高维参数空间敏感性分析
-================================================================================
-"""
 
 import numpy as np
 import sys
 
-# =============================================================================
-# 导入各模块
-# =============================================================================
+
+
+
 from carbonate_chemistry import (
     solve_carbonate_system,
     equilibrium_constants,
@@ -111,21 +83,19 @@ from region_connectivity import (
 
 
 def print_section(title):
-    """打印分隔章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def demo_carbonate_chemistry():
-    """演示碳酸盐化学系统求解。"""
     print_section("模块 1: 碳酸盐化学系统与 Muller 根查找")
     
-    # 典型海水参数
-    DIC = 2.0e-3   # mol/kg
-    TA = 2.3e-3    # mol/kg
-    T = 15.0       # °C
-    S = 35.0       # psu
+
+    DIC = 2.0e-3
+    TA = 2.3e-3
+    T = 15.0
+    S = 35.0
     
     print(f"输入: DIC={DIC*1e6:.1f} μmol/kg, TA={TA*1e6:.1f} μmol/kg, T={T}°C, S={S}")
     
@@ -139,14 +109,14 @@ def demo_carbonate_chemistry():
     print(f"  Ω_aragonite = {result['Omega_aragonite']:.3f}")
     print(f"  Muller 迭代次数: {result['iters']}")
     
-    # [HOLE 3] 需要补全海-气通量演示计算：
-    #   1. 调用 air_sea_co2_flux，传入 result['pCO2'] 作为表层 pCO2
-    #      注意：result['pCO2'] 的单位为 μatm，与函数签名一致
-    #   2. 打印通量结果，判断是吸收还是释放
-    #   提示：此处依赖 carbonate_chemistry.py 返回字典中 'pCO2' 键的存在和单位约定
+
+
+
+
+
     raise NotImplementedError("HOLE 3: 海-气通量调用与结果输出待补全")
     
-    # 批量求解多个深度
+
     depths = np.array([0, 50, 100, 200, 500, 1000])
     DIC_profile = 2000.0 + 300.0 * (1.0 - np.exp(-depths / 800.0))
     TA_profile = DIC_profile + 100.0
@@ -161,10 +131,9 @@ def demo_carbonate_chemistry():
 
 
 def demo_ocean_mesh():
-    """演示海洋网格生成与带宽分析。"""
     print_section("模块 2: 海洋 Q4 网格生成与带宽分析")
     
-    Lx, Ly = 500.0, 500.0  # km
+    Lx, Ly = 500.0, 500.0
     nx, ny = 20, 20
     
     node_xy, element_node, nx_out, ny_out = generate_ocean_rectangle_mesh(
@@ -181,20 +150,19 @@ def demo_ocean_mesh():
     boundary_edges, n_bound = compute_boundary_edges(element_node)
     print(f"  边界边数: {n_bound}")
     
-    # 半圆网格
+
     node_xy_semi, element_node_semi = generate_ocean_semicircle_mesh(
         R=200.0, nx=15, ny=20)
     print(f"\n半圆网格: {element_node_semi.shape[0]} 单元, {node_xy_semi.shape[0]} 节点")
     areas_semi, total_semi = compute_element_areas(node_xy_semi, element_node_semi)
     print(f"  半圆面积: {total_semi:.1f} km² (期望: {0.5*np.pi*200**2:.1f} km²)")
     
-    # 网格采样
+
     samples = sample_q4_mesh(node_xy, element_node, n_samples=100)
     print(f"  面积加权采样 {len(samples)} 个点")
 
 
 def demo_vertical_profiles():
-    """演示 Hermite 样条垂直剖面。"""
     print_section("模块 3: Hermite 三次样条垂直剖面")
     
     z_nodes = np.array([0, 10, 20, 50, 100, 200, 500, 1000, 2000, 4000])
@@ -213,7 +181,7 @@ def demo_vertical_profiles():
     print(f"  表层 T={T_interp[0]:.2f}°C, 深层 T={T_interp[-1]:.2f}°C")
     print(f"  表层 dT/dz={dTdz[0]:.4f} °C/m")
     
-    # Brunt-Väisälä 频率
+
     N2, z_mid = compute_brunt_vaisala_frequency(z_nodes, T_nodes, S_nodes, lat=30.0)
     print(f"\nBrunt-Väisälä 频率 (N²):")
     for i in range(len(z_mid)):
@@ -228,16 +196,15 @@ def demo_vertical_profiles():
     mld = mixed_layer_depth(z_nodes, T_nodes, threshold=0.5)
     print(f"\n  混合层深度 (MLD, ΔT=0.5°C): {mld:.1f} m")
     
-    # 样条积分
+
     T_int = integrate_hermite_spline(T_spline, 0, 4000)
     print(f"  温度积分 ∫T(z)dz = {T_int:.1f} °C·m")
 
 
 def demo_carbon_transport():
-    """演示碳输送模型。"""
     print_section("模块 4: 碳输送与反应动力学")
     
-    # 自催化碳酸盐动力学
+
     print("自催化碳酸盐动力学 (Gray-Scott 型):")
     y0 = np.array([500.0, 0.0, 0.0, 0.0])
     t, y = euler_forward(
@@ -249,9 +216,9 @@ def demo_carbon_transport():
     print(f"  t=1000天后: [CO₂*]={y[-1,0]:.1f}, [HCO₃⁻]={y[-1,1]:.1f}, "
           f"[CO₃²⁻]={y[-1,2]:.1f}, [CaCO₃]={y[-1,3]:.1f}")
     
-    # 箱式碳循环模型
+
     print("\n三箱碳循环模型 (大气-表层-深层):")
-    y0_box = np.array([750.0, 800.0, 37100.0])  # Pg C
+    y0_box = np.array([750.0, 800.0, 37100.0])
     t_box, y_box = box_carbon_cycle_model(
         (0, 200), y0_box, 200,
         k12=0.1, k21=0.05, k23=0.02, k32=0.01,
@@ -263,7 +230,7 @@ def demo_carbon_transport():
           f"深层={y_box[-1,2]:.1f} Pg C")
     print(f"  大气碳增量: {y_box[-1,0]-y0_box[0]:.1f} Pg C")
     
-    # 垂向输送模型 (简化版)
+
     print("\n一维垂向碳输送模型 (30天模拟):")
     z_grid = -np.linspace(0, 500, 11)
     DIC_init = 2000.0 + 200.0 * (1.0 - np.exp(np.abs(z_grid) / 800.0))
@@ -279,7 +246,7 @@ def demo_carbon_transport():
     print(f"  30天后表层 DIC: {DIC_hist[-1,0]:.1f} μmol/kg")
     print(f"  变化: {DIC_hist[-1,0]-DIC_hist[0,0]:+.1f} μmol/kg")
     
-    # 人为碳库存
+
     DIC_preindustrial = np.full_like(DIC_init, 1950.0)
     inventory = compute_anthropogenic_carbon_inventory(
         DIC_preindustrial, DIC_hist[-1], 1025.0, abs(z_grid[1]-z_grid[0])
@@ -288,22 +255,21 @@ def demo_carbon_transport():
 
 
 def demo_quadrature():
-    """演示三维数值积分。"""
     print_section("模块 5: 三维碳库存数值积分")
     
-    # 立方体积分
+
     def test_func(x, y, z):
         return x * y * z + 1.0
     
     a = [0, 0, 0]
     b = [1, 1, 1]
-    exact = 1.125  # ∫∫∫ (xyz+1) dxdydz = 1/8 + 1 = 1.125
+    exact = 1.125
     approx = integrate_over_cube(test_func, a, b, order_1d=(3, 3, 3))
     print(f"立方体测试积分: 精确={exact:.6f}, 数值={approx:.6f}, 误差={abs(approx-exact):.2e}")
     
-    # DIC 库存
+
     def DIC_func(x, y, z):
-        # 随深度增加 DIC，随 x,y 变化
+
         return 2.0e-3 + 3.0e-4 * (1.0 - np.exp(-z / 800.0)) + 1.0e-5 * np.sin(x / 100.0)
     
     def rho_func(x, y, z):
@@ -314,7 +280,7 @@ def demo_quadrature():
     )
     print(f"三维海域碳库存: {inventory:.3e} mol C")
     
-    # 四面体积分
+
     v = np.array([
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
@@ -324,12 +290,12 @@ def demo_quadrature():
     print(f"\n参考四面体体积: {vol:.6f} (期望: 1/6={1/6:.6f})")
     
     def f_tet(x, y, z):
-        return 1.0  # 积分应等于体积
+        return 1.0
     
     int_tet = integrate_over_tetrahedron(f_tet, v, rule_index=3)
     print(f"四面体常数积分: {int_tet:.6f} (期望: {1/6:.6f})")
     
-    # 超球面采样
+
     print(f"\n超球面采样测试 (S² 表面积):")
     for m in [2, 3, 4, 5]:
         area = hypersphere01_area(m)
@@ -341,10 +307,9 @@ def demo_quadrature():
 
 
 def demo_sensor_network():
-    """演示传感器网络部署。"""
     print_section("模块 6: CVT 传感器布点与 TSP 采样路径")
     
-    # 圆盘域 CVT
+
     generators, types = cvt_on_disk(
         n_generators=15, r=200.0, n_samples=8000,
         n_iterations=40, density_power=0.5
@@ -353,13 +318,13 @@ def demo_sensor_network():
     print(f"圆盘域 CVT: 15 个内部传感器 + {np.sum(types==1)} 个边界传感器")
     print(f"  内部传感器覆盖范围: 半径 200 km")
     
-    # TSP 路径规划
+
     if len(interior) >= 3:
         route = plan_ocean_sampling_route(interior, seed=42)
         print(f"  TSP 最优路径长度: {route['total_distance']:.1f} km")
         print(f"  路径经过 {len(route['path'])} 个站点")
     
-    # 矩形域
+
     generators_rect, types_rect = cvt_on_rectangle(
         n_generators=12, Lx=300.0, Ly=200.0,
         n_samples=8000, n_iterations=40
@@ -372,15 +337,14 @@ def demo_sensor_network():
 
 
 def demo_sparse_interpolation():
-    """演示稀疏数据插值。"""
     print_section("模块 7: 稀疏海洋观测 Shepard 插值")
     
-    # 生成模拟观测数据
+
     obs = generate_sparse_ocean_observations(n_points=40, seed=42)
     print(f"生成 {len(obs['DIC'])} 个稀疏观测点")
     print(f"  DIC 范围: [{obs['DIC'].min():.1f}, {obs['DIC'].max():.1f}] μmol/kg")
     
-    # 构建查询网格
+
     query_lons = np.linspace(obs['lons'].min(), obs['lons'].max(), 10)
     query_lats = np.linspace(obs['lats'].min(), obs['lats'].max(), 10)
     query_depths = np.full(100, 500.0)
@@ -388,7 +352,7 @@ def demo_sparse_interpolation():
     q_lons = q_lons.flatten()
     q_lats = q_lats.flatten()
     
-    # 3D Shepard 插值
+
     DIC_interp = shepard_interp_3d_ocean(
         obs['lons'], obs['lats'], obs['depths'], obs['DIC'],
         q_lons, q_lats, query_depths, p=2.0,
@@ -397,7 +361,7 @@ def demo_sparse_interpolation():
     print(f"  插值到 {len(DIC_interp)} 个网格点")
     print(f"  插值 DIC 范围: [{DIC_interp.min():.1f}, {DIC_interp.max():.1f}] μmol/kg")
     
-    # 交叉验证选择最优 p
+
     data_coords = np.zeros((3, len(obs['DIC'])))
     data_coords[0, :] = obs['lons'] / 10.0
     data_coords[1, :] = obs['lats'] / 10.0
@@ -411,33 +375,32 @@ def demo_sparse_interpolation():
 
 
 def demo_front_detection():
-    """演示锋面检测。"""
     print_section("模块 8: 海洋锋面 NEWS 梯度检测")
     
-    # 生成一个带有锋面的温度场
+
     ny, nx = 40, 40
     x = np.linspace(0, 500, nx)
     y = np.linspace(0, 500, ny)
     X, Y = np.meshgrid(x, y)
     
-    # 模拟冷锋：北侧冷水，南侧暖水
+
     T_field = 20.0 - 8.0 * (1.0 + np.tanh((Y - 250.0) / 30.0)) / 2.0
     T_field += np.random.normal(0, 0.3, (ny, nx))
     
-    # 盐度锋
+
     S_field = 35.0 + 1.5 * (1.0 + np.tanh((Y - 250.0) / 40.0)) / 2.0
     
-    # DIC 锋
+
     DIC_field = 2000.0 + 100.0 * (1.0 + np.tanh((Y - 250.0) / 35.0)) / 2.0
     
     print(f"生成 {ny}×{nx} 海洋场，模拟 y=250km 处锋面")
     
-    # NEWS 梯度
+
     grad_T = news_gradient(T_field)
     print(f"  T 场 NEWS 梯度均值: {grad_T.mean():.3f} °C/km")
     print(f"  T 场 NEWS 梯度最大: {grad_T.max():.3f} °C/km")
     
-    # 多变量锋面检测
+
     fronts = detect_fronts_multi_field(
         {'T': T_field, 'S': S_field, 'DIC': DIC_field},
         weights={'T': 1.0, 'S': 0.5, 'DIC': 0.3},
@@ -447,14 +410,13 @@ def demo_front_detection():
     n_front_pixels = np.sum(fronts['front_mask'])
     print(f"  检测到锋面像素: {n_front_pixels} ({100*n_front_pixels/(ny*nx):.1f}%)")
     
-    # 锋面统计
+
     stats = front_statistics(fronts['front_mask'], T_field, dx=500/40, dy=500/40)
     print(f"  锋面长度: {stats['front_length_km']:.1f} km")
     print(f"  锋面平均梯度: {stats['front_mean_gradient']:.3f} °C/km")
 
 
 def demo_sequestration():
-    """演示碳封存优化。"""
     print_section("模块 9: 海洋碳封存深度优化 (黄金分割)")
     
     result = optimize_sequestration_depth(
@@ -469,7 +431,7 @@ def demo_sequestration():
     print(f"  酸化影响指数: {result['acidification_impact']:.4f}")
     print(f"  优化迭代次数: {result['iterations']}")
     
-    # 多情景对比
+
     print(f"\n多情景封存对比:")
     scenarios = [
         {'name': '低扩散_静风', 'K_z': 5e-5, 'w': 0.0, 'injection_rate': 1.0},
@@ -483,10 +445,9 @@ def demo_sequestration():
 
 
 def demo_uncertainty():
-    """演示不确定性分析。"""
     print_section("模块 10: 碳循环参数不确定性量化 (超球面采样)")
     
-    # pH 和饱和度的不确定性
+
     result = carbon_cycle_uncertainty_analysis(
         DIC_surf=2000.0, TA_surf=2300.0, T=15.0, S=35.0,
         n_samples=300, seed=42
@@ -511,37 +472,35 @@ def demo_uncertainty():
 
 
 def demo_region_connectivity():
-    """演示区域连通性图。"""
     print_section("模块 11: 海洋区域连通性图网络")
     
     graph = create_ocean_basin_graph(n_regions=10, basin_radius=300.0, seed=42)
     print(f"创建海洋盆地图: {graph.n_nodes} 个区域, {graph.n_edges} 条连通边")
     
-    # 连通分量
+
     components = graph.connected_components()
     print(f"  连通分量数: {len(components)}")
     
-    # 最短路径分析
+
     path_result = carbon_transport_path_analysis(graph, 0, 5)
     if path_result['path_exists']:
         print(f"  区域 0 → 区域 5 最短路径:")
         print(f"    路径长度(阻抗): {path_result['path_length']:.4f}")
         print(f"    经过区域: {' → '.join(str(n) for n in path_result['path_nodes'])}")
     
-    # GRF 序列化
+
     grf_str = graph.to_grf_string()
     lines = grf_str.split("\n")
     print(f"  GRF 格式输出 ({len(lines)} 行):")
     for line in lines[:3]:
         print(f"    {line[:80]}...")
     
-    # 解析测试
+
     graph2 = OceanRegionGraph.from_grf_string(grf_str)
     print(f"  解析验证: {graph2.n_nodes} 节点, {graph2.n_edges} 边")
 
 
 def main():
-    """主程序：依次运行所有演示模块。"""
     np.random.seed(42)
     
     print("\n" + "=" * 70)

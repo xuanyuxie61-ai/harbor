@@ -1,56 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-linear_solvers.py
-线性系统求解器：共轭梯度法、重启 GMRES、Cholesky 分解。
-用于求解化学-输运耦合模型中产生的稀疏/稠密线性系统。
-
-融合来源：
-  - 149_cg: 共轭梯度法（CG）
-  - 760_mgmres: 重启 GMRES
-  - 026_asa007: Cholesky 分解
-"""
 
 import numpy as np
 from numpy.linalg import norm
 
 
 def conjugate_gradient(A, b, x0=None, tol=1e-10, max_iter=None):
-    r"""
-    共轭梯度法（CG）求解对称正定线性系统：
-
-        A \mathbf{x} = \mathbf{b}
-
-    迭代格式：
-
-        \mathbf{r}_0 = \mathbf{b} - A \mathbf{x}_0,
-        \mathbf{p}_0 = \mathbf{r}_0,
-        \alpha_k = \frac{\mathbf{r}_k^T \mathbf{r}_k}{\mathbf{p}_k^T A \mathbf{p}_k},
-        \mathbf{x}_{k+1} = \mathbf{x}_k + \alpha_k \mathbf{p}_k,
-        \mathbf{r}_{k+1} = \mathbf{r}_k - \alpha_k A \mathbf{p}_k,
-        \beta_k = \frac{\mathbf{r}_{k+1}^T \mathbf{r}_{k+1}}{\mathbf{r}_k^T \mathbf{r}_k},
-        \mathbf{p}_{k+1} = \mathbf{r}_{k+1} + \beta_k \mathbf{p}_k
-
-    Parameters
-    ----------
-    A : ndarray or callable
-        若 ndarray，则为系数矩阵；若 callable，则为矩阵-向量乘积函数 A(v)。
-    b : ndarray, shape (n,)
-    x0 : ndarray, optional
-        初始猜测，默认零向量。
-    tol : float
-        相对残差容差。
-    max_iter : int, optional
-        最大迭代次数，默认 n。
-
-    Returns
-    -------
-    x : ndarray
-        近似解。
-    residual : float
-        最终残差范数。
-    iters : int
-        实际迭代次数。
-    """
     b = np.asarray(b, dtype=float).ravel()
     n = b.size
     if x0 is None:
@@ -93,24 +47,6 @@ def conjugate_gradient(A, b, x0=None, tol=1e-10, max_iter=None):
 
 
 def mult_givens(c, s, k, g):
-    r"""
-    Givens 旋转应用于向量 g：
-
-        \begin{bmatrix} c & -s \\ s & c \end{bmatrix}
-        \begin{bmatrix} g_k \\ g_{k+1} \end{bmatrix}
-
-    Parameters
-    ----------
-    c, s : float
-        旋转参数。
-    k : int
-        0-based 起始索引。
-    g : ndarray
-
-    Returns
-    -------
-    g : ndarray
-    """
     g = np.asarray(g, dtype=float).copy()
     g1 = c * g[k] - s * g[k + 1]
     g2 = s * g[k] + c * g[k + 1]
@@ -120,33 +56,6 @@ def mult_givens(c, s, k, g):
 
 
 def gmres_restart(Ax, b, x0=None, max_iter=100, restart=30, tol_abs=1e-10, tol_rel=1e-6):
-    r"""
-    重启 GMRES 求解一般线性系统：
-
-        A \mathbf{x} = \mathbf{b}
-
-    使用 Krylov 子空间 K_m = \text{span}\{r_0, A r_0, \dots, A^{m-1} r_0\}
-    并通过 Arnoldi 过程构造 Hessenberg 矩阵 H_m。
-
-    Parameters
-    ----------
-    Ax : callable
-        矩阵-向量乘积函数，输入 ndarray，输出 ndarray。
-    b : ndarray, shape (n,)
-    x0 : ndarray, optional
-    max_iter : int
-        外迭代最大次数。
-    restart : int
-        Krylov 子空间维数 m（restart）。
-    tol_abs, tol_rel : float
-        绝对与相对残差容差。
-
-    Returns
-    -------
-    x : ndarray
-    residual : float
-    iters : int
-    """
     b = np.asarray(b, dtype=float).ravel()
     n = b.size
     if x0 is None:
@@ -232,32 +141,6 @@ def gmres_restart(Ax, b, x0=None, max_iter=100, restart=30, tol_abs=1e-10, tol_r
 
 
 def cholesky_factor(a, n, eta=1e-09):
-    r"""
-    Cholesky 分解：对对称正定矩阵 A，计算上三角矩阵 U 使得
-
-        A = U^T U
-
-    输入 A 按行存储下三角部分为长度为 n(n+1)/2 的一维数组：
-    a[0]=A_{11}, a[1]=A_{21}, a[2]=A_{22}, a[3]=A_{31}, ...
-
-    Parameters
-    ----------
-    a : ndarray
-        压缩存储的 SPD 矩阵元素。
-    n : int
-        矩阵阶数。
-    eta : float
-        数值稳定性参数。
-
-    Returns
-    -------
-    u : ndarray
-        Cholesky 因子（按列存储上三角部分）。
-    nullty : int
-        秩亏量。
-    ifault : int
-        0=成功, 1=n<1, 2=非半正定, 3=数组过小。
-    """
     nn = len(a)
     req = n * (n + 1) // 2
     if n <= 0:
@@ -307,23 +190,10 @@ def cholesky_factor(a, n, eta=1e-09):
 
 
 def cholesky_solve_dense(A, b):
-    r"""
-    使用稠密 Cholesky 分解求解 SPD 系统 A x = b。
-
-    Parameters
-    ----------
-    A : ndarray, shape (n, n)
-        对称正定矩阵。
-    b : ndarray, shape (n,)
-
-    Returns
-    -------
-    x : ndarray
-    """
     A = np.asarray(A, dtype=float)
     b = np.asarray(b, dtype=float)
     n = A.shape[0]
-    # 压缩下三角
+
     a = np.zeros(n * (n + 1) // 2)
     idx = 0
     for i in range(n):
@@ -332,10 +202,10 @@ def cholesky_solve_dense(A, b):
             idx += 1
     u, nullty, ifault = cholesky_factor(a, n)
     if ifault != 0:
-        # 回退到 numpy
+
         return np.linalg.solve(A, b)
 
-    # 从压缩 u 重建上三角 U
+
     U = np.zeros((n, n))
     idx = 0
     for j in range(n):
@@ -343,7 +213,7 @@ def cholesky_solve_dense(A, b):
             U[i, j] = u[idx]
             idx += 1
 
-    # 解 U^T y = b
+
     y = np.zeros(n)
     for i in range(n):
         y[i] = b[i]
@@ -354,7 +224,7 @@ def cholesky_solve_dense(A, b):
         else:
             y[i] /= U[i, i]
 
-    # 解 U x = y
+
     x = np.zeros(n)
     for i in range(n - 1, -1, -1):
         x[i] = y[i]

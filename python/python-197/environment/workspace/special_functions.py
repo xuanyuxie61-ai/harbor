@@ -1,26 +1,9 @@
-"""
-special_functions.py
-================================================================================
-高性能计算检查点容错：核心特殊函数与统计分布模块
-
-融合原项目：
-  - 035_asa091 (Gamma / Chi2 / Normal 分布)
-  - 036_asa103 (Digamma 函数)
-  - 448_fresnel (Fresnel 积分)
-
-科学角色：
-  1) 故障到达时间服从 Gamma/Chi2/Weibull 分布，需要高精度的 CDF/逆 CDF；
-  2) Digamma 用于故障分布的统计矩与熵分析；
-  3) Fresnel 积分用于波动方程检查点精度验证。
-================================================================================
-"""
 
 import math
 import numpy as np
 
 
 def alnorm(x: float, upper: bool = False) -> float:
-    """AS 66: 标准正态尾概率 P(Z > x) 或 P(Z <= x)。"""
     if x < 0.0:
         z = -x
         up = not upper
@@ -54,7 +37,6 @@ def alnorm(x: float, upper: bool = False) -> float:
 
 
 def gammad(x: float, p: float):
-    """AS 239: 不完全 Gamma P(x, p) = (1/Gamma(p)) int_0^x t^{p-1} e^{-t} dt。"""
     if x < 0.0 or p <= 0.0:
         return 0.0, 1
     if x == 0.0:
@@ -100,7 +82,6 @@ def gammad(x: float, p: float):
 
 
 def ppchi2(p: float, v: float, g: float = None):
-    """AS 91: Chi2 分布的 p 分位数（逆 CDF）。"""
     if p < 0.0 or p > 1.0 or v <= 0.0:
         return 0.0, 1
     if g is None:
@@ -150,7 +131,6 @@ def ppchi2(p: float, v: float, g: float = None):
 
 
 def ppnd(p: float):
-    """AS 111: 标准正态逆 CDF。"""
     if p <= 0.0 or p >= 1.0:
         return 0.0, 1
     q = p - 0.5
@@ -191,7 +171,6 @@ def ppnd(p: float):
 
 
 def digamma(x: float):
-    """AS 103: Digamma 函数 psi(x) = Gamma'(x)/Gamma(x)。"""
     if x <= 0.0:
         return 0.0, 1
     if x <= 1.0e-6:
@@ -209,19 +188,17 @@ def digamma(x: float):
     return value, 0
 
 
-# =============================================================================
-# Fresnel 积分 —— 使用 SciPy 保证精度，同时保留 Zhang & Jin 分段实现
-# =============================================================================
+
+
+
 try:
     from scipy.special import fresnel as _sp_fresnel
 
     def fresnel(x: float):
-        """C(x), S(x) -- 调用 SciPy 实现。"""
         c, s = _sp_fresnel(x)
         return float(c), float(s)
 except ImportError:
     def fresnel(x: float):
-        """纯 Python 分段实现（备用）。"""
         if x == 0.0:
             return 0.0, 0.0
         xa = abs(x)
@@ -287,12 +264,10 @@ except ImportError:
 
 
 def fresnel_cos(x: float) -> float:
-    """仅返回 C(x)。"""
     c, _ = fresnel(x)
     return c
 
 
 def fresnel_sin(x: float) -> float:
-    """仅返回 S(x)。"""
     _, s = fresnel(x)
     return s

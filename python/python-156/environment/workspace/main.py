@@ -1,39 +1,10 @@
-"""
-main.py
-=======
-湍流燃烧火焰面模型的统一入口程序。
-
-本程序执行完整的博士级科学计算流程：
-1. 初始化物理参数与混合分数空间离散；
-2. 使用 FEM/FDM 求解稳态火焰面温度与组分分布；
-3. 进行点火/熄火极限分析（多项式求根）；
-4. 生成湍流随机脉动场并修正标量耗散率；
-5. 计算火焰前锋几何与曲率效应；
-6. 3D 燃烧室网格生成与带宽分析；
-7. 守恒律校验与误差分析；
-8. 综合结果输出。
-
-科学背景：
-----------
-基于 Peters (1986) 的稳态层流火焰面模型（SLFM），求解非预混湍流
-燃烧中混合分数空间内的温度与组分分布。火焰面模型假设化学反应发生
-在极薄的层流火焰面内，湍流的作用通过标量耗散率 χ(Z) 体现。
-
-核心控制方程：
-    ρ(Z) χ(Z)/2 * d²T/dZ² + ω̇_T = 0
-    ρ(Z) χ(Z)/2 * d²Y_k/dZ² + ω̇_k = 0
-
-边界条件：
-    Z=0 (氧化剂侧): T=T_ox, Y_F=0, Y_O=Y_{O,0}
-    Z=1 (燃料侧):   T=T_fuel, Y_F=Y_{F,0}, Y_O=0
-"""
 
 import numpy as np
 import sys
 
-# =====================================================================
-# 导入所有科研模块
-# =====================================================================
+
+
+
 from flamelet_core import (
     scalar_dissipation_rate,
     density_mixture,
@@ -65,14 +36,12 @@ from exact_benchmark import manufactured_solution_temperature, gaussian_flamelet
 
 
 def print_section(title):
-    """打印格式化章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def main():
-    """主程序入口，零参数可运行。"""
 
     np.random.seed(42)
 
@@ -80,14 +49,14 @@ def main():
     print("科学领域: 燃烧科学 - 湍流燃烧火焰面模型 (SLFM)")
     print("问题难度: 博士级前沿科学计算")
 
-    # =====================================================================
-    # 1. 初始化参数与网格
-    # =====================================================================
+
+
+
     print_section("1. 初始化物理参数与混合分数空间离散")
 
-    n_nodes = 65  # 奇数，适配二次FEM
+    n_nodes = 65
     Z_nodes = np.linspace(0.0, 1.0, n_nodes)
-    chi_st = 2.0  # 化学计量标量耗散率，s⁻¹
+    chi_st = 2.0
 
     bc = flamelet_boundary_conditions()
     print(f"  节点数: {n_nodes}")
@@ -97,23 +66,23 @@ def main():
     print(f"  绝热火焰温度 T_ad = {bc['T_ad']:.1f} K")
     print(f"  标量耗散率 χ_st = {chi_st:.2e} s⁻¹")
 
-    # 初始猜测场
-    # 温度：在 Z_st 附近给出高温点火核，峰值低于绝热温度
+
+
     T_peak = 1500.0
     T_init = T_OXIDIZER + (T_peak - T_OXIDIZER) * np.exp(
         -((Z_nodes - Z_STOICHIOMETRIC) ** 2) / (2.0 * 0.06 ** 2)
     )
     T_init = np.clip(T_init, T_OXIDIZER, 2200.0)
 
-    # 燃料：在氧化剂侧几乎为 0，燃料侧接近 1
+
     Y_F_init = np.clip(Z_nodes ** 1.5, 0.0, 1.0)
 
-    # 氧化剂：在燃料侧几乎为 0，氧化剂侧接近 0.232
+
     Y_O_init = np.clip(0.232 * (1.0 - Z_nodes ** 0.8), 0.0, 0.232)
 
-    # =====================================================================
-    # 2. FEM 求解温度场（线性单元）
-    # =====================================================================
+
+
+
     print_section("2. FEM 求解稳态火焰面温度场 (线性单元)")
 
     T_fem, iter_thermal = solve_fem_thermal(
@@ -124,9 +93,9 @@ def main():
     print(f"  温度范围: [{np.min(T_fem):.1f}, {np.max(T_fem):.1f}] K")
     print(f"  化学计量点温度: {np.interp(Z_STOICHIOMETRIC, Z_nodes, T_fem):.1f} K")
 
-    # =====================================================================
-    # 3. 二次 FEM 求解组分场
-    # =====================================================================
+
+
+
     print_section("3. 二次 FEM 求解组分质量分数分布")
 
     Y_F_fem, iter_fuel = solve_fem_quadratic_species(
@@ -140,9 +109,9 @@ def main():
     print(f"  燃料质量分数范围: [{np.min(Y_F_fem):.4f}, {np.max(Y_F_fem):.4f}]")
     print(f"  氧化剂质量分数范围: [{np.min(Y_O_fem):.4f}, {np.max(Y_O_fem):.4f}]")
 
-    # =====================================================================
-    # 4. FD 求解标量耗散率修正方程
-    # =====================================================================
+
+
+
     print_section("4. FDM 求解标量耗散率修正方程")
 
     chi_fd, iter_chi = solve_fd_scalar_dissipation(
@@ -151,9 +120,9 @@ def main():
     print(f"  迭代收敛: {iter_chi} 次")
     print(f"  标量耗散率范围: [{np.min(chi_fd):.4e}, {np.max(chi_fd):.4e}] s⁻¹")
 
-    # =====================================================================
-    # 5. 点火/熄火极限分析（多项式求根）
-    # =====================================================================
+
+
+
     print_section("5. 点火与熄火极限分析 (WDK 多项式求根)")
 
     ignition_results = analyze_ignition_extinction(Ze=8.0, beta=10.0, sigma=0.135)
@@ -164,9 +133,9 @@ def main():
     print(f"  熄火极限 Da_ext = {ignition_results['extinction_limit']:.6e}")
     print(f"  WDK 收敛: {ignition_results['converged']}")
 
-    # =====================================================================
-    # 6. 湍流随机脉动场生成
-    # =====================================================================
+
+
+
     print_section("6. 湍流速度脉动场与标量耗散率脉动")
 
     u_fluct, turb_stats = generate_turbulent_velocity_fluctuation(
@@ -177,9 +146,9 @@ def main():
     print(f"  Lagrangian 时间尺度 T_L = {turb_stats['T_L']:.4e} s")
     print(f"  标量耗散率脉动范围: [{np.min(chi_fluct):.4e}, {np.max(chi_fluct):.4e}] s⁻¹")
 
-    # =====================================================================
-    # 7. 火焰前锋几何与曲率效应
-    # =====================================================================
+
+
+
     print_section("7. 火焰前锋几何与曲率效应分析")
 
     area, area_ratio = flame_front_surface_area(B=0.01, L=0.03, w=0.003, Ka=1.5)
@@ -189,24 +158,24 @@ def main():
     S_L = 0.4
     Le = 1.0
     L_M = markstein_length(Le, alpha_diff=2.0e-5, S_L=S_L)
-    curvature = 50.0  # m⁻¹
+    curvature = 50.0
     S_n = curved_flame_speed(S_L, curvature, Le)
     print(f"  Markstein 长度 L_M = {L_M:.6e} m")
     print(f"  层流火焰速度 S_L = {S_L:.2f} m/s")
     print(f"  曲率修正火焰速度 S_n = {S_n:.4f} m/s")
 
-    # =====================================================================
-    # 8. 3D 燃烧室网格生成
-    # =====================================================================
+
+
+
     print_section("8. 3D 圆柱燃烧室非结构网格生成")
 
     p_3d, t_3d = generate_mesh_3d(h0=0.015, R=0.05, H=0.20, iteration_max=15)
     print(f"  生成节点数: {len(p_3d)}")
     print(f"  生成四面体单元数: {len(t_3d)}")
 
-    # =====================================================================
-    # 9. 带宽分析
-    # =====================================================================
+
+
+
     print_section("9. 刚度矩阵带宽分析")
 
     bw_linear = analyze_flamelet_bandwidth(n_nodes, fem_type='linear')
@@ -216,9 +185,9 @@ def main():
     print(f"  线性 FEM 稀疏率: {bw_linear['sparse_ratio']:.4e}")
     print(f"  二次 FEM 稀疏率: {bw_quadratic['sparse_ratio']:.4e}")
 
-    # =====================================================================
-    # 10. 空间分区
-    # =====================================================================
+
+
+
     print_section("10. 混合分数空间域分解与 Voronoi 分区")
 
     sub_idx, sub_bounds = domain_decomposition_1d(Z_nodes, n_subdomains=4)
@@ -226,14 +195,14 @@ def main():
     for i, (idx, bound) in enumerate(zip(sub_idx, sub_bounds)):
         print(f"    子域 {i+1}: 索引 [{idx[0]}, {idx[1]}], Z ∈ [{bound[0]:.4f}, {bound[1]:.4f}]")
 
-    # 二维 Voronoi 面积分析（简化示例）
+
     seeds_2d = np.array([[0.0, 0.0], [0.5, 0.0], [0.0, 0.5], [0.5, 0.5]])
     areas, lb = voronoi_area_2d(seeds_2d, bbox=((0, 1), (0, 1)), resolution=200)
     print(f"  Voronoi 负载均衡度: {lb:.4f}")
 
-    # =====================================================================
-    # 11. 化学计量多项式路径计数
-    # =====================================================================
+
+
+
     print_section("11. 化学反应路径组合计数")
 
     reaction_steps = [1, 2, 3]
@@ -253,9 +222,9 @@ def main():
     complexity = reaction_mechanism_complexity(reactions, max_depth=6)
     print(f"  反应机理有效复杂度: {complexity['effective_complexity']:.4e}")
 
-    # =====================================================================
-    # 12. 火焰不稳定性分析
-    # =====================================================================
+
+
+
     print_section("12. 火焰不稳定性动力学 (Darrieus-Landau)")
 
     t_arr, y_arr = integrate_flame_instability(
@@ -271,9 +240,9 @@ def main():
     sigma_dl = darrieus_landau_growth_rate(k_wave, S_L=0.4, rho_u=1.2, rho_b=0.2)
     print(f"  DL 最大增长率: {np.max(sigma_dl):.2f} s⁻¹")
 
-    # =====================================================================
-    # 13. 精确解验证
-    # =====================================================================
+
+
+
     print_section("13. 数值解验证 (Manufactured Solution)")
 
     T_exact_ms, _ = manufactured_solution_temperature(Z_nodes, T_ox=T_OXIDIZER, T_ad=ADIA_TEMP_STOIC)
@@ -283,7 +252,7 @@ def main():
     print(f"  H¹ 半范数误差: {errors_ms['H1_semi_error']:.4e}")
     print(f"  相对 L² 误差: {errors_ms['relative_L2']:.4e}")
 
-    # 高斯渐近解比较
+
     omega_max = 1.0e3
     T_gauss, sigma_flame = gaussian_flamelet_solution(
         Z_nodes, Z_STOICHIOMETRIC, T_OXIDIZER, ADIA_TEMP_STOIC, chi_st, omega_max
@@ -292,9 +261,9 @@ def main():
     print(f"  火焰厚度 σ = {sigma_flame:.6e}")
     print(f"  与高斯渐近解相对 L² 误差: {errors_gauss['relative_L2']:.4e}")
 
-    # =====================================================================
-    # 14. 守恒律校验
-    # =====================================================================
+
+
+
     print_section("14. 质量/能量守恒校验")
 
     validation = validate_simulation(
@@ -308,9 +277,9 @@ def main():
     print(f"  温度范围: [{validation['temperature_range'][0]:.1f}, {validation['temperature_range'][1]:.1f}] K")
     print(f"  整体有效性: {validation['overall_valid']}")
 
-    # =====================================================================
-    # 15. 综合结果汇总
-    # =====================================================================
+
+
+
     print_section("综合结果汇总")
     print(f"  火焰面峰值温度: {np.max(T_fem):.1f} K")
     print(f"  化学计量点温度: {np.interp(Z_STOICHIOMETRIC, Z_nodes, T_fem):.1f} K")
@@ -322,7 +291,7 @@ def main():
     print(f"  模拟验证状态: {'通过' if validation['overall_valid'] else '未通过'}")
     print("\n  === 湍流燃烧火焰面模型计算完成 ===\n")
 
-    # 返回结果字典（供测试使用）
+
     return {
         'Z_nodes': Z_nodes,
         'T_fem': T_fem,

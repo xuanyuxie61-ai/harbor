@@ -1,43 +1,10 @@
-"""
-Sparse Matrix and Unstructured Mesh I/O
-=======================================
-Derived from seed projects 508_hb_to_mm (Harwell-Boeing to Matrix Market
-sparse format conversion) and 570_ice_io (3D unstructured mesh I/O).
-
-Ocean models generate large sparse linear systems for implicit solvers
-(e.g., barotropic Poisson equation, streamfunction inversion).
-This module provides I/O for:
-
-1. Sparse matrices in Matrix Market coordinate format:
-       %%MatrixMarket matrix coordinate real general
-       M N NNZ
-       i j value
-
-2. Unstructured mesh topology with labeled vertices and elements.
-
-For the barotropic streamfunction ψ, the Poisson equation is:
-       ∇·(H ∇ψ) = ζ_b
-where H is ocean depth and ζ_b is barotropic vorticity.
-Discretized on an unstructured mesh, this yields:
-       A_{ij} ψ_j = b_i
-with A being a sparse SPD matrix.
-"""
 
 import numpy as np
 from scipy.sparse import coo_matrix
 
 def write_matrix_market(filename, A, comment="Ocean QG sparse operator"):
-    """
-    Write a sparse matrix to Matrix Market coordinate format.
-
-    Parameters
-    ----------
-    filename : str
-    A : scipy.sparse matrix
-    comment : str
-    """
     A_coo = A.tocoo()
-    rows, cols, data = A_coo.row + 1, A_coo.col + 1, A_coo.data  # 1-indexed
+    rows, cols, data = A_coo.row + 1, A_coo.col + 1, A_coo.data
     with open(filename, 'w') as f:
         f.write(f"%%MatrixMarket matrix coordinate real general\n")
         f.write(f"% {comment}\n")
@@ -46,9 +13,6 @@ def write_matrix_market(filename, A, comment="Ocean QG sparse operator"):
             f.write(f"{i} {j} {v:.12e}\n")
 
 def read_matrix_market(filename):
-    """
-    Read a Matrix Market coordinate file into a COO sparse matrix.
-    """
     rows, cols, data = [], [], []
     with open(filename, 'r') as f:
         for line in f:
@@ -64,19 +28,6 @@ def read_matrix_market(filename):
 
 
 def write_unstructured_mesh(filename, vertices, triangles, vertex_labels=None):
-    """
-    Write a 2D triangular unstructured mesh in a simple labelled format.
-
-    Parameters
-    ----------
-    filename : str
-    vertices : ndarray, shape (N_v, 2)
-        (x, y) coordinates.
-    triangles : ndarray, shape (N_t, 3)
-        Vertex indices (0-based).
-    vertex_labels : ndarray, shape (N_v,), optional
-        Integer labels (e.g., 0=interior, 1=boundary, 2=coast).
-    """
     Nv = len(vertices)
     Nt = len(triangles)
     with open(filename, 'w') as f:
@@ -93,13 +44,6 @@ def write_unstructured_mesh(filename, vertices, triangles, vertex_labels=None):
             f.write(f"{triangles[i,0]} {triangles[i,1]} {triangles[i,2]}\n")
 
 def read_unstructured_mesh(filename):
-    """
-    Read an unstructured mesh file.
-
-    Returns
-    -------
-    vertices, triangles, labels
-    """
     vertices = []
     triangles = []
     labels = []
@@ -129,20 +73,6 @@ def read_unstructured_mesh(filename):
 
 
 def build_sparse_laplacian_unstructured(vertices, triangles, areas=None):
-    """
-    Build the sparse finite-element Laplacian matrix for an unstructured
-    triangular mesh using linear (P1) elements.
-
-    Element stiffness matrix for triangle T with vertices (x₁,y₁),(x₂,y₂),(x₃,y₃):
-        K_T = (1/(4·A_T)) · [ (y₂−y₃)² + (x₃−x₂)²    ...                ...
-                              ...                      ...                ...
-                              ...                      ...    (y₁−y₂)² + (x₂−x₁)² ]
-
-    Returns
-    -------
-    L : scipy.sparse.csr_matrix
-        Sparse Laplacian (negative semidefinite).
-    """
     Nv = len(vertices)
     row_ind, col_ind, data = [], [], []
 
@@ -156,8 +86,8 @@ def build_sparse_laplacian_unstructured(vertices, triangles, areas=None):
         if A_T < 1e-14:
             continue
 
-        # Gradients of shape functions (constant per element)
-        # ∇N_i = ((y_j - y_k), (x_k - x_j)) / (2*A_T)
+
+
         dNix = (yj - yk) / (2.0 * A_T)
         dNiy = (xk - xj) / (2.0 * A_T)
         dNjx = (yk - yi) / (2.0 * A_T)

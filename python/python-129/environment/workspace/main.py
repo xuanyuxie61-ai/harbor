@@ -1,20 +1,8 @@
-"""
-main.py
-血凝级联反应网络多尺度动力学建模的统一入口。
-
-本项目融合15个种子项目的核心算法，构建一个面向
-"生物医学：血凝级联反应网络"的博士级计算框架。
-
-运行方式:
-    python main.py
-
-无需任何命令行参数，程序将自动执行完整的多尺度模拟流程。
-"""
 
 import sys
 import numpy as np
 
-# 导入所有子模块
+
 from special_functions import (
     bessel_jx_fractional,
     modified_bessel_clot_profile,
@@ -49,7 +37,6 @@ def print_section(title):
 
 
 def run_special_functions_module():
-    """模块1: 基于079_besselj的特殊函数验证与clot径向分布"""
     print_section("模块1: 特殊函数与Clot径向分布 (基于079_besselj)")
     err = verify_bessel_accuracy()
     print(f"Bessel Jx 数值精度验证: 最大误差 = {err:.3e}")
@@ -61,15 +48,13 @@ def run_special_functions_module():
 
 
 def run_coagulation_ode_module():
-    """模块2: 基于831_ode_trapezoidal与1170_stochastic_heat2d的血凝ODE求解"""
-    # TODO: 修复 Hole 3 —— 血凝ODE模块调用与结果解析
-    # 需要实现：创建CoagulationNetwork实例、设置12维初始条件向量、
-    # 调用trapezoidal_solve求解、解析并打印关键结果，返回(t, y, net)
+
+
+
     pass
 
 
 def run_reaction_diffusion_module():
-    """模块3: 基于1170_stochastic_heat2d与011_annulus_rule的PDE求解"""
     print_section("模块3: 血管截面反应-扩散-源项模型 (基于1170_stochastic_heat2d + 011_annulus_rule)")
     solver = AnnularDiffusionSolver(
         r_inner=1.0, r_outer=50.0, nr=30, ntheta=24,
@@ -88,7 +73,6 @@ def run_reaction_diffusion_module():
 
 
 def run_network_analysis_module():
-    """模块4: 基于845_pagerank2与154_chain_letter_tree的网络分析"""
     print_section("模块4: 血凝级联网络拓扑分析 (基于845_pagerank2 + 154_chain_letter_tree)")
     graph = CoagulationNetworkGraph()
     pr = graph.pagerank()
@@ -104,7 +88,6 @@ def run_network_analysis_module():
 
 
 def run_monte_carlo_module():
-    """模块5: 基于534_high_card_simulation的血小板最优停止模拟"""
     print_section("模块5: 血小板粘附最优停止蒙特卡洛 (基于534_high_card_simulation)")
     mc = PlateletMonteCarlo(n_platelets=400, local_iia=25.0, seed=42)
     best_skip, best_score, _ = mc.find_optimal_skip(n_trials=200)
@@ -115,7 +98,6 @@ def run_monte_carlo_module():
 
 
 def run_quadrature_module():
-    """模块6: 基于527_hexagon_integrals与1313_triangle_quadrature_symmetry的数值积分"""
     print_section("模块6: Clot几何数值积分与Arrhenius速率 (基于527_hexagon_integrals + 1313_triangle_quadrature_symmetry)")
     hex_q = HexagonQuadrature(radius=2.0)
     area_num = hex_q.monomial_integral(0, 0)
@@ -133,7 +115,6 @@ def run_quadrature_module():
 
 
 def run_svd_module():
-    """模块7: 基于1190_svd_powers的参数敏感性SVD分析"""
     print_section("模块7: 参数敏感性SVD降维分析 (基于1190_svd_powers)")
     param_names = [
         "k_cat_TF_VIIa_IX", "k_cat_IXa_X", "k_cat_Xa_II",
@@ -167,15 +148,13 @@ def run_svd_module():
 
 
 def run_stability_module(net):
-    """模块8: 基于105_boundary_locus2的数值稳定性分析"""
-    # TODO: 修复 Hole 4 —— ODE稳定性分析模块调用与结果解析
-    # 需要实现：创建StabilityAnalyzer、在典型状态点计算Jacobian、
-    # 调用analyze_jacobian_stiffness分析刚性、打印并返回结果
+
+
+
     pass
 
 
 def run_genetics_module():
-    """模块9: 基于485_gray_code_display的基因多态性编码"""
     print_section("模块9: 凝血因子基因Gray码编码 (基于485_gray_code_display)")
     gc = GrayCodeGenetics()
     weights = np.array([3.0, 2.5, 1.0, 2.0, 1.5, 4.0, 3.5, 3.0] + [0.0] * 8)
@@ -199,7 +178,6 @@ def run_genetics_module():
 
 
 def run_variomino_module():
-    """模块10: 基于1389_variomino的clot结构分析"""
     print_section("模块10: 纤维蛋白Clot多格结构分析 (基于1389_variomino)")
     P = VariominoClot.generate_random_clot(height=35, width=35, n_fibers=10, seed=42)
     clot = VariominoClot(P)
@@ -213,7 +191,6 @@ def run_variomino_module():
 
 
 def run_clustering_module():
-    """模块11: 基于039_asa113的患者表型聚类"""
     print_section("模块11: 血凝表型交换优化聚类 (基于039_asa113)")
     X, true_labels = generate_coagulation_phenotypes(n_samples=120, seed=42)
     X_norm = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-12)
@@ -232,9 +209,6 @@ def run_clustering_module():
 
 
 def main():
-    """
-    统一入口：执行所有模块的完整模拟流程。
-    """
     print("\n" + "#" * 70)
     print("#  血凝级联反应网络多尺度动力学建模系统")
     print("#  生物医学前沿博士级计算框架")
@@ -245,7 +219,7 @@ def main():
 
     np.set_printoptions(precision=4, suppress=True)
 
-    # 顺序执行各模块
+
     try:
         run_special_functions_module()
     except Exception as e:

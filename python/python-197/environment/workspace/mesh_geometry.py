@@ -1,30 +1,10 @@
-"""
-mesh_geometry.py
-================================================================================
-高性能计算检查点容错：三维四面体网格几何模块
-
-融合原项目：
-  - 1423_xyz_display (XYZ 三维坐标)
-  - 1246_tetrahedron_felippa_rule (四面体几何)
-
-科学角色：
-  1) 提供 3D 计算域的四面体剖分与节点坐标管理；
-  2) 计算单元体积与 Jacobian，用于有限元刚度矩阵组装；
-  3) 为检查点状态提供空间索引（坐标 → 状态向量映射）。
-================================================================================
-"""
 
 import numpy as np
 
 
 class TetrahedralMesh:
-    """四面体网格：节点 + 单元。"""
 
     def __init__(self, nodes: np.ndarray, elements: np.ndarray):
-        """
-        nodes: (N, 3) 节点坐标
-        elements: (M, 4) 单元顶点索引
-        """
         self.nodes = np.asarray(nodes, dtype=float)
         self.elements = np.asarray(elements, dtype=int)
         self.n_nodes = self.nodes.shape[0]
@@ -35,10 +15,6 @@ class TetrahedralMesh:
     @staticmethod
     def generate_uniform_box(nx: int = 5, ny: int = 5, nz: int = 5,
                               xlim=(0.0, 1.0), ylim=(0.0, 1.0), zlim=(0.0, 1.0)):
-        """
-        生成一个长方体域的均匀四面体网格。
-        每个立方体单元剖分为 6 个四面体。
-        """
         if nx < 2 or ny < 2 or nz < 2:
             raise ValueError("nx, ny, nz must be >= 2")
         x = np.linspace(xlim[0], xlim[1], nx)
@@ -66,7 +42,7 @@ class TetrahedralMesh:
                     c101 = idx[(i + 1, j, k + 1)]
                     c011 = idx[(i, j + 1, k + 1)]
                     c111 = idx[(i + 1, j + 1, k + 1)]
-                    # 6 个四面体剖分
+
                     elements.append([c000, c100, c110, c111])
                     elements.append([c000, c100, c111, c101])
                     elements.append([c000, c010, c110, c111])
@@ -77,13 +53,11 @@ class TetrahedralMesh:
         return TetrahedralMesh(nodes, elements)
 
     def compute_volumes(self) -> np.ndarray:
-        """计算每个四面体单元的有向体积 V = |det([v1-v0, v2-v0, v3-v0])|/6。"""
-        # TODO [Hole 3]: 实现四面体单元体积计算
-        # 利用标量三重积: V = |det([v1-v0, v2-v0, v3-v0])| / 6
+
+
         raise NotImplementedError("compute_volumes not implemented (Hole 3)")
 
     def barycenters(self) -> np.ndarray:
-        """计算每个单元的重心。"""
         if self._barycenters is not None:
             return self._barycenters
         v = self.nodes[self.elements]
@@ -91,7 +65,6 @@ class TetrahedralMesh:
         return self._barycenters
 
     def bounding_box(self):
-        """返回 (xmin, xmax, ymin, ymax, zmin, zmax)。"""
         return (
             self.nodes[:, 0].min(), self.nodes[:, 0].max(),
             self.nodes[:, 1].min(), self.nodes[:, 1].max(),
@@ -99,7 +72,6 @@ class TetrahedralMesh:
         )
 
     def element_diameter(self) -> float:
-        """返回网格最大单元直径（最长边）。"""
         max_d = 0.0
         for e in self.elements:
             pts = self.nodes[e]

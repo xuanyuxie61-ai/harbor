@@ -1,56 +1,29 @@
-"""
-pbpk_random.py
-基于种子项目 1007_random_sorted
-
-实现排序随机向量的高效生成：
-1. 均匀分布顺序统计量（指数间距法 & 递归乘积法）
-2. 标准正态分布顺序统计量（逆 CDF 变换 + Wichura Algorithm AS 241）
-
-在 PBPK 模型中用于：
-- 模拟药物分子在血管系统中的到达时间分布
-- 生成符合生理分布的随机参数样本（用于 Monte Carlo 不确定性分析）
-- 构建剂量间隔的随机化采样
-"""
 
 import numpy as np
 from typing import Tuple
 
-# ---------------------------------------------------------------------------
-# 均匀分布顺序统计量
-# ---------------------------------------------------------------------------
+
+
+
 
 def r8vec_uniform_01_sorted_exponential(n: int) -> np.ndarray:
-    """
-    使用指数间距法生成 n 个 [0,1] 上的均匀顺序统计量。
-    算法：生成 n+1 个独立指数随机变量 E_i ~ Exp(1)，
-          计算累积和 S_k = Σ_{i=1}^k E_i，
-          则 U_k = S_k / S_{n+1} ~ Uniform(0,1) 的顺序统计量。
-    数学基础：Dirichlet 分布与次序统计量的关系。
-    """
     if n < 0:
         raise ValueError("n must be non-negative")
     if n == 0:
         return np.array([], dtype=float)
-    # 生成 n+1 个指数随机变量
+
     e = -np.log(np.random.rand(n + 1))
     cumsum = np.cumsum(e)
     total = cumsum[-1]
     if total == 0.0:
-        # 极小概率事件，回退到均匀+排序
+
         return np.sort(np.random.rand(n))
     u = cumsum[:-1] / total
-    # 由于 cumsum 单调递增，u 已自然排序
+
     return u
 
 
 def r8vec_uniform_01_sorted_product(n: int) -> np.ndarray:
-    """
-    使用递归乘积法生成 n 个 [0,1] 上的均匀顺序统计量。
-    算法：从 curmax = 1 开始，反向计算
-          x_i = curmax * exp(log(rand()) / i)
-          curmax = x_i
-    时间复杂度 O(n)，无需显式排序。
-    """
     if n < 0:
         raise ValueError("n must be non-negative")
     if n == 0:
@@ -58,31 +31,27 @@ def r8vec_uniform_01_sorted_product(n: int) -> np.ndarray:
     u = np.empty(n, dtype=float)
     curmax = 1.0
     for i in range(n, 0, -1):
-        # 生成 Beta(i, 1) 随机变量
+
         r = np.random.rand()
         if r <= 0.0:
-            r = 1e-300  # 防止 log(0)
+            r = 1e-300
         u[i - 1] = curmax * np.exp(np.log(r) / i)
         curmax = u[i - 1]
     return u
 
 
-# ---------------------------------------------------------------------------
-# Wichura Algorithm AS 241：标准正态逆 CDF
-# ---------------------------------------------------------------------------
+
+
+
 
 def normal_01_cdf_inv(p: float) -> float:
-    """
-    Wichura Algorithm AS 241：计算标准正态分布的逆 CDF。
-    精度达到约 1e-16。
-    """
     if p <= 0.0:
         return -np.inf
     if p >= 1.0:
         return np.inf
 
-    # 分位数函数的分段有理多项式逼近
-    # 系数来自 Wichura (1988), Algorithm AS 241
+
+
     q = p - 0.5
     if abs(q) <= 0.425:
         r = 0.180625 - q * q
@@ -154,13 +123,6 @@ def normal_01_cdf_inv(p: float) -> float:
 
 
 def r8vec_normal_01_sorted(n: int, method: str = "exponential") -> np.ndarray:
-    """
-    生成 n 个标准正态分布 N(0,1) 的顺序统计量。
-    方法：
-        1. 生成均匀分布顺序统计量 U_sorted
-        2. 应用逆 CDF 变换：X_i = Φ^{-1}(U_i)
-    由于 Φ^{-1} 单调递增，X_i 自动排序。
-    """
     if n < 0:
         raise ValueError("n must be non-negative")
     if n == 0:
@@ -171,30 +133,18 @@ def r8vec_normal_01_sorted(n: int, method: str = "exponential") -> np.ndarray:
         u_sorted = r8vec_uniform_01_sorted_product(n)
     else:
         raise ValueError("method must be 'exponential' or 'product'")
-    # 向量化逆 CDF（Wichura 算法）
-    # 对数组逐个计算
+
+
     x_sorted = np.array([normal_01_cdf_inv(ui) for ui in u_sorted])
     return x_sorted
 
 
-# ---------------------------------------------------------------------------
-# PBPK 专用随机采样函数
-# ---------------------------------------------------------------------------
+
+
+
 
 def sample_drug_arrival_times(n_molecules: int, mean_interval: float,
                                cv: float = 0.2) -> np.ndarray:
-    """
-    模拟 n_molecules 个药物分子通过肠道吸收的到达时间。
-    使用对数正态分布（由正态顺序统计量变换得到），
-    以模拟生理吸收的变异性。
-    
-    参数：
-        n_molecules : 药物分子数
-        mean_interval : 平均到达间隔 [s]
-        cv : 变异系数
-    返回：
-        arrival_times : 排序后的到达时间 [s]
-    """
     if n_molecules <= 0 or mean_interval <= 0.0 or cv < 0.0:
         raise ValueError("Invalid arrival time parameters")
     if cv == 0.0:
@@ -202,28 +152,17 @@ def sample_drug_arrival_times(n_molecules: int, mean_interval: float,
     sigma = np.sqrt(np.log(1.0 + cv ** 2))
     mu = np.log(mean_interval) - sigma ** 2 / 2.0
     z_sorted = r8vec_normal_01_sorted(n_molecules)
-    # 将对数正态截断到合理范围
+
     t_sorted = np.exp(mu + sigma * z_sorted)
-    # 防止极端值
+
     t_sorted = np.clip(t_sorted, mean_interval * 0.01, mean_interval * 100.0)
-    # 累积和为实际到达时间
+
     arrival_times = np.cumsum(t_sorted)
     return arrival_times
 
 
 def sample_physiological_params(n_samples: int, param_means: np.ndarray,
                                  param_cvs: np.ndarray) -> np.ndarray:
-    """
-    生成 n_samples 组生理参数的 Latin-Hypercube 风格排序样本。
-    用于 PBPK Monte Carlo 不确定性量化。
-    
-    参数：
-        n_samples : 样本数
-        param_means : 参数均值向量
-        param_cvs : 参数变异系数向量
-    返回：
-        samples : shape (n_samples, n_params) 的排序样本矩阵
-    """
     n_params = len(param_means)
     if n_params != len(param_cvs):
         raise ValueError("param_means and param_cvs must have same length")
@@ -237,18 +176,18 @@ def sample_physiological_params(n_samples: int, param_means: np.ndarray,
             samples[:, j] = param_means[j]
         else:
             sigma = param_means[j] * param_cvs[j]
-            # 使用正态顺序统计量
+
             z_sorted = r8vec_normal_01_sorted(n_samples)
             col = param_means[j] + sigma * z_sorted
-            # 截断到物理合理范围（正数）
+
             col = np.maximum(col, param_means[j] * 0.1)
             samples[:, j] = col
     return samples
 
 
-# ---------------------------------------------------------------------------
-# 模块自检
-# ---------------------------------------------------------------------------
+
+
+
 
 if __name__ == "__main__":
     u1 = r8vec_uniform_01_sorted_exponential(10)

@@ -1,38 +1,19 @@
-"""
-Monte Carlo Neutron Transport for ICF Burn Diagnosis
-
-Based on:
-- niederreiter2 (Project 803): Quasi-random sequences for QMC variance reduction
-- rng_cliff (Project 1039): Cliff random number generator
-- histogramize (Project 543): Energy spectrum binning
-
-Models:
-- Neutron transport through spherical DT plasma
-- Quasi-Monte Carlo path sampling
-- Energy spectrum histogramization
-- Escape probability and deposition profile
-"""
 
 import numpy as np
 
-# Physical constants
-M_N = 1.67492749804e-27  # Neutron mass [kg]
+
+M_N = 1.67492749804e-27
 C_LIGHT = 2.99792458e8
 E_CHARGE = 1.602176634e-19
-SIGMA_DT = 5.0e-28  # Approximate DT cross-section [m^2] at 14.1 MeV
+SIGMA_DT = 5.0e-28
 
 
 def niederreiter2_generate(dim_num, n, key=0):
-    """
-    Generate Niederreiter quasi-random sequence in [0,1]^dim_num.
-    Based on niederreiter2_generate from Project 803.
-    Simplified implementation using Sobol-like properties.
-    """
-    # Use a simple quasi-random sequence based on radical inverse
+
     r = np.zeros((dim_num, n))
     for j in range(n):
         for d in range(dim_num):
-            # Van der Corput sequence with base 2 for d=0, base 3 for d=1, etc.
+
             base = 2 + d
             k = j + key + 1
             x = 0.0
@@ -46,19 +27,12 @@ def niederreiter2_generate(dim_num, n, key=0):
 
 
 def rng_cliff_next(x):
-    """
-    Cliff random number generator.
-    Based on rng_cliff_next from Project 1039.
-    """
     if x <= 0.0 or x >= 1.0:
         return 0.5
     return (-100.0 * np.log(x)) % 1.0
 
 
 def rng_cliff_sequence(n, seed=0.5):
-    """
-    Generate sequence of Cliff random numbers.
-    """
     seq = np.zeros(n)
     x = seed
     for i in range(n):
@@ -68,17 +42,13 @@ def rng_cliff_sequence(n, seed=0.5):
 
 
 def sample_neutron_source_spherical(n_neutrons, r_fuel, energy_MeV=14.1):
-    """
-    Sample initial neutron positions uniformly in sphere,
-    and isotropic directions.
-    """
-    # Use quasi-random for positions
+
     qr = niederreiter2_generate(4, n_neutrons)
 
-    # r = r_fuel * u^(1/3)
+
     r = r_fuel * qr[0]**(1.0 / 3.0)
 
-    # theta = arccos(2*v - 1)
+
     theta = np.arccos(2.0 * qr[1] - 1.0)
     phi = 2.0 * np.pi * qr[2]
 
@@ -86,7 +56,7 @@ def sample_neutron_source_spherical(n_neutrons, r_fuel, energy_MeV=14.1):
     y = r * np.sin(theta) * np.sin(phi)
     z_pos = r * np.cos(theta)
 
-    # Isotropic directions
+
     theta_d = np.arccos(2.0 * qr[2] - 1.0)
     phi_d = 2.0 * np.pi * qr[3]
 
@@ -94,28 +64,21 @@ def sample_neutron_source_spherical(n_neutrons, r_fuel, energy_MeV=14.1):
     uy = np.sin(theta_d) * np.sin(phi_d)
     uz = np.cos(theta_d)
 
-    energy = np.full(n_neutrons, energy_MeV * 1e6 * E_CHARGE)  # J
+    energy = np.full(n_neutrons, energy_MeV * 1e6 * E_CHARGE)
 
     return x, y, z_pos, ux, uy, uz, energy
 
 
 def macroscopic_cross_section(rho, Z_bar):
-    """
-    Approximate total macroscopic cross section [m^-1].
-    """
     m_u = 1.66053906660e-27
     n_ion = rho / (2.5 * m_u)
-    n_DT = n_ion / 2.0  # D and T each
+    n_DT = n_ion / 2.0
     sigma_tot = SIGMA_DT
     return n_DT * sigma_tot
 
 
 def transport_neutron(x0, y0, z0, ux, uy, uz, energy, r_outer, rho_func,
                       max_steps=1000):
-    """
-    Track single neutron through spherical target.
-    Returns: escaped (bool), path_length, final_energy, deposition_profile.
-    """
     x, y, z = x0, y0, z0
     path_length = 0.0
     deposition = 0.0
@@ -133,23 +96,23 @@ def transport_neutron(x0, y0, z0, ux, uy, uz, energy, r_outer, rho_func,
         if sigma_t <= 1e-30:
             return True, path_length, energy, deposition
 
-        # Sample free flight distance
+
         xi = np.random.random()
         if xi <= 0.0:
             xi = 1e-10
         s = -np.log(xi) / sigma_t
 
-        # Move neutron
+
         x += s * ux
         y += s * uy
         z += s * uz
         path_length += s
 
-        # Collision: deposit energy (simplified)
-        deposition += energy * 0.01  # 1% energy deposit per collision
+
+        deposition += energy * 0.01
         energy *= 0.99
 
-        # Isotropic scatter
+
         theta = np.arccos(2.0 * np.random.random() - 1.0)
         phi = 2.0 * np.pi * np.random.random()
         ux = np.sin(theta) * np.cos(phi)
@@ -167,15 +130,12 @@ def transport_neutron(x0, y0, z0, ux, uy, uz, energy, r_outer, rho_func,
 def run_mc_neutron_transport(n_neutrons, r_fuel, r_outer, rho_func,
                               energy_MeV=14.1, max_steps=1000,
                               use_quasi_random=True):
-    """
-    Run Monte Carlo neutron transport simulation.
-    """
     x, y, z, ux, uy, uz, energy = sample_neutron_source_spherical(
         n_neutrons, r_fuel, energy_MeV
     )
 
     if use_quasi_random:
-        # Replace direction cosines with quasi-random
+
         qr = niederreiter2_generate(2, n_neutrons)
         theta = np.arccos(2.0 * qr[0] - 1.0)
         phi = 2.0 * np.pi * qr[1]
@@ -214,16 +174,12 @@ def run_mc_neutron_transport(n_neutrons, r_fuel, r_outer, rho_func,
 
 
 def histogramize_spectrum(energies, bin_min, bin_max, bin_num):
-    """
-    Bin neutron energies into histogram.
-    Based on histogramize from Project 543.
-    """
     n = len(energies)
     if n == 0:
         return np.zeros(bin_num), np.zeros(bin_num)
 
     energies = np.asarray(energies)
-    # Convert to MeV
+
     energies_MeV = energies / (1e6 * E_CHARGE)
 
     bindex = 1 + np.floor(bin_num * (energies_MeV - bin_min) / (bin_max - bin_min))
@@ -244,9 +200,6 @@ def histogramize_spectrum(energies, bin_min, bin_max, bin_num):
 
 
 def compute_neutron_diagnostics(mc_results, r_fuel, r_outer):
-    """
-    Compute neutron diagnostic quantities.
-    """
     n_total = mc_results['n_escaped'] + mc_results['n_absorbed']
     if n_total == 0:
         return {}

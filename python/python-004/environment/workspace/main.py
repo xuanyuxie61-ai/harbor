@@ -1,28 +1,9 @@
-"""
-main.py
-引力波信号数值相对论模拟与参数推断系统 —— 统一入口
-
-科学问题:
-=========
-本项目面向天体物理前沿问题：双黑洞并合产生的引力波信号的
-数值相对论建模与贝叶斯参数推断。
-
-核心流程:
-1. 构造双黑洞初始数据 (Brill-Lindquist + 共形平坦近似)
-2. 数值演化轨道动力学 (后牛顿 + 2.5PN 辐射反作用)
-3. 生成完整 IMR (Inspiral-Merger-Ringdown) 引力波波形
-4. 计算探测器响应与网络信噪比
-5. 执行贝叶斯参数估计 (MCMC 采样 + 方形求积)
-6. 运行数值稳定性验证套件
-
-所有参数内置默认值，零参数可直接运行。
-"""
 
 import numpy as np
 import sys
 import time
 
-# 项目内部模块
+
 from binary_black_hole import BinaryBlackHole, effective_spin
 from numerical_relativity import (
     evolve_binary_orbit, conformal_factor_brill_lindquist,
@@ -45,7 +26,6 @@ from utils import euclidean_gcd, rational_approximation, check_finite
 
 
 def print_banner():
-    """打印项目信息横幅。"""
     print("=" * 70)
     print("  引力波信号数值相对论模拟与贝叶斯参数推断系统")
     print("  Numerical Relativity Gravitational-Wave Simulation")
@@ -54,22 +34,17 @@ def print_banner():
 
 
 def stage_1_initial_data():
-    """
-    阶段 1: 构造双黑洞初始数据。
-    
-    使用 Brill-Lindquist 初始数据 + 二维双调和方程正则化。
-    """
     print("[阶段 1] 双黑洞初始数据构造")
     print("-" * 40)
     
-    m1, m2 = 36.0, 29.0  # 太阳质量 (参考 GW150914)
+    m1, m2 = 36.0, 29.0
     M_total = m1 + m2
     
-    # 共形平坦初始数据
+
     masses = np.array([m1, m2]) * BinaryBlackHole.MSUN_SI * BinaryBlackHole.G_SI / BinaryBlackHole.C_SI**3
     positions = np.array([[-1.5, 0.0], [1.5, 0.0]]) * m1 * BinaryBlackHole.G_SI / BinaryBlackHole.C_SI**2
     
-    # 求解双调和正则化初始数据
+
     initial_data = solve_initial_data_brill_lindquist(
         nx=33, ny=33, h=0.3,
         masses=masses, positions=positions
@@ -89,20 +64,15 @@ def stage_1_initial_data():
 
 
 def stage_2_orbit_evolution(m1, m2):
-    """
-    阶段 2: 轨道动力学数值演化。
-    
-    从初始分离演化到并合，使用隐式中点法保证稳定性。
-    """
     print("[阶段 2] 双黑洞轨道动力学演化")
     print("-" * 40)
     
     bbh = BinaryBlackHole(m1_msun=m1, m2_msun=m2)
     
-    # 初始分离 (约 10 倍总质量)
+
     r0 = 10.0 * bbh.M
     
-    # 演化时间
+
     t_max = bbh.t_inspiral * 1.2
     
     print(f"  啁啾质量 M_c = {bbh.M_c:.4f} s = {bbh.M_c / (bbh.MSUN_SI * bbh.G_SI / bbh.C_SI**3):.2f} M_sun")
@@ -126,33 +96,27 @@ def stage_2_orbit_evolution(m1, m2):
 
 
 def stage_3_waveform_generation(bbh):
-    """
-    阶段 3: 引力波波形生成。
-    
-    生成 IMR (Inspiral-Merger-Ringdown) 波形，
-    包含后牛顿 inspiral 和准正规模 ringdown。
-    """
     print("[阶段 3] 引力波波形生成")
     print("-" * 40)
     
-    # 时间采样
+
     t = np.linspace(-bbh.t_inspiral, 0.0, 8192)
     
-    # 最终黑洞参数
+
     M_f, a_f = final_mass_spin(bbh.m1_msun, bbh.m2_msun, bbh.a1, bbh.a2)
     print(f"  预估最终质量 M_f = {M_f:.2f} M_sun")
     print(f"  预估最终自旋 a_f = {a_f:.4f}")
     
-    # 求解 QNM 频率
+
     qnm_freqs = solve_qnm_frequencies(l_max=3, n_overtones=1, M=M_f, a=a_f)
     print(f"  准正规模频率数量: {len(qnm_freqs)}")
     
-    # 打印基频
+
     if (2, 2, 0) in qnm_freqs:
         f_220 = qnm_freqs[(2, 2, 0)]
         print(f"  (2,2,0) 模式频率: Re(ω) = {f_220.real:.6f}, Im(ω) = {f_220.imag:.6f}")
     
-    # 生成完整波形
+
     h_plus, h_cross = full_imrphenom_waveform(
         t, bbh.m1_msun, bbh.m2_msun, bbh.D_L_mpc,
         inclination=bbh.inclination,
@@ -160,11 +124,11 @@ def stage_3_waveform_generation(bbh):
         qnm_freqs=qnm_freqs
     )
     
-    # 计算引力波光度
+
     lum, lum_dimless = gravitational_wave_luminosity(qnm_freqs, M_f, a_f)
     print(f"  引力波峰值光度 (无量纲): {lum_dimless:.6e}")
     
-    # 验证波形能量
+
     strain_energy = np.sum(h_plus**2 + h_cross**2)
     print(f"  波形应变能量: {strain_energy:.6e}")
     print()
@@ -173,17 +137,12 @@ def stage_3_waveform_generation(bbh):
 
 
 def stage_4_detector_response(t, h_plus, h_cross, bbh):
-    """
-    阶段 4: 探测器响应与网络分析。
-    
-    计算 LIGO/Virgo 网络响应和天球定位。
-    """
     print("[阶段 4] 探测器响应与网络分析")
     print("-" * 40)
     
     network = get_standard_detector_network()
     
-    # 源方向 (模拟)
+
     theta_s = bbh.inclination
     phi_s = bbh.phi_c
     psi_s = bbh.psi
@@ -200,12 +159,12 @@ def stage_4_detector_response(t, h_plus, h_cross, bbh):
         F_cross_list.append(Fc)
         print(f"  {det['name']}: F+ = {Fp:.4f}, F× = {Fc:.4f}")
     
-    # 网络合成信噪比
+
     rho_net = network_snr(F_plus_list, F_cross_list, h_plus, h_cross, noise_psd=1.0)
     print(f"  网络信噪比 ρ_net ≈ {rho_net:.4f}")
     
-    # 多探测器时间延迟定位测试
-    dt = np.array([0.0, 0.007, 0.003])  # 秒 (模拟)
+
+    dt = np.array([0.0, 0.007, 0.003])
     positions = np.array([det['position'] for det in network])
     
     try:
@@ -222,27 +181,21 @@ def stage_4_detector_response(t, h_plus, h_cross, bbh):
 
 
 def stage_5_bayesian_inference(bbh, t, h_plus, h_cross):
-    """
-    阶段 5: 贝叶斯参数估计。
-    
-    使用 MCMC 从后验分布中采样参数，
-    并用方形求积计算质量平面的边缘后验。
-    """
     print("[阶段 5] 贝叶斯参数估计")
     print("-" * 40)
     
-    # 先验分布
+
     prior = GWPrior(m_min=5.0, m_max=100.0, mu_mass=3.5, sigma_mass=0.5)
     
-    # 模拟观测数据（加入噪声）
+
     noise_level = 0.05 * np.max(np.abs(h_plus))
     h_plus_noisy = h_plus + noise_level * np.random.randn(len(h_plus))
     h_cross_noisy = h_cross + noise_level * np.random.randn(len(h_cross))
     
-    # 预计算真实参数波形作为参考（缓存）
+
     t_template = t.copy()
     
-    # 简化的对数后验函数 —— 使用高斯似然近似
+
     true_params = bbh.to_parameter_dict()
     
     def log_posterior(params):
@@ -250,26 +203,26 @@ def stage_5_bayesian_inference(bbh, t, h_plus, h_cross):
         if not np.isfinite(lp):
             return -np.inf
         
-        # 简化的参数匹配似然（不重新生成波形，直接比较参数）
-        # 这在实际中不够精确，但足以演示MCMC框架
+
+
         ll = 0.0
         for key in ['m1', 'm2', 'D_L']:
-            sigma = true_params[key] * 0.15  # 15% 不确定性
+            sigma = true_params[key] * 0.15
             ll += -0.5 * ((params[key] - true_params[key]) / sigma) ** 2
         
-        # 角度参数的周期性似然
+
         for key in ['inclination', 'phi_c']:
             diff = np.mod(params[key] - true_params[key] + np.pi, 2*np.pi) - np.pi
             ll += -0.5 * (diff / 0.3) ** 2
         
         return lp + ll
     
-    # 初始参数（加入小扰动）
+
     init_params = true_params.copy()
     init_params['m1'] += 2.0
     init_params['m2'] += 2.0
     
-    # MCMC 采样
+
     print("  开始 MCMC 采样 (2000 步)...")
     samples, acc_rate = metropolis_hastings(
         log_posterior, init_params, n_steps=2000,
@@ -281,13 +234,13 @@ def stage_5_bayesian_inference(bbh, t, h_plus, h_cross):
     )
     print(f"  MCMC 接受率: {acc_rate:.4f}")
     
-    # 统计后验均值
-    m1_samples = np.array([s['m1'] for s in samples[500:]])  # burn-in
+
+    m1_samples = np.array([s['m1'] for s in samples[500:]])
     m2_samples = np.array([s['m2'] for s in samples[500:]])
     print(f"  m1 后验均值: {np.mean(m1_samples):.2f} ± {np.std(m1_samples):.2f} M_sun")
     print(f"  m2 后验均值: {np.mean(m2_samples):.2f} ± {np.std(m2_samples):.2f} M_sun")
     
-    # 方形求积计算边缘后验
+
     def log_post_mass_plane(m1_val, m2_val):
         p = true_params.copy()
         p['m1'] = m1_val
@@ -307,9 +260,6 @@ def stage_5_bayesian_inference(bbh, t, h_plus, h_cross):
 
 
 def stage_6_stability_tests():
-    """
-    阶段 6: 数值稳定性验证。
-    """
     print("[阶段 6] 数值稳定性验证套件")
     print("-" * 40)
     
@@ -326,36 +276,31 @@ def stage_6_stability_tests():
 
 
 def stage_7_auxiliary_computations():
-    """
-    阶段 7: 辅助科学计算。
-    
-    包括 Legendre 多项式展开、有理近似、GCD 计算等。
-    """
     print("[阶段 7] 辅助科学计算")
     print("-" * 40)
     
-    # Legendre 多项式 (用于多极展开)
+
     x = np.linspace(0.0, 1.0, 50)
     leg_vals = shifted_legendre_polynomial(x, n_max=6)
     print(f"  移位 Legendre 多项式 P_0^* 到 P_6^* 已计算")
     print(f"  P_6^*(0.5) = {leg_vals[25, 6]:.6f}")
     
-    # 有理近似 (质量比)
-    eta = 0.24  # 近似对称质量比
+
+    eta = 0.24
     p, q = rational_approximation(eta, max_denominator=100)
     print(f"  质量比 η = {eta} 的有理近似: {p}/{q} = {p/q:.6f}")
     
-    # GCD 计算
+
     g = euclidean_gcd(p, q)
     p_reduced = p // g
     q_reduced = q // g
     print(f"  约化后: {p_reduced}/{q_reduced}, gcd({p},{q}) = {g}")
     
-    # 有效自旋
+
     chi_eff = effective_spin(36.0, 29.0, 0.3, -0.2)
     print(f"  有效自旋 χ_eff = {chi_eff:.4f}")
     
-    # 验证所有数值为有限值
+
     check_finite(leg_vals, "Legendre多项式值")
     print()
     
@@ -363,35 +308,34 @@ def stage_7_auxiliary_computations():
 
 
 def main():
-    """统一入口函数，零参数运行完整流程。"""
     print_banner()
     start_time = time.time()
     
-    np.random.seed(42)  # 可复现性
+    np.random.seed(42)
     
     try:
-        # 阶段 1: 初始数据
+
         initial_data, m1, m2 = stage_1_initial_data()
         
-        # 阶段 2: 轨道演化
+
         bbh, t_orbit, trajectory, energy = stage_2_orbit_evolution(m1, m2)
         
-        # 阶段 3: 波形生成
+
         t_wave, h_plus, h_cross, qnm_freqs = stage_3_waveform_generation(bbh)
         
-        # 阶段 4: 探测器响应
+
         Fp_list, Fc_list, rho_net = stage_4_detector_response(t_wave, h_plus, h_cross, bbh)
         
-        # 阶段 5: 贝叶斯推断
+
         samples, evidence = stage_5_bayesian_inference(bbh, t_wave, h_plus, h_cross)
         
-        # 阶段 6: 稳定性测试
+
         stability = stage_6_stability_tests()
         
-        # 阶段 7: 辅助计算
+
         leg_vals, rational = stage_7_auxiliary_computations()
         
-        # 总结
+
         elapsed = time.time() - start_time
         print("=" * 70)
         print("  模拟完成")

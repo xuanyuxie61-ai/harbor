@@ -1,26 +1,9 @@
-"""
-sparse_matrix.py
-================
-稀疏矩阵工具库，用于大规模分子动力学系统中哈密顿量矩阵的
-稀疏存储与格式转换。
-
-核心数学内容：
-  - General (GE) 格式到 Sparse Triplet (ST) 格式的转换
-  - Compressed Sparse Row (CSR) 格式支持
-  - 稀疏矩阵-向量乘法，用于求解 Poisson-Boltzmann 方程离散化后的线性系统
-
-种子项目映射：
-  - 459_ge_to_st  →  GE 到 ST 格式转换
-"""
 
 import numpy as np
 from typing import Tuple, List
 
 
 class SparseMatrix:
-    """
-    稀疏矩阵容器，支持 GE / ST / CSR 三种格式互转。
-    """
 
     def __init__(self, m: int, n: int):
         if m <= 0 or n <= 0:
@@ -34,17 +17,10 @@ class SparseMatrix:
         self._csr_indices: np.ndarray = np.array([], dtype=int)
         self._csr_indptr: np.ndarray = np.array([], dtype=int)
 
-    # -----------------------------------------------------------------------
-    # GE -> ST 转换（种子项目 459_ge_to_st 核心算法）
-    # -----------------------------------------------------------------------
-    def from_dense(self, Age: np.ndarray, drop_tol: float = 0.0) -> "SparseMatrix":
-        """
-        将稠密矩阵 Age 转换为 ST 稀疏格式。
 
-        参数边界：
-            Age      : shape (m, n) 的二维 ndarray
-            drop_tol : 绝对值小于此阈值的元素视为零
-        """
+
+
+    def from_dense(self, Age: np.ndarray, drop_tol: float = 0.0) -> "SparseMatrix":
         Age = np.asarray(Age, dtype=float)
         if Age.ndim != 2:
             raise ValueError("from_dense: Age must be a 2D array.")
@@ -74,33 +50,28 @@ class SparseMatrix:
         return self
 
     def to_dense(self) -> np.ndarray:
-        """将当前 ST 格式还原为稠密矩阵。"""
         A = np.zeros((self.m, self.n), dtype=float)
         for i, j, v in zip(self._st_ist, self._st_jst, self._st_ast):
             A[i, j] = v
         return A
 
-    # -----------------------------------------------------------------------
-    # ST -> CSR 转换（工程扩展，用于高效 SpMV）
-    # -----------------------------------------------------------------------
+
+
+
     def to_csr(self) -> "SparseMatrix":
-        """
-        将 ST 格式转换为 CSR (Compressed Sparse Row) 格式。
-        CSR 格式下，稀疏矩阵-向量乘法的时间复杂度为 O(nnz)。
-        """
         if self._st_ist.size == 0:
             self._csr_data = np.array([], dtype=float)
             self._csr_indices = np.array([], dtype=int)
             self._csr_indptr = np.zeros(self.m + 1, dtype=int)
             return self
 
-        # 按行优先排序
+
         order = np.lexsort((self._st_jst, self._st_ist))
         ist = self._st_ist[order]
         jst = self._st_jst[order]
         ast = self._st_ast[order]
 
-        # 合并同一位置的重复项（求和）
+
         uniq_keys = []
         uniq_vals = []
         prev = (-1, -1)
@@ -144,12 +115,6 @@ class SparseMatrix:
         return self
 
     def spmv(self, x: np.ndarray) -> np.ndarray:
-        """
-        稀疏矩阵-向量乘法 y = A * x。
-
-        参数边界：
-            x 的长度必须等于矩阵列数 n。
-        """
         x = np.asarray(x, dtype=float)
         if x.shape[0] != self.n:
             raise ValueError("spmv: x length must equal matrix column count.")
@@ -168,23 +133,13 @@ class SparseMatrix:
 
     @property
     def nnz(self) -> int:
-        """非零元素个数。"""
         return self._st_ist.size
 
     def get_st(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """返回 (ist, jst, Ast) 三元组。"""
         return self._st_ist.copy(), self._st_jst.copy(), self._st_ast.copy()
 
 
 def spdiags(diags: np.ndarray, offsets: List[int], m: int, n: int) -> SparseMatrix:
-    """
-    从对角线构造稀疏矩阵（MATLAB spdiags 的简化实现）。
-
-    参数：
-        diags   : shape (len(offsets), max(m,n)) 的数组，每行是一条对角线
-        offsets : 每条对角线相对于主对角线的偏移量
-        m, n    : 矩阵维度
-    """
     if diags.ndim != 2:
         raise ValueError("spdiags: diags must be 2D.")
     if len(offsets) != diags.shape[0]:

@@ -1,14 +1,3 @@
-"""
-adaptive_midpoint.py
-Adaptive implicit midpoint ODE solver with Milne device error estimation.
-
-Adapted from:
-  - 765_midpoint_adaptive: Implicit midpoint method with adaptive step-size control
-
-Role in synthesis:
-  Solves the spatially homogeneous (mean-field) ODE approximation of the
-  eco-epidemiological system with adaptive time-stepping for accuracy control.
-"""
 
 import numpy as np
 from scipy.optimize import fsolve
@@ -21,13 +10,6 @@ def implicit_midpoint_step(
     f: callable,
     theta: float = 0.5
 ) -> np.ndarray:
-    """
-    Single implicit midpoint step.
-
-    y_{n+1} = y_n + dt * f(t + theta*dt, (1-theta)*y_n + theta*y_{n+1})
-
-    For theta = 0.5: implicit midpoint (symplectic, A-stable, 2nd order).
-    """
     def residual(yp):
         y_mid = (1.0 - theta) * y + theta * yp
         return yp - y - dt * f(t + theta * dt, y_mid)
@@ -43,11 +25,7 @@ def milne_lte_estimate(
     dt_prev: float,
     dt_prev2: float
 ) -> float:
-    """
-    Estimate local truncation error using Milne device.
-    Compares implicit midpoint solution with Adams-Bashforth-like predictor.
-    """
-    # Simplified LTE estimate
+
     lte = np.linalg.norm(y_mid - y_pred) / (dt ** 2 + 1e-14)
     return lte
 
@@ -61,26 +39,6 @@ def adaptive_midpoint_solve(
     reltol: float = 1e-4,
     theta: float = 0.5
 ) -> dict:
-    """
-    Adaptive implicit midpoint solver for ODEs.
-
-    Parameters
-    ----------
-    f : callable(t, y) -> dy/dt
-    y0 : ndarray
-        Initial condition.
-    t_span : (t0, tf)
-    dt_init : float
-        Initial time step.
-    abstol, reltol : float
-        Absolute and relative tolerances.
-    theta : float
-        Method parameter (0.5 = midpoint).
-
-    Returns
-    -------
-    result : dict with keys t, y, n_steps, n_rejected
-    """
     t0, tf = t_span
     t = t0
     y = np.asarray(y0, dtype=float)
@@ -96,7 +54,7 @@ def adaptive_midpoint_solve(
     dt_prev = dt
     dt_prev2 = dt
 
-    # Safety factors
+
     kappa = 0.9
     min_dt = 1e-10
     max_dt = (tf - t0) / 10.0
@@ -104,7 +62,7 @@ def adaptive_midpoint_solve(
     while t < tf:
         dt = min(dt, tf - t)
 
-        # Implicit midpoint step
+
         def residual(yp):
             y_mid = (1.0 - theta) * y + theta * yp
             return yp - y - dt * f(t + theta * dt, y_mid)
@@ -112,21 +70,21 @@ def adaptive_midpoint_solve(
         y_next = fsolve(residual, y, full_output=False)
         n_fsolve += 1
 
-        # Simple error estimate: compare with forward Euler predictor
+
         y_pred = y + dt * f(t, y)
         err = np.linalg.norm(y_next - y_pred)
         y_scale = abstol + reltol * np.maximum(np.abs(y), np.abs(y_next))
         err_max = err / (np.linalg.norm(y_scale) + 1e-14)
 
         if err_max <= 1.0 or dt <= min_dt:
-            # Accept step
+
             t = t + dt
             y = y_next
             t_history.append(t)
             y_history.append(y.copy())
             n_steps += 1
 
-            # Adjust next step
+
             if err_max > 1e-14:
                 dt_new = kappa * (1.0 / err_max) ** (1.0 / 3.0) * dt
             else:
@@ -138,7 +96,7 @@ def adaptive_midpoint_solve(
             dt_prev = dt
             dt = dt_new
         else:
-            # Reject step
+
             n_rejected += 1
             dt = max(0.5 * dt, min_dt)
 
@@ -152,11 +110,6 @@ def adaptive_midpoint_solve(
 
 
 def mean_field_eco_epi_ode(t: float, y: np.ndarray, params: dict) -> np.ndarray:
-    """
-    Spatially homogeneous mean-field ODE for the eco-epidemiological system.
-
-    State: [S1, I1, R1, S2, I2, R2]
-    """
     S1, I1, R1, S2, I2, R2 = y
     N1 = S1 + I1 + R1
     N2 = S2 + I2 + R2

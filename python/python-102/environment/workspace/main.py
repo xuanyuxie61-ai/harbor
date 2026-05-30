@@ -1,22 +1,9 @@
-"""
-main.py
-=======
-超构表面相位调控全波仿真与稳健性优化系统的统一入口。
-
-本项目围绕"光学工程：超构表面相位调控"展开，融合 15 个种子项目的
-核心算法，构建了一个面向前沿科学问题的博士级计算平台。
-
-运行方式：
-    python main.py
-
-无参数、全自动执行完整的仿真流程。
-"""
 
 import sys
 import os
 import numpy as np
 
-# 确保当前目录在路径中
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from maxwell_fem import MaxwellFEM2D
@@ -50,9 +37,9 @@ def main():
     print(f"   基底: 空气/石英 (n=1.0/1.45)")
     print("\n")
 
-    # ==================================================================
-    # 模块 1：有限元电磁散射仿真 (408_fem2d_poisson_rectangle)
-    # ==================================================================
+
+
+
     print_section("模块 1：二维有限元电磁散射仿真")
     print("求解横磁(TM)模式下单个硅纳米柱的散射场分布...")
     fem = MaxwellFEM2D(wavelength=1.55e-6, n_si=3.48, n_air=1.0)
@@ -60,7 +47,7 @@ def main():
         nx=17, ny=17,
         domain=(-1.5e-6, 1.5e-6, -1.5e-6, 1.5e-6),
         pillar_center=(0.0, 0.0),
-        # TODO: 纳米柱几何参数需与 phase_quadrature 模块保持一致
+
         pillar_size=...
     )
     phase_scat = np.angle(E_z)
@@ -69,7 +56,7 @@ def main():
     print(f"   散射场幅度范围: [{amp_scat.min():.4e}, {amp_scat.max():.4e}] V/m")
     print(f"   散射场相位范围: [{np.degrees(phase_scat.min()):.2f}°, {np.degrees(phase_scat.max()):.2f}°]")
 
-    # 中心区域透射相位
+
     cx, cy = 0.0, 0.0
     dist = np.sqrt((nodes[:, 0] - cx) ** 2 + (nodes[:, 1] - cy) ** 2)
     mask_center = dist < 0.2e-6
@@ -77,9 +64,9 @@ def main():
         avg_phase_center = np.angle(np.mean(E_z[mask_center]))
         print(f"   中心区域平均透射相位: {np.degrees(avg_phase_center):.2f}°")
 
-    # ==================================================================
-    # 模块 2：CVT 超构表面网格优化 (242_cvt_4_movie + 725_matlab_map)
-    # ==================================================================
+
+
+
     print_section("模块 2：CVT 超构表面网格优化")
     print("使用重心 Voronoi 镶嵌优化纳米柱空间排布...")
     grid = MetasurfaceCVT(region=(-5.0e-6, 5.0e-6, -5.0e-6, 5.0e-6))
@@ -107,13 +94,13 @@ def main():
     print(f"   平均单元面积: {np.mean(areas):.3e} m²")
     print(f"   近似填充因子: {fill_factor:.1f}%")
 
-    # ==================================================================
-    # 模块 3：高精度数值积分 (957_quadrilateral_witherden_rule)
-    # ==================================================================
+
+
+
     print_section("模块 3：高精度数值积分 — 有效极化率与相位")
     pq = PhaseQuadrature(wavelength=1.55e-6)
     cx, cy = 0.0, 0.0
-    # TODO: 纳米柱几何参数需与 maxwell_fem 模块的 pillar_size 保持一致
+
     w_pillar = ...
     h_pillar = ...
     h_z = 1.0e-6
@@ -126,13 +113,13 @@ def main():
     print(f"   等效极化率: {alpha:.4e} F·m²")
     print(f"   波导模式有效折射率: {', '.join(f'{n:.4f}' for n in n_effs)}")
 
-    # ==================================================================
-    # 模块 4：多极矩分析 (947_quadmom)
-    # ==================================================================
+
+
+
     print_section("模块 4：电磁多极矩提取")
     me = MultipoleExtractor(wavelength=1.55e-6)
 
-    # 构造模拟远场数据（基于 FEM 结果近似）
+
     N_ang = 100
     theta = np.linspace(0.1, np.pi - 0.1, N_ang)
     phi_ang = np.linspace(0, 2 * np.pi, N_ang)
@@ -140,7 +127,7 @@ def main():
     theta_f = theta_g.flatten()
     phi_f = phi_g.flatten()
 
-    # 从散射场幅度构造远场近似
+
     r_far = 1.0e-3
     k = me.k0
     E_scat_approx = np.zeros((len(theta_f), 3), dtype=np.complex128)
@@ -151,7 +138,7 @@ def main():
             np.sin(theta_f[i]) * np.sin(phi_f[i]),
             np.cos(theta_f[i])
         ])
-        # 近似：散射场 ∝ 入射场 × 相位因子
+
         E_scat_approx[i] = 0.01 * np.exp(1.0j * avg_phase) * np.array([0, 0, 1]) * np.exp(1.0j * k * r_far) / r_far
         H_scat_approx[i] = n_vec * np.linalg.norm(E_scat_approx[i]) / me.eta0
 
@@ -169,9 +156,9 @@ def main():
     print(f"   磁偶极辐射功率: {powers['P_dipole_magnetic']:.4e} W")
     print(f"   总散射功率: {powers['P_total']:.4e} W")
 
-    # 球谐展开
+
     angular_samples = np.column_stack([theta_f, phi_f])
-    field_samples = E_scat_approx[:, 2]  # E_z 分量
+    field_samples = E_scat_approx[:, 2]
     try:
         coeffs = me.multipole_moment_method(angular_samples, field_samples, max_order=3)
         print(f"   球谐展开系数数量: {len(coeffs)}")
@@ -179,14 +166,13 @@ def main():
         print(f"   球谐展开（需 scipy 特殊函数）: 跳过")
         coeffs = None
 
-    # ==================================================================
-    # 模块 5：稀疏网格不确定性量化 (1105_sparse_grid_hermite)
-    # ==================================================================
+
+
+
     print_section("模块 5：制造误差不确定性量化")
     uq = UncertaintyQuantify(dim_num=3, level_max=4)
 
     def phase_model(params):
-        """params = [h, w, x_offset] 为物理参数"""
         h = params[0]
         w = params[1]
         x_offset = params[2]
@@ -207,20 +193,20 @@ def main():
     print(f"      宽度误差 (δw): {stats['sobol_first'][1]:.4f}")
     print(f"      位置误差 (δx): {stats['sobol_first'][2]:.4f}")
 
-    # ==================================================================
-    # 模块 6：工艺随机采样 (1006_random_data + 291_discrete_pdf_sample_2d)
-    # ==================================================================
+
+
+
     print_section("模块 6：工艺随机采样与误差场")
     ps_sampler = ProcessSampler(seed=42)
 
-    # 三角形内采样
+
     tri_pts = ps_sampler.uniform_in_triangle(500,
                                               np.array([0.0, 0.0]),
                                               np.array([0.3e-6, 0.0]),
                                               np.array([0.0, 0.3e-6]))
     print(f"   纳米柱截面采样点数: {len(tri_pts)}")
 
-    # 高度误差随机场
+
     x_grid_err = np.linspace(-5e-6, 5e-6, 64)
     y_grid_err = np.linspace(-5e-6, 5e-6, 64)
     h_field = ps_sampler.generate_height_error_field(x_grid_err, y_grid_err,
@@ -228,7 +214,7 @@ def main():
                                                       correlation_length=0.8e-6)
     print(f"   高度误差场: μ={h_field.mean():.3e} m, σ={h_field.std():.3e} m")
 
-    # 多变量工艺参数采样
+
     base_params = np.array([0.6e-6, 0.3e-6, 0.0, 0.0, 90.0])
     sigma_proc = np.array([0.02e-6, 0.01e-6, 0.005e-6, 0.005e-6, 2.0])
     corr = np.eye(5)
@@ -236,13 +222,13 @@ def main():
     proc_samples = ps_sampler.sample_process_variations(300, base_params, sigma_proc, corr)
     print(f"   工艺参数采样: 高度 σ={proc_samples[:,0].std():.3e}, 宽度 σ={proc_samples[:,1].std():.3e}")
 
-    # ==================================================================
-    # 模块 7：拓扑优化 (156_change_dynamic + 206_compressed_solve)
-    # ==================================================================
+
+
+
     print_section("模块 7：离散相位拓扑优化")
     opt = TopologyOptimizer(n_levels=8)
 
-    # 动态规划相位量化
+
     N_p = len(generators)
     target_phases = target_phase_func(generators[:, 0], generators[:, 1])
     target_phases = np.mod(target_phases, 2.0 * np.pi)
@@ -252,7 +238,7 @@ def main():
     print(f"   量化前相位范围: [{np.degrees(target_phases.min()):.1f}°, {np.degrees(target_phases.max()):.1f}°]")
     print(f"   量化后相位级数: {len(np.unique(np.round(quantized, 4)))}")
 
-    # 压缩感知逆向设计
+
     M_far = 40
     N_lib = 150
     np.random.seed(1)
@@ -267,9 +253,9 @@ def main():
     x_greedy, res_greedy, sel = opt.greedy_pillar_selection(A_design, b_target, max_pillars=12)
     print(f"   贪心选择: 选中 {len(sel)} 个纳米柱类型, 残差={res_greedy:.4e}")
 
-    # ==================================================================
-    # 模块 8：波前追踪 (287_dijkstra)
-    # ==================================================================
+
+
+
     print_section("模块 8：波前追踪与等光程路径")
     nx_wf, ny_wf = 81, 81
     x_wf = np.linspace(-5e-6, 5e-6, nx_wf)
@@ -288,23 +274,23 @@ def main():
     print(f"   平均偏转角度: {np.degrees(np.mean(steer_angles)):.2f}°")
     print(f"   光程标准差: {opls_all.std():.3e} m")
 
-    # ==================================================================
-    # 模块 9：极小曲面相位平滑 (768_minimal_surface_exact)
-    # ==================================================================
+
+
+
     print_section("模块 9：极小曲面相位平滑")
     ps = PhaseSurface(x_wf, y_wf)
 
-    # 悬链面相位
+
     phi_cat = ps.catenoid_phase_profile(a_param=2.0e6)
     W_cat = ps.surface_energy(phi_cat)
     print(f"   悬链面 Willmore 能量: {W_cat:.4e}")
 
-    # 螺旋面相位（涡旋）
+
     phi_hel = ps.helicoid_phase_profile(a_param=2.0)
     W_hel = ps.surface_energy(phi_hel)
     print(f"   螺旋面 Willmore 能量: {W_hel:.4e}")
 
-    # 离散相位平滑（基于目标相位的阶梯离散化）
+
     phi_disc = np.floor(phase_map / (np.pi / 4)) * (np.pi / 4)
     phi_smooth = ps.minimal_surface_smooth(phi_disc, lambda_fidelity=0.05,
                                             max_iter=60, dt=0.05)
@@ -314,34 +300,34 @@ def main():
     print(f"   平滑后 Willmore 能量: {W_smooth:.4e}")
     print(f"   曲率能量降低: {W_disc / W_smooth:.2f}x")
 
-    # ==================================================================
-    # 模块 10：收敛性与统计检验 (113_box_distance + 814_norm_loo)
-    # ==================================================================
+
+
+
     print_section("模块 10：数值收敛性与统计检验")
     ca = ConvergenceAnalysis()
 
-    # 长方体距离统计
+
     mu_bd, var_bd, m2_bd = ca.box_distance_stats(20000, 1.0e-6, 2.0e-6, 3.0e-6)
     print(f"   长方体距离统计: μ={mu_bd:.6e}, σ²={var_bd:.6e}")
 
-    # 收敛阶估计
+
     h_test = np.array([0.4, 0.2, 0.1, 0.05]) * 1e-6
     err_test = 0.05 * h_test ** 2.1
     p_est, C_est, r2_est = ca.estimate_convergence_rate(err_test, h_test)
     print(f"   拟合收敛阶: p={p_est:.3f} (理论期望≈2.0)")
     print(f"   拟合 R²: {r2_est:.6f}")
 
-    # GCI 网格独立性指标
+
     fine_v, medium_v, coarse_v = 0.952, 0.944, 0.921
     gci = ca.gci_calculation(fine_v, medium_v, coarse_v, r=2.0, p=2.0)
     print(f"   GCI(fine-medium): {gci*100:.3f}%")
 
-    # Monte-Carlo 收敛
+
     mc_samples = np.random.randn(5000)
     cm, se = ca.mc_convergence_test(mc_samples, batch_size=100)
     print(f"   MC 均值收敛: {cm[-1]:.4f} ± {se[-1]:.4f}")
 
-    # 相位误差范数
+
     phi_exact = phase_map
     phi_numeric = phase_map + 0.01 * np.random.randn(nx_wf, ny_wf)
     err_dict = ca.evaluate_phase_error(phi_exact, phi_numeric, x_wf, y_wf)
@@ -349,9 +335,9 @@ def main():
     print(f"   相位 L∞ 误差: {err_dict['Linf_error']:.4f}")
     print(f"   相位 H¹ 误差: {err_dict['H1_error']:.4f}")
 
-    # ==================================================================
-    # 综合性能评估
-    # ==================================================================
+
+
+
     print_section("综合性能评估")
     print("超构表面设计指标:")
     print(f"   口径尺寸: 10 μm × 10 μm")

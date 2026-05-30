@@ -1,19 +1,12 @@
-"""
-Multi-dimensional lattice state space management and parameter grids.
-Incorporates: diophantine_nd (Diophantine enumeration),
-              cc_display (Clenshaw-Curtis sparse grids),
-              levels (random level sampling).
-"""
 import numpy as np
 from typing import List, Tuple, Optional
 from utils import gcd_vec
 
 
-# ---------------------------------------------------------------------------
-# Diophantine state enumeration (from diophantine_nd)
-# ---------------------------------------------------------------------------
+
+
+
 def diophantine_nd_check(a: np.ndarray, b: int) -> bool:
-    """Check if a @ x = b has nonnegative integer solutions."""
     if b < 0:
         return False
     if np.any(a <= 0):
@@ -25,9 +18,6 @@ def diophantine_nd_check(a: np.ndarray, b: int) -> bool:
 
 
 def diophantine_nd_nonnegative(a: np.ndarray, b: int) -> List[np.ndarray]:
-    """Find all nonnegative integer solutions to a @ x = b.
-    Uses recursive backtracking.
-    """
     n = len(a)
     solutions = []
     if n == 0:
@@ -55,7 +45,6 @@ def diophantine_nd_nonnegative(a: np.ndarray, b: int) -> List[np.ndarray]:
 
 def diophantine_nd_nonnegative_bounded(a: np.ndarray, b: int,
                                        bounds: np.ndarray) -> List[np.ndarray]:
-    """Find bounded nonnegative solutions: 0 <= x_i <= bounds[i]."""
     n = len(a)
     solutions = []
     if n == 0:
@@ -80,11 +69,10 @@ def diophantine_nd_nonnegative_bounded(a: np.ndarray, b: int,
     return solutions
 
 
-# ---------------------------------------------------------------------------
-# Clenshaw-Curtis sparse parameter grids (from cc_display)
-# ---------------------------------------------------------------------------
+
+
+
 def cc_level_to_order(level: int) -> int:
-    """Map nesting level to CC quadrature order."""
     if level < 0:
         return 1
     if level == 0:
@@ -93,7 +81,6 @@ def cc_level_to_order(level: int) -> int:
 
 
 def cc_abscissa(order: int) -> np.ndarray:
-    """1D Clenshaw-Curtis abscissas on [-1, 1]."""
     if order < 1:
         return np.array([0.0])
     if order == 1:
@@ -103,7 +90,6 @@ def cc_abscissa(order: int) -> np.ndarray:
 
 
 def _generate_compositions(n: int, k: int):
-    """Generate all compositions of n into k nonnegative parts."""
     if k == 1:
         yield [n]
         return
@@ -113,10 +99,6 @@ def _generate_compositions(n: int, k: int):
 
 
 def generate_cc_sparse_grid(dim: int, max_level: int) -> np.ndarray:
-    """Generate a sparse Clenshaw-Curtis grid in 'dim' dimensions up to max_level.
-    Uses level sum constraint: sum(levels) <= max_level.
-    Returns array of shape (N, dim) with points in [-1, 1]^dim.
-    """
     from itertools import product
     points = []
     for total_level in range(max_level + 1):
@@ -127,7 +109,7 @@ def generate_cc_sparse_grid(dim: int, max_level: int) -> np.ndarray:
                 points.append(np.array(coord, dtype=float))
     if not points:
         return np.zeros((0, dim))
-    # Remove duplicates with tolerance
+
     pts = np.array(points)
     unique = []
     seen = set()
@@ -141,9 +123,6 @@ def generate_cc_sparse_grid(dim: int, max_level: int) -> np.ndarray:
 
 def constrained_parameter_grid(dim: int, max_level: int,
                                weights: Optional[np.ndarray] = None) -> np.ndarray:
-    """Generate anisotropic sparse grid with weighted level constraint.
-    Constraint: sum(weights[i] * level_i) <= max_level.
-    """
     if weights is None:
         weights = np.ones(dim)
     from itertools import product
@@ -168,12 +147,11 @@ def constrained_parameter_grid(dim: int, max_level: int,
     return np.array(unique)
 
 
-# ---------------------------------------------------------------------------
-# Random level sampling for quantum probability landscapes (from levels)
-# ---------------------------------------------------------------------------
+
+
+
 def random_level_sample(values: np.ndarray, num_levels: int,
                         seed: Optional[int] = None) -> np.ndarray:
-    """Sample num_levels random values from values array as contour levels."""
     if seed is not None:
         np.random.seed(seed)
     if num_levels <= 0 or values.size == 0:
@@ -184,9 +162,6 @@ def random_level_sample(values: np.ndarray, num_levels: int,
 
 def analyze_probability_landscape(prob_grid: np.ndarray, num_levels: int = 20,
                                   seed: Optional[int] = None) -> dict:
-    """Analyze a quantum probability landscape using random level sampling.
-    Returns dict with level statistics.
-    """
     levels = random_level_sample(prob_grid, num_levels, seed)
     return {
         "levels": levels,
@@ -198,13 +173,10 @@ def analyze_probability_landscape(prob_grid: np.ndarray, num_levels: int = 20,
     }
 
 
-# ---------------------------------------------------------------------------
-# Lattice state space utilities
-# ---------------------------------------------------------------------------
+
+
+
 def build_hypercube_states(n: int, dim: int) -> np.ndarray:
-    """Build all 2^dim states for an n-vertex hypercube quantum walk.
-    Actually returns the vertex coordinates of a dim-dimensional hypercube.
-    """
     if dim < 1:
         return np.zeros((1, 1))
     from itertools import product
@@ -214,9 +186,6 @@ def build_hypercube_states(n: int, dim: int) -> np.ndarray:
 
 def diophantine_constrained_states(a: np.ndarray, b: int,
                                    bounds: Optional[np.ndarray] = None) -> np.ndarray:
-    """Generate state indices constrained by Diophantine equation.
-    Useful for quantum walks on lattices with conservation laws.
-    """
     if bounds is not None:
         sols = diophantine_nd_nonnegative_bounded(a, b, bounds)
     else:

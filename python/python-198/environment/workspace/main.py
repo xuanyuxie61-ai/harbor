@@ -1,29 +1,10 @@
-"""
-main.py
-=======
-通信避免的多项式混沌展开-有限体积法 (CA-PCE-FVM)
-用于大规模分布式不确定性传播的高性能计算框架
-
-科学问题：
-    在分布式内存系统上求解带有随机边界条件和随机对流系数的
-    二维无粘Burgers方程，采用通信避免的s-step Krylov子空间方法
-    加速PCE-Galerkin耦合系统的时间推进。
-
-核心创新：
-    1. 通信避免算法将PCE-Galerkin全局耦合通信减少s倍
-    2. 结合矩阵指数方法提供高精度时间参考解
-    3. 焦散拓扑分析预测激波形成与通信热点
-
-输入：无（零参数可运行，所有参数内嵌）
-输出：控制台报告数值精度、通信加速比、不确定性统计量
-"""
 
 import numpy as np
 import time
 import sys
 import os
 
-# 确保模块路径正确
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mesh_geometry import (
@@ -147,7 +128,7 @@ def run_section_3_pce_basis():
     xi_test = np.linspace(-3, 3, 100)
     H = hermite_he_prob_matrix(degree, xi_test)
     
-    # 验证正交性
+
     from pce_basis import he_double_product_integral
     norm_checks = [he_double_product_integral(k, k) for k in range(degree + 1)]
     print(f"  PCE阶数: {degree}")
@@ -158,7 +139,7 @@ def run_section_3_pce_basis():
     print(f"  PCE-Galerkin矩阵 (α_μ={alpha_mu}, α_σ={alpha_sigma}):")
     print(f"  条件数: {np.linalg.cond(A_pce):.4e}")
     
-    # Vandermonde测试
+
     x_vand = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     V = vandermonde_matrix(5, x_vand)
     det_V = np.linalg.det(V)
@@ -176,8 +157,8 @@ def run_section_4_burgers_fvm(nodes, elements):
     
     def u0_func(x, y):
         r = np.sqrt(x ** 2 + y ** 2)
-        # 平滑初始条件: 0.5 * sin(πr) * (1-r²)，在边界r=1处自动为0
-        # 幅值限制在[-0.5, 0.5]内，确保数值稳定性
+
+
         u = 0.5 * np.sin(np.pi * r) * (1.0 - r ** 2)
         return u
     
@@ -191,7 +172,7 @@ def run_section_4_burgers_fvm(nodes, elements):
     print(f"  初始解范围: [{U[0].min():.4f}, {U[0].max():.4f}]")
     print(f"  终态解范围: [{U[-1].min():.4f}, {U[-1].max():.4f}]")
     
-    # 与精确解对比（拉普拉斯解用于边界条件验证，不作为Burgers精确解）
+
     area, centroid, _, _ = build_fvm_operators(nodes, elements)
     u_exact_laplace, _, _, _, _, _ = laplace_radial_2d_exact(
         centroid[:, 0], centroid[:, 1], a=0.1, b=0.5
@@ -221,13 +202,13 @@ def run_section_5_matrix_exponential(degree, alpha_mu, alpha_sigma):
     print(f"  PCE均值终值 (0阶系数): {U_pce[-1, 0]:.6f}")
     print(f"  PCE方差终值: {np.sum(U_pce[-1, 1:] ** 2):.6f}")
     
-    # HOLE 3: 需要实现PCE系统的解析均值验证
-    # 核心知识：
-    #   - 随机ODE: du/dt = -(α_μ + α_σ ξ) u, ξ ~ N(0,1)
-    #   - 精确均值: E[u(t)] = u(0) * exp(-α_μ t + 0.5 α_σ² t²)
-    #   - 此解析公式必须与 pce_basis.py 中 build_pce_galerkin_matrix 的离散化一致
-    #   - 验证: |U_pce[-1, 0] - analytical_mean| 应足够小
-    analytical_mean = None  # 待修复
+
+
+
+
+
+
+    analytical_mean = None
     print(f"  解析均值终值: {analytical_mean}")
     print(f"  误差: 待计算")
     
@@ -264,10 +245,10 @@ def run_section_7_ca_solver(degree, alpha_mu, alpha_sigma):
     n = A_pce.shape[0]
     b = np.random.randn(n)
     
-    # 标准GMRES
+
     x_std, res_std, it_std = gmres_solve(A_pce, b, restart=10, max_iter=20, tol=1e-8, s_step=1)
     
-    # CA s-step GMRES (s=4)
+
     x_ca, res_ca, it_ca = gmres_solve(A_pce, b, restart=10, max_iter=20, tol=1e-8, s_step=4)
     
     print(f"  系统维度: {n}")
@@ -275,7 +256,7 @@ def run_section_7_ca_solver(degree, alpha_mu, alpha_sigma):
     print(f"  CA GMRES(s=4): 迭代 {it_ca}, 最终残差 {res_ca[-1]:.6e}")
     print(f"  解差异 ||x_std - x_ca||: {np.linalg.norm(x_std - x_ca):.6e}")
     
-    # Arnoldi基正交性测试
+
     v0 = b / np.linalg.norm(b)
     V_std, H_std = ca_sstep_arnoldi(A_pce, v0, s=1, m_total=5)
     V_ca, H_ca = ca_sstep_arnoldi(A_pce, v0, s=4, m_total=5)
@@ -307,7 +288,7 @@ def run_section_8_mc_verification(degree, alpha_mu, alpha_sigma):
     print(f"  PCE解析均值: {result['pce_mean_analytical']:.6f}")
     print(f"  相对误差: {result['error_mean']:.6e}")
     
-    # 椭圆采样测试
+
     A_ellipse = np.array([[4.0, 1.0], [1.0, 3.0]])
     samples = ellipse_sample(1000, A_ellipse, R=1.0)
     norms = np.sqrt(np.sum(samples ** 2, axis=0))
@@ -319,7 +300,7 @@ def run_section_8_mc_verification(degree, alpha_mu, alpha_sigma):
 def run_section_9_sparse_io(degree, alpha_mu, alpha_sigma, nodes, elements):
     print_header("Section 9: 稀疏矩阵I/O (Harwell-Boeing格式)")
     
-    # 构造一个简化的空间-PCE耦合矩阵
+
     n_elem = elements.shape[0]
     spatial_A = 0.1 * np.eye(n_elem)
     A_total = build_pce_block_sparse(spatial_A, degree, alpha_mu, alpha_sigma)
@@ -327,13 +308,13 @@ def run_section_9_sparse_io(degree, alpha_mu, alpha_sigma, nodes, elements):
     n_total = A_total.shape[0]
     print(f"  块稀疏PCE矩阵维度: {n_total} x {n_total}")
     
-    # 转为CSR
+
     csr = dense_to_csr(A_total)
     nnz = len(csr['data'])
     sparsity = 1.0 - nnz / (n_total ** 2)
     print(f"  非零元数: {nnz}, 稀疏度: {sparsity:.4%}")
     
-    # 写入HB文件
+
     filename = os.path.join(os.path.dirname(__file__), "pce_matrix.hb")
     write_hb_simple(filename, A_total, title="CA_PCE_GALERKIN_MATRIX")
     print(f"  HB矩阵文件已写入: {filename}")
@@ -361,22 +342,22 @@ def run_section_10_sawtooth_driver():
 def run_section_11_caustic_topology(nodes, elements, t, U):
     print_header("Section 11: 焦散拓扑与激波预测")
     
-    # 焦刻映射
+
     edges, pj, pk = caustic_mapping(n=20, m=5)
     print(f"  焦刻映射边数: {len(edges)}")
     
-    # 特征速度场
+
     velocity = caustic_inspired_topology_field(nodes, elements, m=5, n=12)
     print(f"  焦刻启发速度场范围: [{velocity.min():.4f}, {velocity.max():.4f}]")
     
-    # 激波预测（基于1D简化模型）
+
     x_1d = np.linspace(-1, 1, 50)
     u0_1d = np.sin(np.pi * x_1d)
     t_b, x_s = shock_formation_time(lambda x: np.sin(np.pi * x), x_1d)
     print(f"  一维Burgers激波形成时间估计: t_b = {t_b:.4f}")
     print(f"  激波初始位置: x = {x_s:.4f}")
     
-    # 数值解梯度检测
+
     if len(t) > 1 and U.shape[1] > 1:
         area, centroid, _, _ = build_fvm_operators(nodes, elements)
         x_mid = centroid[:, 0]
@@ -399,52 +380,52 @@ def main():
     print("=" * 70)
     print()
     
-    # Section 1: 网格
+
     nodes, elements, boundary_mask, partition, interface = run_section_1_mesh_generation()
     print()
     
-    # Section 2: 随机场
+
     mu, sigma, a, b, kl_coeffs = run_section_2_random_field()
     print()
     
-    # Section 3: PCE基
+
     degree, A_pce_demo = run_section_3_pce_basis()
     print()
     
-    # Section 4: Burgers FVM
+
     t, U, area, centroid = run_section_4_burgers_fvm(nodes, elements)
     print()
     
-    # Section 5: 矩阵指数
+
     alpha_mu, alpha_sigma = 1.0, 0.2
     t_arr, U_pce = run_section_5_matrix_exponential(degree, alpha_mu, alpha_sigma)
     print()
     
-    # Section 6: 通信分析
+
     best_s, best_sp = run_section_6_communication_analysis()
     print()
     
-    # Section 7: CA求解器
+
     x_ca, res_ca = run_section_7_ca_solver(degree, alpha_mu, alpha_sigma)
     print()
     
-    # Section 8: MC验证
+
     mc_result = run_section_8_mc_verification(degree, alpha_mu, alpha_sigma)
     print()
     
-    # Section 9: 稀疏I/O
+
     A_total = run_section_9_sparse_io(degree, alpha_mu, alpha_sigma, nodes, elements)
     print()
     
-    # Section 10: 锯齿波ODE
+
     t_ode, y_ode = run_section_10_sawtooth_driver()
     print()
     
-    # Section 11: 焦刻拓扑
+
     velocity = run_section_11_caustic_topology(nodes, elements, t, U)
     print()
     
-    # 最终总结
+
     print_header("综合性能报告")
     print(f"  1. 网格规模: {nodes.shape[0]} 节点, {elements.shape[0]} 单元")
     print(f"  2. PCE展开阶数: {degree}, 耦合系统维度: {A_pce_demo.shape[0]}")

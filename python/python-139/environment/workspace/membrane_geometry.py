@@ -1,24 +1,12 @@
-"""
-Membrane cross-section geometry discretization via polygon triangulation.
-
-Adapted from polygon_triangulate.m (O'Rourke algorithm) to decompose an
-irregular membrane cross-section into triangles for local flux integration.
-"""
 
 import numpy as np
 
 
 def triangle_area_signed(xa, ya, xb, yb, xc, yc):
-    """
-    Signed area of triangle (xa,ya), (xb,yb), (xc,yc).
-    """
     return 0.5 * ((xb - xa) * (yc - ya) - (xc - xa) * (yb - ya))
 
 
 def polygon_area(n, x, y):
-    """
-    Compute area of a simple polygon with vertices ordered counter-clockwise.
-    """
     area = 0.0
     im1 = n - 1
     for i in range(n):
@@ -28,9 +16,6 @@ def polygon_area(n, x, y):
 
 
 def is_collinear(xa, ya, xb, yb, xc, yc, eps=1e-12):
-    """
-    Check if three points are (nearly) collinear.
-    """
     area = abs(triangle_area_signed(xa, ya, xb, yb, xc, yc))
     side_ab_sq = (xa - xb) ** 2 + (ya - yb) ** 2
     side_bc_sq = (xb - xc) ** 2 + (yb - yc) ** 2
@@ -42,9 +27,6 @@ def is_collinear(xa, ya, xb, yb, xc, yc, eps=1e-12):
 
 
 def is_between(xa, ya, xb, yb, xc, yc):
-    """
-    True if C is between A and B (assuming collinearity).
-    """
     if not is_collinear(xa, ya, xb, yb, xc, yc):
         return False
     if abs(ya - yb) < abs(xa - xb):
@@ -54,9 +36,6 @@ def is_between(xa, ya, xb, yb, xc, yc):
 
 
 def intersect_prop(xa, ya, xb, yb, xc, yc, xd, yd):
-    """
-    Proper intersection test (excluding collinear cases).
-    """
     if is_collinear(xa, ya, xb, yb, xc, yc):
         return False
     if is_collinear(xa, ya, xb, yb, xd, yd):
@@ -73,9 +52,6 @@ def intersect_prop(xa, ya, xb, yb, xc, yc, xd, yd):
 
 
 def intersect(xa, ya, xb, yb, xc, yc, xd, yd):
-    """
-    True if segments AB and CD intersect (proper or improper).
-    """
     if intersect_prop(xa, ya, xb, yb, xc, yc, xd, yd):
         return True
     if is_between(xa, ya, xb, yb, xc, yc):
@@ -90,9 +66,6 @@ def intersect(xa, ya, xb, yb, xc, yc, xd, yd):
 
 
 def in_cone(im1, ip1, n, prev_node, next_node, x, y):
-    """
-    Check if diagonal from im1 to ip1 is strictly internal.
-    """
     im2 = prev_node[im1]
     i = next_node[im1]
     t1 = triangle_area_signed(x[im1], y[im1], x[i], y[i], x[im2], y[im2])
@@ -107,9 +80,6 @@ def in_cone(im1, ip1, n, prev_node, next_node, x, y):
 
 
 def diagonalie(im1, ip1, n, next_node, x, y):
-    """
-    Check if diagonal im1-ip1 does not intersect any polygon edge.
-    """
     first = im1
     j = first
     jp1 = next_node[first]
@@ -131,19 +101,15 @@ def is_diagonal(im1, ip1, n, prev_node, next_node, x, y):
 
 
 def polygon_triangulate(n, x, y):
-    """
-    Triangulate a simple polygon using ear-clipping.
-    Returns an array of shape (n-2, 3) with vertex indices for each triangle.
-    """
-    angle_tol = 5.7e-05  # degrees
+    angle_tol = 5.7e-05
     if n < 3:
         raise ValueError("Polygon must have at least 3 vertices.")
-    # Check consecutive duplicates
+
     for i in range(n):
         im1 = (i - 1) % n
         if x[im1] == x[i] and y[im1] == y[i]:
             raise ValueError("Two consecutive nodes are identical.")
-    # Check minimal angles
+
     node1 = n - 1
     for node2 in range(n):
         node3 = (node2 + 1) % n
@@ -201,9 +167,6 @@ def polygon_triangulate(n, x, y):
 
 
 def generate_hollow_fiber_cross_section(n_vertices, inner_r, outer_r):
-    """
-    Generate a polygon approximating a hollow-fiber cross-section.
-    """
     theta = np.linspace(0.0, 2.0 * np.pi, n_vertices, endpoint=False)
     x = outer_r * np.cos(theta)
     y = outer_r * np.sin(theta)
@@ -211,9 +174,6 @@ def generate_hollow_fiber_cross_section(n_vertices, inner_r, outer_r):
 
 
 def integrate_flux_over_triangles(triangles, x, y, flux_values):
-    """
-    Integrate a scalar flux field (given at vertices) over triangulated geometry.
-    """
     total = 0.0
     for tri in triangles:
         i, j, k = tri

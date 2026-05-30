@@ -1,29 +1,10 @@
-"""
-main.py
-=======
-光子晶体带隙工程综合计算平台 —— 统一入口
-
-本程序为零参数可运行的博士级科研计算脚本，执行以下完整流程:
-  1. 生成多种光子晶体结构 (正方/三角/准周期/木堆/反蛋白石)
-  2. 平面波展开法 (PWE) 计算能带结构
-  3. 离散正弦变换谱方法求解层状结构
-  4. 带隙检测与分析
-  5. 态密度 (DOS) 蒙特卡洛计算
-  6. 耦合模理论 (CMT) 布拉格光栅模拟
-  7. 无序模型: 位置涨落、尺寸涨落、介电涨落
-  8. 光子输运: 辐射输运方程 + 马尔可夫链扩散
-  9. 安德森局域化分析
-  10. 数值核函数基准测试
-
-所有结果以数值表格形式输出到终端。
-"""
 
 import numpy as np
 import sys
 
-# =============================================================================
-# 导入各模块
-# =============================================================================
+
+
+
 from physics_core import (
     C_0, reciprocal_lattice_2d, brillouin_zone_path_2d,
     normalized_frequency, bandgap_ratio, cavity_q_factor,
@@ -80,9 +61,9 @@ from numerical_kernels import (
 )
 
 
-# =============================================================================
-# 打印工具
-# =============================================================================
+
+
+
 
 def print_section(title):
     print("\n" + "=" * 70)
@@ -94,9 +75,9 @@ def print_subsection(title):
     print(f"\n--- {title} ---")
 
 
-# =============================================================================
-# 主程序
-# =============================================================================
+
+
+
 
 def main():
     print("=" * 70)
@@ -106,24 +87,24 @@ def main():
     
     np.random.seed(42)
     
-    # =====================================================================
-    # 1. 物理参数设定
-    # =====================================================================
+
+
+
     print_section("1. 物理参数与材料设定")
     
-    a = 500e-9          # 晶格常数 500 nm
-    r_hole = 0.3 * a    # 空气孔半径
-    eps_silicon = 12.0  # 硅的相对介电常数
-    eps_air = 1.0       # 空气
+    a = 500e-9
+    r_hole = 0.3 * a
+    eps_silicon = 12.0
+    eps_air = 1.0
     
     print(f"  晶格常数 a = {a*1e9:.1f} nm")
     print(f"  空气孔半径 r = {r_hole*1e9:.1f} nm")
     print(f"  硅介电常数 ε = {eps_silicon:.2f}")
     print(f"  空气介电常数 ε = {eps_air:.2f}")
     
-    # =====================================================================
-    # 2. 晶格结构生成 (融合 330_ellipse_grid, 333_ellipsoid_grid, 708_magic_matrix)
-    # =====================================================================
+
+
+
     print_section("2. 光子晶体结构生成")
     
     print_subsection("2.1 二维正方晶格光子晶体")
@@ -167,38 +148,38 @@ def main():
     M5 = magic_matrix(5)
     print(f"  5 阶幻方矩阵和 = {np.sum(M5[0,:])} (每行/列/对角线)")
     
-    # =====================================================================
-    # 3. 能带结构计算 (PWE 方法)
-    # =====================================================================
+
+
+
     print_section("3. 能带结构计算 (平面波展开法)")
     
-    # 生成 k 点路径
+
     b1, b2 = reciprocal_lattice_2d(np.array([a, 0]), np.array([0, a]))
     k_points, labels = brillouin_zone_path_2d(b1, b2, 15, 'square')
     print(f"  k 点路径: Γ→X→M→Γ, 共 {len(k_points)} 个点")
     
-    # 任务分区 (融合 1196_task_division)
+
     print_subsection("3.1 k 点计算任务分区")
     n_workers = 4
     k_subsets = divide_k_points(k_points, n_workers)
     for i, subset in enumerate(k_subsets):
         print(f"    Worker {i}: {len(subset)} 个 k 点")
     
-    # PWE 计算 (减小截断以加速)
+
     n_g = 3
     n_bands = 6
     print_subsection(f"3.2 PWE 计算 (截断 n_g={n_g}, 能带数={n_bands})")
     omega_bands = solve_bands_pwe(n_bands, n_g, eps_square, a, k_points)
     
-    # 输出能带
+
     print("  归一化频率 ωa/(2πc) 沿高对称路径:")
     for ik in range(0, len(k_points), 5):
         om_norm = [normalized_frequency(a, omega_bands[ik, ib]) for ib in range(n_bands)]
         print(f"    k[{ik:2d}]: " + " ".join([f"{o:.4f}" for o in om_norm]))
     
-    # =====================================================================
-    # 4. 带隙检测与分析
-    # =====================================================================
+
+
+
     print_section("4. 光子带隙分析")
     
     gaps = detect_bandgaps(omega_bands, threshold_ratio=0.02)
@@ -213,12 +194,12 @@ def main():
         print(f"    相对宽度:   {gap['relative_width']*100:.2f}%")
         print(f"    中心频率:   {gap['omega_center']/1e15:.4f} PHz")
     
-    # 带隙失配参数
+
     fill_factor = np.pi * (r_hole / a) ** 2
     mismatch = gap_mismatch_parameter(eps_silicon, eps_air, fill_factor)
     print(f"\n  理论预估最大带隙宽度: {mismatch*100:.2f}%")
     
-    # 缺陷态频率
+
     if gaps:
         gap_center = gaps[0]['omega_center']
         Q = 1000.0
@@ -228,19 +209,19 @@ def main():
         print(f"    线宽:     {delta_omega/1e12:.4f} THz")
         print(f"    品质因子: {cavity_q_factor(omega_defect, delta_omega):.1f}")
     
-    # 慢光群折射率
+
     k_dist = np.linspace(0, 1, len(k_points))
     n_g = slow_light_group_index(omega_bands[:, 0], k_dist)
     print(f"\n  基态群折射率范围: [{np.min(n_g):.2f}, {np.max(n_g):.2f}]")
     
-    # =====================================================================
-    # 5. 离散正弦变换谱方法 (一维层状结构)
-    # =====================================================================
+
+
+
     print_section("5. 离散正弦变换谱方法 (层状结构)")
     
     n_modes = 8
     n_pts = 64
-    # 构造一维层状介电常数分布
+
     eps_profile = np.where(np.sin(np.linspace(0, 4*np.pi, n_pts)) > 0, eps_silicon, eps_air)
     kx_test = 0.1 * 2 * np.pi / a
     
@@ -250,67 +231,67 @@ def main():
         print(f"    模式 {i}: ω = {omega_spec[i]/1e15:.4f} PHz, "
               f"归一化 ωa/(2πc) = {normalized_frequency(a, omega_spec[i]):.4f}")
     
-    # 正弦变换数据测试
+
     f_vals = np.sin(np.pi * np.arange(1, n_pts + 1) / (n_pts + 1))
     s_coeffs = sine_transform_data(n_pts, f_vals)
-    # 重构检验
+
     x_test = a * 0.3
     f_recon = sine_transform_interpolant(n_pts, 0.0, a, s_coeffs, x_test)
     f_exact = np.sin(np.pi * x_test / a)
     print(f"\n  正弦变换重构误差: |f_recon - f_exact| = {abs(f_recon - f_exact):.2e}")
     
-    # =====================================================================
-    # 6. 耦合模理论 (CMT) 与 RK4 传播
-    # =====================================================================
-    # TODO: Section 6 — Coupled-Mode Theory (CMT) and Bragg grating simulation.
-    #
-    # This section must:
-    #   1. Set up physical parameters: kappa, delta_beta_values, L_grating
-    #   2. Call propagate_bragg_grating(kappa, db, L_grating, n_z=200) for each db
-    #   3. Call bragg_reflectivity(kappa, L_grating, db) for analytical comparison
-    #   4. Print a comparison table of numerical vs analytical reflectivity
-    #   5. Call coupled_mode_fdtm(kappa, 0.0, L_grating, nz=200) for FDTM validation
-    #
-    # Note: This section depends on Hole 1 (physics_core.py) and Hole 2 (bandgap_analysis.py).
-    #   All three holes must be fixed together for the code to run correctly.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     pass
     
-    # =====================================================================
-    # 7. 态密度 (DOS) 计算
-    # =====================================================================
+
+
+
     print_section("7. 布里渊区态密度 (DOS) 计算")
     
-    # 7.1 蒙特卡洛 DOS
+
     print_subsection("7.1 标准蒙特卡洛 DOS")
     omega_bins, dos = monte_carlo_dos_brillouin(omega_bands, k_points, n_samples=5000)
     dos_peak_idx = np.argmax(dos)
     print(f"  DOS 峰值位置: ω = {omega_bins[dos_peak_idx]/1e15:.4f} PHz")
     print(f"  DOS 峰值数值: {dos[dos_peak_idx]:.4e}")
     
-    # 7.2 重要性采样 DOS
+
     print_subsection("7.2 重要性采样 DOS")
     omega_bins_i, dos_i = importance_sampled_dos(omega_bands, k_points, n_samples=3000)
     dos_peak_idx_i = np.argmax(dos_i)
     print(f"  重要性采样 DOS 峰值: ω = {omega_bins_i[dos_peak_idx_i]/1e15:.4f} PHz")
     
-    # 7.3 单纯形积分测试
+
     print_subsection("7.3 单纯形上的蒙特卡洛积分")
-    t_tri = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])  # 二维三角形
+    t_tri = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
     samples_tri = simplex_general_sample(2, 1000, t_tri)
     vol_tri = simplex_volume(2, t_tri)
     print(f"  三角形体积 (解析=0.5): {vol_tri:.6f}")
     print(f"  单纯形采样均值: ({np.mean(samples_tri[0,:]):.4f}, {np.mean(samples_tri[1,:]):.4f})")
     
-    # 7.4 Van Hove 奇异点
+
     print_subsection("7.4 Van Hove 奇异点分析")
     vh_singularities = van_hove_singularity_type(omega_bands, k_dist)
     print(f"  检测到 {len(vh_singularities)} 个 Van Hove 奇异点")
     for vh in vh_singularities[:3]:
         print(f"    带 {vh['band']}: ω={vh['omega']/1e15:.4f} PHz, 类型={vh['type']}")
     
-    # =====================================================================
-    # 8. 无序模型
-    # =====================================================================
+
+
+
     print_section("8. 制造缺陷与无序模型")
     
     print_subsection("8.1 Chebyshev 拒绝采样")
@@ -337,9 +318,9 @@ def main():
     eps_die_dis = dielectric_disorder(eps_square, correlation_length=2.0, sigma_eps=0.5, n_samples=2)
     print(f"  生成 {len(eps_die_dis)} 个介电无序样本")
     
-    # =====================================================================
-    # 9. 光子输运与局域化
-    # =====================================================================
+
+
+
     print_section("9. 光子输运与安德森局域化")
     
     print_subsection("9.1 马尔可夫链光子跳跃模型")
@@ -350,7 +331,7 @@ def main():
     print(f"  次大特征值: {abs(eigenvals[1]):.6f}")
     print(f"  估计局域化长度: {xi_loc:.2f} 位点")
     
-    # 光子扩散
+
     P0 = np.zeros(n_sites)
     P0[n_sites // 2] = 1.0
     distributions, entropy = photon_diffusion_markov(A, P0, n_steps=100)
@@ -365,7 +346,7 @@ def main():
     print(f"  能量守恒 T+R = {T+R:.4f}")
     
     print_subsection("9.3 安德森局域化长度")
-    wavelength = 1550e-9  # 通信波段
+    wavelength = 1550e-9
     l_mfp, delta_eps_rms = photon_mean_free_path(eps_square, wavelength, a*0.1)
     v_group = C_0 / np.sqrt(eps_silicon)
     D = diffusion_constant_photonic(l_mfp, v_group)
@@ -387,9 +368,9 @@ def main():
         beta = scaling_theory_beta_function(g, d=3)
         print(f"    {g:8.2f} {beta:10.4f}")
     
-    # =====================================================================
-    # 10. 数值核函数与矩阵运算
-    # =====================================================================
+
+
+
     print_section("10. 数值核函数测试")
     
     print_subsection("10.1 NAS 兼容随机数生成器")
@@ -410,7 +391,7 @@ def main():
     c_td = np.ones(n_t - 1)
     d_td = np.ones(n_t)
     x_td = solve_tridiagonal(a_td, b_td, c_td, d_td, n_t)
-    # 验证
+
     res_td = np.zeros(n_t)
     res_td[0] = b_td[0]*x_td[0] + c_td[0]*x_td[1] - d_td[0]
     for i in range(1, n_t-1):
@@ -427,7 +408,7 @@ def main():
     c2 = 0.1 * np.ones(n_p - 2)
     dp = np.ones(n_p)
     x_p = solve_pentadiagonal(a2, a1, bp, c1, c2, dp, n_p)
-    # 验证
+
     A_p = np.zeros((n_p, n_p))
     for i in range(n_p):
         A_p[i, i] = bp[i]
@@ -439,17 +420,17 @@ def main():
     print(f"  残差范数: {np.linalg.norm(res_p):.2e}")
     
     print_subsection("10.5 packed SPD Cholesky 分解")
-    # 构造严格对角占优的 SPD 矩阵
+
     M = np.array([[4.0, 1.0, 0.5],
                   [1.0, 3.0, 0.8],
                   [0.5, 0.8, 2.0]])
-    # packed 存储 (上三角按列): A11, A12, A22, A13, A23, A33
+
     a_packed = np.array([4.0, 1.0, 3.0, 0.5, 0.8, 2.0])
     r_packed, info = r8pp_fa(3, a_packed)
     if info == 0:
         b_test = np.array([1.0, 2.0, 3.0])
         x_test = r8pp_sl(3, r_packed, b_test)
-        # 验证
+
         x_verify = r8pp_mv(3, a_packed, x_test)
         print(f"  Cholesky 分解成功")
         print(f"  解 x = [{x_test[0]:.4f}, {x_test[1]:.4f}, {x_test[2]:.4f}]")
@@ -492,9 +473,9 @@ def main():
     for name, t in bench.items():
         print(f"  {name}: {t*1000:.2f} ms")
     
-    # =====================================================================
-    # 11. 综合结果汇总
-    # =====================================================================
+
+
+
     print_section("11. 计算结果汇总")
     
     print("  [结构生成]")

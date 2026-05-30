@@ -1,45 +1,7 @@
-"""
-================================================================================
-多维吸积盘流体力学数值模拟与磁离心喷流形成机制研究
-================================================================================
-
-统一入口：零参数运行，自动执行完整的吸积盘-喷流数值模拟流程。
-
-科学问题：
-    研究围绕 Schwarzschild 黑洞的薄吸积盘的径向结构演化、
-    角动量输运机制，以及基于 Blandford-Payne 磁离心机制的
-    喷流形成条件。模拟涵盖：
-      1. 盘的 Shakura-Sunyaev 结构（表面密度、温度、标高）
-      2. 引力势求解（泊松方程 + CG 迭代）
-      3. 流体动力学时间演化（RK3 显式积分）
-      4. 喷流发射蒙特卡洛采样
-      5. 尘埃粒子碰撞模型（速度 Verlet）
-      6. RBF 场重构与谱方法角向导数
-      7. 3D 高斯-勒让德体积积分验证
-      8. FEM 径向结构方程求解
-
-融合项目（15个种子项目全部真实融入）：
-    895_polynomial_multiply  -> spectral_methods.py (谱多项式乘法)
-    994_r8sd                -> matrix_solvers.py (稀疏对称对角 CG 求解器)
-    709_magic4_matrix       -> utils.py (幻方权重构造)
-    1320_triangle_to_fem    -> mesh_generation.py (网格格式转换)
-    987_r8pbl               -> matrix_solvers.py (带状 SPD 矩阵/Cholesky)
-    231_cube_exactness      -> quadrature_rules.py (3D 高斯-勒让德求积)
-    1014_rbf_interp_2d      -> rbf_interpolation.py (径向基函数插值)
-    1339_triangulation_mask -> mesh_generation.py (三角剖分掩码)
-    066_ball_distance       -> monte_carlo_transport.py (球内均匀采样)
-    213_contour_gradient_3d -> hydrodynamics.py (数值梯度/散度)
-    388_fem1d_display       -> fem_radial.py (1D FEM 基函数与刚度矩阵)
-    1410_wedge_monte_carlo  -> monte_carlo_transport.py (楔形体 MC 积分)
-    1034_rk3                -> hydrodynamics.py (三阶 RK 时间积分)
-    1305_triangle_grid      -> mesh_generation.py (三角形网格生成)
-    745_md_fast             -> particle_dynamics.py (速度 Verlet 粒子模拟)
-================================================================================
-"""
 import numpy as np
 import sys
 
-# 导入各模块
+
 from spectral_methods import (
     polynomial_multiply, chebyshev_polynomial, legendre_polynomial,
     spectral_differentiation_matrix, apply_angular_spectral_derivative
@@ -94,20 +56,19 @@ from utils import (
 
 
 def run_simulation():
-    """执行完整的多物理场吸积盘-喷流模拟。"""
     print("=" * 80)
     print("  多维吸积盘流体力学数值模拟与磁离心喷流形成机制研究")
     print("=" * 80)
 
-    # ============================================================
-    # 物理参数设定
-    # ============================================================
-    M_bh = 10.0 * M_SUN          # 10 倍太阳质量黑洞
-    M_dot = 1e14                 # 质量吸积率 kg/s (~10^-8 M_sun/yr)
-    alpha = 0.1                  # Shakura-Sunyaev 粘滞参数
-    r_isco = 6.0 * G_GRAV * M_bh / C_LIGHT ** 2  # ISCO 半径
 
-    # 模拟区域
+
+
+    M_bh = 10.0 * M_SUN
+    M_dot = 1e14
+    alpha = 0.1
+    r_isco = 6.0 * G_GRAV * M_bh / C_LIGHT ** 2
+
+
     r_in = r_isco
     r_out = 500.0 * r_isco
     z_max = 0.1 * r_out
@@ -119,9 +80,9 @@ def run_simulation():
     print(f"  粘滞参数 alpha = {alpha}")
     print(f"  模拟区域: r in [{r_in/1e3:.2f}, {r_out/1e3:.2f}] km")
 
-    # ============================================================
-    # Step 1: Shakura-Sunyaev 径向结构
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 1: Shakura-Sunyaev 薄盘径向结构")
     print("-" * 60)
@@ -141,15 +102,15 @@ def run_simulation():
     print(f"  标高范围: [{np.min(H_disk)/1e3:.3f}, {np.max(H_disk)/1e3:.3f}] km")
     print(f"  径向速度范围: [{np.min(v_r):.3e}, {np.max(v_r):.3e}] m/s")
 
-    # ============================================================
-    # Step 2: FEM 径向方程求解
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 2: 1D FEM 径向结构方程求解")
     print("-" * 60)
 
     def ss_source(r):
-        # 简化的源项，保证正定性
+
         return 1e-6 * np.exp(-r / r_out)
 
     r_fem, Sigma_fem = solve_fem1d_radial(
@@ -161,20 +122,20 @@ def run_simulation():
     print(f"  FEM 节点数: {len(r_fem)}")
     print(f"  FEM 表面密度范围: [{np.min(Sigma_fem):.3e}, {np.max(Sigma_fem):.3e}] kg/m^2")
 
-    # ============================================================
-    # Step 3: 泊松方程求解 (引力势)
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 3: 泊松方程 CG 求解器")
     print("-" * 60)
 
-    # 构造泊松矩阵 (R8SD)
+
     A_poisson = build_poisson_r8sd(n_r, dr)
 
-    # 右端项: 4*pi*G*rho (轴对称近似)
-    # TODO(Hole-3): 从表面密度 Sigma 和标高 H_disk 计算 midplane 密度
-    # 物理关系: rho_midplane = Sigma / (2.0 * H_disk)
-    rho_midplane = None  # 需恢复物理公式
+
+
+
+    rho_midplane = None
     rho_midplane = np.where(rho_midplane < 0, 0, rho_midplane)
     b_poisson = 4.0 * np.pi * G_GRAV * rho_midplane
 
@@ -184,23 +145,23 @@ def run_simulation():
     print(f"  CG 收敛: {cg_info['converged']}")
     print(f"  引力势范围: [{np.min(phi_grav):.3e}, {np.max(phi_grav):.3e}]")
 
-    # 与解析解比较
+
     phi_analytic = schwarzschild_potential(r_grid, M_bh)
     rel_error = np.mean(np.abs(phi_grav - phi_analytic) / (np.abs(phi_analytic) + 1e-30))
     print(f"  与 Newton 势平均相对误差: {rel_error:.3e}")
 
-    # ============================================================
-    # Step 4: 带状矩阵 SPD 求解器 (压力方程)
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 4: R8PBL 带状 SPD 求解器 (压力方程)")
     print("-" * 60)
 
-    # 构造测试带状 SPD 矩阵
+
     ml = 2
     A_band = build_band_spd_matrix(n_r, ml, condition_hint=1.0)
 
-    # 压力方程右端：div(v) 的近似
+
     b_pressure = -rho_midplane * np.gradient(v_r, dr)
     b_pressure = b_pressure[:n_r]
 
@@ -208,14 +169,14 @@ def run_simulation():
     print(f"  带状矩阵阶数: {n_r}, 带宽: {ml}")
     print(f"  压力场范围: [{np.min(phi_pressure):.3e}, {np.max(phi_pressure):.3e}]")
 
-    # ============================================================
-    # Step 5: 谱方法 - 多项式与角向导数
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 5: 谱方法 (切比雪夫/勒让德多项式 + 角向导数)")
     print("-" * 60)
 
-    # 切比雪夫多项式
+
     T5 = chebyshev_polynomial(5)
     P5 = legendre_polynomial(5)
     conv = polynomial_multiply(T5, P5)
@@ -223,13 +184,13 @@ def run_simulation():
     print(f"  P_5 系数: {P5}")
     print(f"  T_5 * P_5 次数: {len(conv)-1}")
 
-    # 谱微分矩阵
+
     D_cheb, x_cheb = spectral_differentiation_matrix(8)
-    f_test = np.sin(np.arccos(x_cheb))  # f(x) = sqrt(1-x^2) on [-1,1]
+    f_test = np.sin(np.arccos(x_cheb))
     df_test = D_cheb @ f_test
     print(f"  谱微分矩阵条件数: {np.linalg.cond(D_cheb):.3e}")
 
-    # 角向导数
+
     phi_grid = np.linspace(0, 2 * np.pi, 128)
     f_phi = np.sin(3 * phi_grid)
     df_dphi = apply_angular_spectral_derivative(f_phi, N_modes=8)
@@ -237,9 +198,9 @@ def run_simulation():
     err_angular = np.max(np.abs(df_dphi - df_exact))
     print(f"  角向谱导数最大误差: {err_angular:.3e}")
 
-    # ============================================================
-    # Step 6: 网格生成与掩码处理
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 6: 吸积盘截面网格生成与掩码")
     print("-" * 60)
@@ -249,7 +210,7 @@ def run_simulation():
     )
     print(f"  原始网格: {len(nodes)} 节点, {len(elements)} 单元")
 
-    # 掩码掉喷流区域
+
     r_jet_launch = 3.0 * r_isco / 1e3
     z_jet = 0.05 * r_out / 1e3
     nodes_masked, elements_masked = mask_disk_jet_region(
@@ -257,18 +218,18 @@ def run_simulation():
     )
     print(f"  掩码后网格: {len(nodes_masked)} 节点, {len(elements_masked)} 单元")
 
-    # 转换为 FEM 格式
+
     fem_mesh = mesh_to_fem_format(nodes_masked, elements_masked)
     print(f"  FEM 格式: {fem_mesh['n_nodes']} 节点, {fem_mesh['n_elements']} 单元")
 
-    # 三角形网格生成（种子项目 1305）
+
     tri_vertices = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
     tri_pts = triangle_grid(5, tri_vertices)
     print(f"  三角形细分网格点数: {len(tri_pts)}")
 
-    # ============================================================
-    # Step 7: 3D 高斯-勒让德求积验证
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 7: 3D 高斯-勒让德求积规则验证")
     print("-" * 60)
@@ -278,11 +239,11 @@ def run_simulation():
     max_err = max(errors.values())
     print(f"  3x3x3 GL 求积对总次数<=4的多项式最大相对误差: {max_err:.3e}")
 
-    # 柱坐标求积
+
     cyl_pts, cyl_w = cylindrical_quadrature(4, 8, 3, r_in, r_out, -z_max, z_max)
     print(f"  柱坐标求积节点数: {len(cyl_pts)}")
 
-    # 计算总质量
+
     mass_integrand = np.zeros(len(cyl_pts))
     for i in range(len(cyl_pts)):
         r_p = cyl_pts[i, 0]
@@ -291,19 +252,19 @@ def run_simulation():
         t = (r_p - r_grid[idx_r]) / (r_grid[idx_r + 1] - r_grid[idx_r])
         t = max(0.0, min(1.0, t))
         sigma_interp = (1 - t) * Sigma[idx_r] + t * Sigma[idx_r + 1]
-        mass_integrand[i] = sigma_interp  # 表面密度积分
+        mass_integrand[i] = sigma_interp
 
     total_mass = np.dot(cyl_w, mass_integrand)
     print(f"  盘总质量估计: {total_mass / M_SUN:.3e} M_sun")
 
-    # ============================================================
-    # Step 8: RBF 场重构
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 8: RBF 场重构")
     print("-" * 60)
 
-    # 从 r-z 平面的稀疏点重构密度场
+
     n_data = 20
     r_data = np.linspace(r_in, r_out, n_data)
     z_data = np.zeros(n_data)
@@ -312,7 +273,7 @@ def run_simulation():
 
     rbf_w = rbf_weights(data_points, data_values, r0=1.0, basis='multiquadric')
 
-    # 查询点
+
     n_query = 50
     rq = np.linspace(r_in, r_out, n_query) / 1e5
     zq = np.zeros(n_query)
@@ -323,26 +284,25 @@ def run_simulation():
     print(f"  RBF 查询点数: {n_query}")
     print(f"  重构表面密度范围: [{10**np.min(sigma_interp):.3e}, {10**np.max(sigma_interp):.3e}] kg/m^2")
 
-    # ============================================================
-    # Step 9: 流体力学 RK3 时间演化
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 9: RK3 流体动力学时间演化")
     print("-" * 60)
 
-    # 构建简化的1+1D系统：Sigma(t, r) 演化
+
     def disk_evolution_rhs(t, Sigma_vec):
-        """表面密度演化方程右端项。"""
         Sigma_vec = np.asarray(Sigma_vec, dtype=np.float64)
         n = len(Sigma_vec)
         dSigma_dt = np.zeros(n, dtype=np.float64)
 
-        # 粘滞扩散项: dSigma/dt = (3/r) * d/dr(r^0.5 * d/dr(Sigma * r^0.5))
-        nu = 1e10  # 简化常数粘度
+
+        nu = 1e10
         sqrt_r = np.sqrt(r_grid)
         sqr = Sigma_vec * sqrt_r
 
-        # 中心差分
+
         if n > 2:
             d_sqr = np.zeros(n)
             d_sqr[1:-1] = (sqr[2:] - sqr[:-2]) / (2.0 * dr)
@@ -359,7 +319,7 @@ def run_simulation():
 
         return dSigma_dt
 
-    t_span = [0.0, 1e6]  # 1百万秒
+    t_span = [0.0, 1e6]
     n_steps = 50
     Sigma0 = Sigma.copy()
 
@@ -372,18 +332,18 @@ def run_simulation():
     print(f"  最终 Sigma 总和: {np.sum(Sigma_final):.3e}")
     print(f"  质量守恒误差: {abs(np.sum(Sigma_final) - np.sum(Sigma0)) / np.sum(Sigma0):.3e}")
 
-    # 计算梯度
+
     grad_Sigma = gradient_1d(Sigma_final, dr)
     print(f"  表面密度梯度范围: [{np.min(grad_Sigma):.3e}, {np.max(grad_Sigma):.3e}]")
 
-    # ============================================================
-    # Step 10: 蒙特卡洛喷流采样
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 10: 喷流区域蒙特卡洛采样")
     print("-" * 60)
 
-    # 楔形体 MC 积分
+
     def test_integrand(x):
         return x[0] ** 2 + x[1] * x[2]
 
@@ -393,10 +353,10 @@ def run_simulation():
     print(f"  精确值: {exact_val:.6f}")
     print(f"  相对误差: {abs(mc_est - exact_val) / abs(exact_val):.3e}")
 
-    # 喷流粒子采样
+
     n_jet_particles = 500
     r_launch = 5.0 * r_isco
-    theta_open = np.pi / 12.0  # 15度半开角
+    theta_open = np.pi / 12.0
     v_jet = 0.1 * C_LIGHT
 
     jet_pos, jet_vel = sample_jet_particles(
@@ -407,31 +367,31 @@ def run_simulation():
     print(f"  半开角: {np.degrees(theta_open):.1f} 度")
     print(f"  喷射速度: {v_jet/1e3:.1f} km/s")
 
-    # 光子能量传输
+
     energies, escaped = mc_jet_energy_transport(1000, r_out, np.max(T_disk), seed=42)
     escape_fraction = np.sum(escaped) / len(escaped)
     print(f"  光子逃逸比例: {escape_fraction:.3f}")
     print(f"  平均光子能量(相对): {np.mean(energies):.3f}")
 
-    # 球内采样（黑洞周围）
+
     ball_pts = ball_unit_sample(200, dim=3, seed=42)
     ball_dists = ball_distance_stats(500, seed=42)
     print(f"  球内随机点对距离均值: {ball_dists['mean']:.4f}")
     print(f"  理论均值: {36.0/35.0:.4f}")
 
-    # 关联函数
+
     r_bins = np.linspace(0, 2.0, 11)
     xi = compute_correlation_function(ball_pts, r_bins)
     print(f"  两点关联函数范围: [{np.min(xi):.3f}, {np.max(xi):.3f}]")
 
-    # ============================================================
-    # Step 11: 粒子动力学模拟
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 11: 粒子动力学模拟 (速度 Verlet)")
     print("-" * 60)
 
-    # 简化的 MD 模拟
+
     md_result = run_particle_simulation(
         n_particles=50, dim=3, n_steps=20, dt=0.01,
         box_size=1.0, potential='sinsq', seed=42
@@ -445,7 +405,7 @@ def run_simulation():
     print(f"  最终总能量: {E_final:.6f}")
     print(f"  相对能量变化: {dE:.3e}")
 
-    # 吸积盘尘埃模型
+
     dust_result = accretion_disk_particle_model(
         n_dust=30, r_in=r_in/1e5, r_out=r_out/1e5,
         z_scale=0.01*r_out/1e5, n_steps=10, dt=1e4, seed=42
@@ -454,17 +414,17 @@ def run_simulation():
     print(f"  最终尘埃位置范围: r in [{np.min(np.linalg.norm(dust_result['final_positions'][:, :2], axis=1)):.2e}, "
           f"{np.max(np.linalg.norm(dust_result['final_positions'][:, :2], axis=1)):.2e}] x10^5 m")
 
-    # ============================================================
-    # Step 12: 磁离心喷流判据与光谱
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 12: Blandford-Payne 喷流判据与光谱")
     print("-" * 60)
 
-    # 喷流判据（调整密度使部分位置满足发射条件）
-    B_z = 1e5  # 垂直磁场 (T)
-    # TODO(Hole-2): jet_launching_criterion 第三个参数现在需要盘密度 rho。
-    # 当前传入 None 会导致运行时错误，应使用 rho_midplane 作为密度参数传入。
+
+    B_z = 1e5
+
+
     launched, v_A, v_esc = jet_launching_criterion(r_grid, B_z, None, M_bh)
     n_launched = np.sum(launched)
     print(f"  垂直磁场 B_z = {B_z:.1e} T")
@@ -472,27 +432,27 @@ def run_simulation():
     print(f"  逃逸速度范围: [{np.min(v_esc):.3e}, {np.max(v_esc):.3e}] m/s")
     print(f"  可发射喷流的位置数: {n_launched} / {n_r}")
 
-    # 磁制动扭矩
+
     B_phi = 1e2
     B_r = 1e1
     T_mag = magnetic_braking_torque(r_grid, B_phi, B_r, Sigma, M_bh)
     print(f"  磁制动扭矩范围: [{np.min(T_mag):.3e}, {np.max(T_mag):.3e}] N*m/m")
 
-    # 不稳定性判据
+
     unstable, t_visc, t_cool = disk_instability_criterion(Sigma, T_disk, r_grid, M_bh, alpha)
     n_unstable = np.sum(unstable)
     print(f"  热不稳定区域数: {n_unstable} / {n_r}")
 
-    # 简化光谱
+
     nu_spec = np.logspace(14, 19, 50)
     L_nu = disk_spectrum_nu(nu_spec, r_in, r_out, M_dot, M_bh)
     peak_idx = np.argmax(L_nu)
     print(f"  光谱峰值频率: {nu_spec[peak_idx]:.3e} Hz")
     print(f"  对应波长: {C_LIGHT / nu_spec[peak_idx] * 1e9:.2f} nm")
 
-    # ============================================================
-    # Step 13: 幻方权重与数值验证
-    # ============================================================
+
+
+
     print("\n" + "-" * 60)
     print("Step 13: 幻方权重与数值鲁棒性验证")
     print("-" * 60)
@@ -502,19 +462,19 @@ def run_simulation():
     print(f"  4阶幻方矩阵和: {np.sum(M4)}")
     print(f"  归一化幻方权重和: {np.sum(w4):.6f}")
 
-    # 安全除法测试
+
     a = np.array([1.0, 2.0, 3.0])
     b = np.array([0.0, 1.0, 0.0])
     safe_res = safe_divide(a, b, fill_value=999.0)
     print(f"  安全除法结果: {safe_res}")
 
-    # 裁剪测试
+
     clipped = clip_with_warning(np.array([-1.0, 0.5, 2.0]), 0.0, 1.0)
     print(f"  裁剪结果: {clipped}")
 
-    # ============================================================
-    # 总结
-    # ============================================================
+
+
+
     print("\n" + "=" * 80)
     print("  模拟完成 - 所有模块正常运行，无报错")
     print("=" * 80)

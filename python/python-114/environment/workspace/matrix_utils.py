@@ -1,41 +1,8 @@
-"""
-matrix_utils.py
-Sparse and dense matrix assembly utilities with parallel structure.
-
-Derived from: 738_matrix_assemble_parfor + 979_r8gb + 740_matrix_chain_dynamic
-
-Provides:
-  - Hilbert-type interaction matrix assembly for multi-body molecular forces
-  - General banded matrix factorization and solve (LU for banded systems)
-  - Dynamic-programming optimal contraction ordering for tensor networks
-    representing multi-site DNA-protein interaction chains
-
-Key formulas:
-  - Banded LU factorization for tridiagonal/banded systems arising in
-    1D diffusion along DNA contour
-  - Optimal matrix chain: m[i,j] = min_{i<=k<j} (m[i,k] + m[k+1,j] + dims[i]*dims[k+1]*dims[j+1])
-"""
 
 import numpy as np
 
 
 def assemble_hilbert_interaction_matrix(n, m=None):
-    """
-    Assemble an m x n Hilbert-type interaction matrix H_{ij} = 1/(i+j)
-    modeling long-range electrostatic couplings between DNA base pairs
-    and protein residues.
-
-    Parameters
-    ----------
-    n : int
-        Number of columns (protein residues).
-    m : int, optional
-        Number of rows (DNA sites). Defaults to n.
-
-    Returns
-    -------
-    H : ndarray, shape (m, n)
-    """
     if m is None:
         m = n
     if n < 1 or m < 1:
@@ -47,38 +14,13 @@ def assemble_hilbert_interaction_matrix(n, m=None):
 
 
 def r8gb_fa(n, ml, mu, ab):
-    """
-    Factor a general banded matrix using Gaussian elimination with partial pivoting.
-
-    Banded storage: ab[ml+mu+1, n] with ab[ml+mu+i-j, j] = A[i, j].
-
-    Parameters
-    ----------
-    n : int
-        Matrix order.
-    ml : int
-        Lower bandwidth.
-    mu : int
-        Upper bandwidth.
-    ab : ndarray, shape (ml+mu+1, n)
-        Banded storage array.
-
-    Returns
-    -------
-    ab : ndarray
-        Factored array.
-    pivot : ndarray, shape (n,)
-        Pivot indices.
-    info : int
-        0 if successful, k if pivot k is zero.
-    """
     ab = np.array(ab, dtype=float, copy=True)
     pivot = np.zeros(n, dtype=int)
     info = 0
     m = ml + mu + 1
 
     for j in range(n - 1):
-        # Pivot row within lower band
+
         pivot[j] = j
         pivot_val = abs(ab[mu, j])
         max_row = j
@@ -96,7 +38,7 @@ def r8gb_fa(n, ml, mu, ab):
             info = j + 1
             continue
 
-        # Swap rows j and max_row in banded storage
+
         if max_row != j:
             for col in range(max(0, j - mu), min(n, j + ml + 1)):
                 idx_j = mu + j - col
@@ -104,7 +46,7 @@ def r8gb_fa(n, ml, mu, ab):
                 if 0 <= idx_j < ab.shape[0] and 0 <= idx_m < ab.shape[0]:
                     ab[idx_j, col], ab[idx_m, col] = ab[idx_m, col], ab[idx_j, col]
 
-        # Eliminate below
+
         for i in range(j + 1, min(j + ml + 1, n)):
             row_in_ab = mu + j - i
             if row_in_ab < 0:
@@ -125,27 +67,10 @@ def r8gb_fa(n, ml, mu, ab):
 
 
 def r8gb_sl(n, ml, mu, ab, pivot, b):
-    """
-    Solve a banded linear system A*x = b given the factored form from r8gb_fa.
-
-    Parameters
-    ----------
-    n, ml, mu : int
-    ab : ndarray
-        Factored banded array.
-    pivot : ndarray
-        Pivot indices.
-    b : ndarray, shape (n,)
-        Right-hand side.
-
-    Returns
-    -------
-    x : ndarray, shape (n,)
-    """
     x = np.array(b, dtype=float, copy=True)
     m = ml + mu + 1
 
-    # Forward substitution (apply row interchanges and multipliers)
+
     for j in range(n - 1):
         if pivot[j] != j:
             x[j], x[pivot[j]] = x[pivot[j]], x[j]
@@ -156,7 +81,7 @@ def r8gb_sl(n, ml, mu, ab, pivot, b):
             factor = ab[row_in_ab, i]
             x[i] -= factor * x[j]
 
-    # Back substitution
+
     for j in range(n - 1, -1, -1):
         if abs(ab[mu, j]) < 1e-15:
             x[j] = 0.0
@@ -172,25 +97,6 @@ def r8gb_sl(n, ml, mu, ab, pivot, b):
 
 
 def banded_solve_tridiagonal(lower, diag, upper, rhs):
-    """
-    Solve a tridiagonal system using the Thomas algorithm (special case of banded solve).
-
-    A_i * x_{i-1} + B_i * x_i + C_i * x_{i+1} = D_i
-
-    Parameters
-    ----------
-    lower : ndarray, shape (n-1,)
-        Sub-diagonal.
-    diag : ndarray, shape (n,)
-        Main diagonal.
-    upper : ndarray, shape (n-1,)
-        Super-diagonal.
-    rhs : ndarray, shape (n,)
-
-    Returns
-    -------
-    x : ndarray, shape (n,)
-    """
     n = len(diag)
     if n < 1:
         return np.array([])
@@ -205,7 +111,7 @@ def banded_solve_tridiagonal(lower, diag, upper, rhs):
     for i in range(1, n - 1):
         denom = diag[i] - lower[i - 1] * cp[i - 1]
         if abs(denom) < 1e-14:
-            denom = 1e-14  # Regularization
+            denom = 1e-14
         cp[i] = upper[i] / denom
         dp[i] = (rhs[i] - lower[i - 1] * dp[i - 1]) / denom
 
@@ -223,29 +129,6 @@ def banded_solve_tridiagonal(lower, diag, upper, rhs):
 
 
 def matrix_chain_optimal_order(dims):
-    """
-    Find the optimal parenthesization (minimum scalar multiplications)
-    for a chain of matrix multiplications using dynamic programming.
-
-    For molecular interaction tensors, the chain A1*A2*...*An represents
-    successive contractions of multi-site correlation functions.
-
-    Recurrence (Cormen et al.):
-        m[i, i] = 0
-        m[i, j] = min_{i <= k < j} (m[i, k] + m[k+1, j] + dims[i]*dims[k+1]*dims[j+1])
-
-    Parameters
-    ----------
-    dims : list or ndarray of int
-        dims[i] x dims[i+1] is the shape of matrix i.
-
-    Returns
-    -------
-    min_cost : int
-        Minimal number of scalar multiplications.
-    split : ndarray
-        Split table for reconstructing optimal order.
-    """
     dims = np.asarray(dims)
     if np.any(dims <= 0):
         raise ValueError("All dimensions must be positive.")
@@ -273,14 +156,6 @@ def matrix_chain_optimal_order(dims):
 
 
 def reconstruct_optimal_order(s, i, j):
-    """
-    Recursively reconstruct the optimal parenthesization from split table.
-
-    Returns
-    -------
-    expr : str
-        Parenthesized expression.
-    """
     if i == j:
         return f"A{i}"
     k = s[i, j]
@@ -290,29 +165,11 @@ def reconstruct_optimal_order(s, i, j):
 
 
 def build_sparse_interaction_matrix(n_sites, coupling_range=3, base_coupling=0.5):
-    """
-    Build a sparse banded interaction matrix for 1D DNA chain with
-    short-range couplings (base-stacking and nearest-neighbor interactions).
-
-    Parameters
-    ----------
-    n_sites : int
-        Number of DNA base pairs.
-    coupling_range : int
-        Number of neighbors coupled.
-    base_coupling : float
-        Base coupling strength decaying with distance.
-
-    Returns
-    -------
-    A : ndarray, shape (n_sites, n_sites)
-        Dense representation for small n_sites.
-    """
     if n_sites < 1:
         raise ValueError("n_sites must be positive.")
     A = np.zeros((n_sites, n_sites))
     for i in range(n_sites):
-        A[i, i] = 2.0  # Self-energy term
+        A[i, i] = 2.0
         for r in range(1, coupling_range + 1):
             if i + r < n_sites:
                 val = base_coupling / r

@@ -1,18 +1,9 @@
-"""
-main.py
-=======
-海气耦合模式与 ENSO 预测系统的统一入口。
-
-本程序整合 15 个种子项目的核心算法，构建一个面向"海洋科学：海气耦合模式与 ENSO 预测"
-的博士级科研计算系统。零参数运行，完成从模式积分、参数反演、混沌分析到
-概率预测的完整流程。
-"""
 
 import numpy as np
 import os
 import sys
 
-# 确保当前目录在路径中
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from calendar_utils import (
@@ -71,24 +62,23 @@ def section_header(title: str):
 
 
 def demo_calendar_utils():
-    """演示日历工具与季节锁相分析。"""
     section_header("1. 日历工具与 ENSO 季节锁相分析 (calendar_utils)")
 
-    # 儒略日计算
+
     jed = ymd_to_jed(1997, 12, 1)
     print(f"  1997/12/01 的儒略日数 JED = {jed:.4f}")
 
-    # 季节相位
+
     theta = seasonal_phase(1997, 12, 1)
     print(f"  该日期的季节相位角 θ = {theta:.4f} rad ({np.degrees(theta):.1f}°)")
 
-    # 模拟 ENSO 事件月份
+
     event_months = [12, 11, 12, 1, 12, 11, 1, 12, 12, 1]
     pli = phase_locking_index(event_months)
     print(f"  模拟 ENSO 事件月份: {event_months}")
     print(f"  季节锁相强度 PLI = {pli:.4f} (越接近 1 锁相越强)")
 
-    # 事件时间分析
+
     events = [(1997, 12, 1, 2.5), (1982, 12, 15, 2.3), (2015, 12, 10, 2.6),
               (2009, 12, 5, 1.2), (1972, 12, 20, 1.8)]
     timing = enso_event_timing(events)
@@ -99,51 +89,49 @@ def demo_calendar_utils():
 
 
 def demo_sparse_matrix():
-    """演示稀疏矩阵在海气耦合中的应用。"""
     section_header("2. 稀疏矩阵与海洋 Laplacian 离散 (sparse_matrix_utils)")
 
     nx, ny = 20, 15
-    dx, dy = 2.0e5, 2.0e5  # 200 km 网格
+    dx, dy = 2.0e5, 2.0e5
 
-    # 构建 Laplacian 的 CRS 格式
+
     n, nz, row_ptr, col, val = build_laplacian_2d_crs(nx, ny, dx, dy, boundary="dirichlet")
     print(f"  网格: {nx} x {ny}, 总节点 = {n}")
     print(f"  Laplacian 非零元数量 nz = {nz} (稀疏度 = {nz / (n * n) * 100:.2f}%)")
 
-    # 矩阵向量乘法测试
+
     x_vec = np.random.rand(n)
     y_vec = crs_matvec(n, row_ptr, col, val, x_vec)
     print(f"  CRS 矩阵-向量乘法测试通过，结果范数 = {np.linalg.norm(y_vec):.4e}")
 
-    # GE -> ST 转换测试
+
     A_dense = np.array([[1.0, 0.0, 2.0],
                         [0.0, 3.0, 0.0],
                         [4.0, 0.0, 5.0]])
     nz_st, ist, jst, Ast = ge_to_st(A_dense)
     print(f"  GE->ST 转换: {nz_st} 个非零元")
 
-    # GE -> CRS 转换测试
+
     n_crs, nz_crs, rp, c, v = ge_to_crs(A_dense)
     print(f"  GE->CRS 转换: {nz_crs} 个非零元")
 
 
 def demo_sst_interpolation():
-    """演示 SST 插值与 Niño 3.4 计算。"""
     section_header("3. 海表温度空间插值与 Niño 3.4 指数 (sst_interpolator)")
 
-    # 构造经度-纬度网格
-    lon = np.linspace(120.0, 280.0, 41)  # 120°E ~ 80°W
+
+    lon = np.linspace(120.0, 280.0, 41)
     lat = np.linspace(-20.0, 20.0, 21)
 
-    # 构造合成 SST 场（东暖西冷 + 赤道暖舌）
+
     LON, LAT = np.meshgrid(lon, lat, indexing='ij')
     sst = 25.0 + 3.0 * np.cos(np.radians(LON - 200.0)) * np.exp(-0.5 * (LAT / 10.0) ** 2)
 
-    # Niño 3.4 指数
+
     nino = nino34_index(sst - sst.mean(), lon, lat)
     print(f"  合成 SST 场的 Niño 3.4 指数 = {nino:.4f} °C")
 
-    # Lagrange 插值测试
+
     xd = chebyshev_nodes_1d(6, 120.0, 280.0)
     yd = chebyshev_nodes_1d(5, -20.0, 20.0)
     zd = np.random.rand(xd.shape[0] * yd.shape[0])
@@ -152,7 +140,7 @@ def demo_sst_interpolation():
     zi = lagrange_interp_2d(xd.shape[0] - 1, yd.shape[0] - 1, xd, yd, zd, xi, yi)
     print(f"  二维 Lagrange 插值测试: 在 (200°, 0°) 处插值 = {zi[0]:.4f}")
 
-    # 目标点插值
+
     lon_target = np.array([190.0, 210.0, 230.0])
     lat_target = np.array([0.0, 2.0, -2.0])
     sst_interp = interpolate_sst_field(lon, lat, sst, lon_target, lat_target,
@@ -161,19 +149,18 @@ def demo_sst_interpolation():
 
 
 def demo_ocean_heat_content():
-    """演示海洋热含量计算。"""
     section_header("4. 三维海洋热含量与温跃层计算 (ocean_heat_content)")
 
-    # 棱柱单项式积分测试
+
     exact = prism_unit_monomial_integral((1, 1, 1))
     print(f"  单位棱柱 x*y*z 精确积分 = {exact:.8f} (理论值 = 1/48 = 0.0208333)")
 
-    # Witherden 规则测试
+
     x_r, y_r, z_r, w_r = prism_witherden_rule(p=5)
     numerical = np.sum(w_r * x_r * y_r * z_r)
     print(f"  Witherden p=5 数值积分 = {numerical:.8f}, 相对误差 = {abs(numerical - exact) / exact:.2e}")
 
-    # 物理棱柱热含量
+
     vertices = np.array([
         [0.0, 0.0, 0.0],
         [1.0e6, 0.0, 0.0],
@@ -184,7 +171,7 @@ def demo_ocean_heat_content():
     ])
 
     def temp_profile(x, y, z):
-        # 温度随深度线性递减
+
         t_surface = 28.0
         t_deep = 10.0
         depth_ratio = abs(z) / 200.0
@@ -193,25 +180,24 @@ def demo_ocean_heat_content():
     ohc = integrate_ohc_over_prism(temp_profile, vertices, rho0=1025.0, cp=3993.0)
     print(f"  单个棱柱 OHC = {ohc:.4e} J")
 
-    # 温跃层深度
+
     z_levels = np.array([0.0, -20.0, -50.0, -100.0, -150.0, -200.0])
     t_profile = np.array([28.0, 27.0, 25.0, 22.0, 18.0, 10.0])
     d20 = thermocline_depth_from_profile(z_levels, t_profile, t_crit=20.0)
     print(f"  20°C 温跃层深度 D_20 = {d20:.1f} m")
 
-    # 暖水体积
+
     nx, ny = 10, 5
     lon_grid = np.linspace(120.0, 280.0, nx)
     lat_grid = np.linspace(-5.0, 5.0, ny)
-    d20_field = np.ones((nx, ny)) * 120.0  # 120 m
-    clim_depth = np.ones((nx, ny)) * 100.0  # 100 m
+    d20_field = np.ones((nx, ny)) * 120.0
+    clim_depth = np.ones((nx, ny)) * 100.0
     wwv = warm_water_volume(d20_field, lon_grid, lat_grid, clim_depth,
                             dx=2.0e5, dy=2.0e5)
     print(f"  暖水体积 WWV = {wwv:.4e} m³")
 
 
 def demo_equatorial_waves():
-    """演示赤道波动求解。"""
     section_header("5. 赤道 Kelvin-Rossby 波 ETDRK4 谱求解 (equatorial_wave_solver)")
 
     nx, nt = 128, 20
@@ -223,21 +209,20 @@ def demo_equatorial_waves():
     print(f"  空间域: [{x.min():.3f}, {x.max():.3f}]")
     print(f"  最终时刻波场最大值 = {np.max(uu[:, -1]):.4f}, 最小值 = {np.min(uu[:, -1]):.4f}")
 
-    # 波能量
+
     dx = x[1] - x[0]
     energy = wave_energy(uu, dx)
     print(f"  初始能量 = {energy[0]:.4f}, 最终能量 = {energy[-1]:.4f}")
 
-    # 充放电时间尺度
-    c_k = 2.5  # m/s
-    c_r = -0.8  # m/s
-    basin_width = 1.5e7  # 15,000 km (Pacific)
+
+    c_k = 2.5
+    c_r = -0.8
+    basin_width = 1.5e7
     tau_r = recharge_discharge_timescale(c_k, c_r, basin_width)
     print(f"  太平洋 basin 充放电时间尺度 τ_R = {tau_r / (365.25 * 24 * 3600):.2f} 年")
 
 
 def demo_recharge_discharge():
-    """演示 recharge-discharge oscillator。"""
     section_header("6. Recharge-Discharge Oscillator (recharge_discharge_oscillator)")
 
     t, u = solve_rdo(years=25.0, n_steps=25000,
@@ -248,26 +233,25 @@ def demo_recharge_discharge():
     print(f"  RDO 积分完成: {t[-1]:.1f} 年, {len(t)} 步")
     print(f"  最终状态: h_W = {u[-1]:.4f}, T_E = {u[-1]:.4f}")
 
-    # 平衡点
+
     trivial, nontrivial = find_equilibrium(r=0.25, alpha=0.5, R=1.0, epsilon=0.3, gamma=0.4)
     print(f"  平凡平衡点: h_W={trivial[0]:.4f}, T_E={trivial[1]:.4f}")
     if nontrivial is not None:
         print(f"  非平凡平衡点: h_W={nontrivial[0, 0]:.4f}, T_E={nontrivial[0, 1]:.4f}")
 
-    # 振荡周期
+
     T_osc = oscillation_period_approx(r=0.25, alpha=0.5, R=1.0, epsilon=0.3, gamma=0.4)
     print(f"  解析近似振荡周期 = {T_osc:.2f} 年")
 
-    # 动力学分类
+
     dyn_type = classify_dynamics(r=0.25, alpha=0.5, R=1.0, epsilon=0.3, gamma=0.4)
     print(f"  动力学分类: {dyn_type}")
 
 
 def demo_chaos_analysis():
-    """演示混沌分析。"""
     section_header("7. 海气耦合系统混沌分析 (chaos_analysis)")
 
-    # Lyapunov 指数
+
     lyap = enso_lyapunov_exponent(r=0.25, alpha=0.5, R=1.0, epsilon=0.3, gamma=0.4)
     print(f"  ENSO Poincare 映射 Lyapunov 指数 λ = {lyap:.6f}")
     if lyap > 0:
@@ -275,45 +259,44 @@ def demo_chaos_analysis():
     else:
         print(f"  (λ < 0, 系统趋于稳定周期轨道)")
 
-    # Levy Dragon IFS（用于模拟多态吸引子）
+
     points_levy = levy_dragon_ifs(n_iter=5000)
     print(f"  Levy Dragon IFS 生成: {points_levy.shape[0]} 个点")
     print(f"    覆盖范围: x∈[{points_levy[:, 0].min():.3f}, {points_levy[:, 0].max():.3f}], "
           f"y∈[{points_levy[:, 1].min():.3f}, {points_levy[:, 1].max():.3f}]")
 
-    # Cross Chaos IFS
+
     points_cross = cross_chaos_ifs(n_iter=5000)
     print(f"  Cross Chaos IFS 生成: {points_cross.shape[0]} 个点")
 
-    # 关联维数（基于 RDO 轨迹）
+
     t_rdo, u_rdo = solve_rdo(years=30.0, n_steps=30000, seasonal_amp=0.0)
     d2 = correlation_dimension(u_rdo, r_min=1e-3, r_max=2.0)
     print(f"  RDO 轨迹关联维数 D2 ≈ {d2:.3f}")
 
-    # 分岔图
+
     gammas = np.linspace(0.2, 0.8, 30)
     params, attractors = bifurcation_diagram("gamma", gammas)
     print(f"  分岔图扫描完成: {len(params)} 个参数点")
 
 
 def demo_enso_prediction():
-    """演示 ENSO 概率预测。"""
     section_header("8. ENSO 概率预测与不确定性量化 (enso_predictor)")
 
-    # 当前状态
-    nino34_current = 1.2  # 弱 El Nino
-    month_current = 10    # 10月
+
+    nino34_current = 1.2
+    month_current = 10
     current_state = classify_enso_state(nino34_current)
     print(f"  当前 Niño 3.4 = {nino34_current:.2f}°C, 状态 = {state_name(current_state)}")
 
-    # 转移概率
+
     probs = transition_probability(current_state, month_current)
     print(f"  下月状态转移概率:")
     labels = ["Strong Nina", "Weak Nina", "Neutral", "Weak Nino", "Strong Nino"]
     for label, p in zip(labels, probs):
         print(f"    {label:15s}: {p:.4f}")
 
-    # 集合预测
+
     forecast = monte_carlo_enso_forecast(nino34_current, month_current,
                                          n_ensemble=500, n_months=12,
                                          noise_std=0.35)
@@ -323,7 +306,7 @@ def demo_enso_prediction():
             print(f"    {m}个月均值 = {forecast['mean_trajectory'][m-1]:.3f} ± "
                   f"{forecast['std_trajectory'][m-1]:.3f} °C")
 
-    # 特定事件概率
+
     p_nino = probabilistic_event_forecast(nino34_current, month_current,
                                           ENSOState.WEAK_NINO, lead_months=6, n_trials=5000)
     p_nina = probabilistic_event_forecast(nino34_current, month_current,
@@ -331,21 +314,20 @@ def demo_enso_prediction():
     print(f"  6 个月后弱 El Nino 概率 = {p_nino:.3f}")
     print(f"  6 个月后弱 La Nina 概率 = {p_nina:.3f}")
 
-    # 预测 skill（用合成数据测试）
+
     obs = forecast["mean_trajectory"] + np.random.normal(0, 0.2, len(forecast["mean_trajectory"]))
     skill = forecast_skill(forecast["mean_trajectory"], obs)
     print(f"  预测 skill: RMSE={skill['rmse']:.3f}, 相关系数={skill['correlation']:.3f}")
 
 
 def demo_multiscale():
-    """演示多尺度分析。"""
     section_header("9. ENSO 多尺度小波分析 (multiscale_analysis)")
 
-    # 合成 Niño 3.4 时间序列（2-7年周期 + 季节循环 + 噪声）
-    t_months = np.arange(0, 480)  # 40 年
+
+    t_months = np.arange(0, 480)
     nino34_synth = (
-        1.2 * np.sin(2.0 * np.pi * t_months / 48.0)  # 4 年周期
-        + 0.3 * np.sin(2.0 * np.pi * t_months / 12.0)  # 1 年周期
+        1.2 * np.sin(2.0 * np.pi * t_months / 48.0)
+        + 0.3 * np.sin(2.0 * np.pi * t_months / 12.0)
         + np.random.normal(0, 0.3, len(t_months))
     )
 
@@ -359,19 +341,18 @@ def demo_multiscale():
 
 
 def demo_quadrature():
-    """演示求积规则验证。"""
     section_header("10. 高维求积规则精确度验证 (quadrature_validation)")
 
-    # 一维 Gauss-Hermite 验证
+
     result_h = validate_hermite_quadrature_1d(n_points=8, degree_max=15)
     print(f"  1D Gauss-Hermite (n=8): 最大精确阶数 = {result_h['max_degree_passed']}")
 
-    # 二维超立方体验证
+
     result_c = validate_hypercube_quadrature(dim=2, n_points=5, degree_max=9)
     print(f"  2D Gauss-Legendre (n=5 per dim): 总点数 = {result_c['total_points']}, "
           f"最大精确阶数 = {result_c['max_degree_passed']}")
 
-    # 集合积分
+
     quad_pts = np.array([[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]])
     quad_wts = np.array([0.25, 0.25, 0.25, 0.25])
     ensemble = np.random.randn(100, 4)
@@ -380,21 +361,20 @@ def demo_quadrature():
 
 
 def demo_parameter_inversion():
-    """演示参数反演。"""
     section_header("11. 热扩散参数反演 (parameter_inversion)")
 
     nx, ny = 15, 10
     dx, dy = 2.0e5, 2.0e5
 
-    # 真实参数
+
     D_true, tau_true, coupling_true = 2000.0, 30.0 * 24 * 3600, 0.02
 
-    # 合成观测
-    heat_source = np.ones((nx, ny)) * 50.0  # W/m^2
+
+    heat_source = np.ones((nx, ny)) * 50.0
     T_obs = solve_steady_heat_2d(nx, ny, dx, dy, D_true, tau_true,
                                  heat_source + coupling_true * np.ones((nx, ny)))
 
-    # 反演
+
     theta_init = np.array([1000.0, 15.0 * 24 * 3600, 0.01])
     theta_prior = np.array([1500.0, 20.0 * 24 * 3600, 0.015])
     theta_opt, history = gradient_descent_inversion(
@@ -406,7 +386,7 @@ def demo_parameter_inversion():
     print(f"  反演结果: D_h = {theta_opt[0]:.1f} m²/s, τ = {theta_opt[1]/(24*3600):.1f} days, coupling = {theta_opt[2]:.4f}")
     print(f"  最终目标函数 J = {history[-1]:.4e}")
 
-    # 灵敏度分析
+
     sens = sensitivity_analysis(theta_opt, T_obs, nx, ny, dx, dy, heat_source)
     print(f"  参数灵敏度:")
     for k, v in sens.items():
@@ -414,10 +394,9 @@ def demo_parameter_inversion():
 
 
 def demo_io():
-    """演示数据读写。"""
     section_header("12. 海洋模式数据读写 (io_utils)")
 
-    # 写入网格数据
+
     n_nodes = 100
     n_elements = 50
     node_coords = np.random.rand(2, n_nodes) * 1.0e6
@@ -429,13 +408,13 @@ def demo_io():
                     ["X", "Y", "SST", "h_anom", "u_zonal"],
                     node_coords, node_data, element_nodes)
 
-    # 读回
+
     data = read_mesh_data(filename)
     print(f"  写入/读取网格数据测试通过:")
     print(f"    标题: {data['title']}")
     print(f"    节点数: {data['n_nodes']}, 单元数: {data['n_elements']}")
 
-    # 时间序列
+
     times = np.arange(0, 24)
     nino = 0.5 * np.sin(2.0 * np.pi * times / 12.0) + np.random.normal(0, 0.1, 24)
     ts_file = "/tmp/enso_nino34.txt"
@@ -445,11 +424,11 @@ def demo_io():
     print(f"  时间序列读写测试通过: {len(t_read)} 个时间点")
     print(f"  元数据: {meta}")
 
-    # 校验和
+
     cs = compute_checksum(nino)
     print(f"  数据校验和 = {cs}")
 
-    # 清理临时文件
+
     try:
         os.remove(filename)
         os.remove(ts_file)
@@ -458,7 +437,6 @@ def demo_io():
 
 
 def main():
-    """主函数：运行所有演示模块。"""
     print("\n")
     print("*" * 70)
     print("*  海气耦合模式与 ENSO 预测系统 — 博士级科研计算综合演示")
@@ -480,7 +458,7 @@ def main():
     print("\n  运行环境: Python 3.x + NumPy")
     print("  零参数直接运行，无需外部数据。")
 
-    # 运行所有演示
+
     demo_calendar_utils()
     demo_sparse_matrix()
     demo_sst_interpolation()

@@ -1,40 +1,12 @@
 #!/usr/bin/env python3
-"""
-main.py
-冰川流变学与冰盖演化综合模拟系统 — 统一入口
-
-本项目基于 15 个种子科研代码项目的核心算法，融合构建了面向
-地球物理前沿问题的博士级计算框架：
-
-  科学问题: 南极冰盖在多物理场耦合下的长期演化与不确定性量化
-  核心模块:
-    - 各向异性 Glen 流动律与耗散热计算
-    - 热力学耦合隐式中点求解
-    - 浅水近似 (SIA) 冰厚度演化
-    - 冰流非线性振荡 (Duffing 型 stick-slip)
-    - 罗盘搜索参数标定
-    - 矩阵指数积分器
-    - 球面 CVT 观测网优化
-    - FEM/MEDIT 网格与稀疏矩阵 I/O
-    - 贝叶斯 Dirichlet/Gamma 参数推断
-    - 排水流域连通分量分析
-    - 带状矩阵高效求解
-    - 椭圆积分精确解验证
-    - 冰晶取向蒙特卡洛统计
-
-运行方式:
-    python main.py
-
-无需任何命令行参数，程序自动生成合成数据并执行完整模拟流程。
-"""
 
 import os
 import sys
 import numpy as np
 
-# =============================================================================
-# 模块导入
-# =============================================================================
+
+
+
 from ice_constitutive_model import (
     rate_factor_arrhenius,
     effective_stress,
@@ -109,33 +81,31 @@ from fabric_orientation_sampling import (
 
 
 def print_section(title: str):
-    """打印格式化的章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_module_1_constitutive():
-    """模块 1: 各向异性流变学本构测试。"""
     print_section("模块 1: 各向异性 Glen 流动律与耗散热")
 
-    # 构造偏应力张量
+
     tau = np.zeros((3, 3), dtype=np.float64)
-    tau[0, 2] = tau[2, 0] = 1.0e5  # xz 剪切 100 kPa
-    tau[1, 2] = tau[2, 1] = 0.5e5  # yz 剪切 50 kPa
+    tau[0, 2] = tau[2, 0] = 1.0e5
+    tau[1, 2] = tau[2, 1] = 0.5e5
     tau[0, 0] = -0.5e5
     tau[1, 1] = -0.3e5
     tau[2, 2] = 0.8e5
 
-    T = 253.15  # -20°C
+    T = 253.15
     eps = glen_flow_law(tau, T)
     tau_e = effective_stress(tau)
     eps_e = effective_strain_rate(eps)
     phi = dissipation_heat(eps, tau)
     eta = glen_viscosity(T, eps_e)
 
-    # 各向异性增强
-    a2 = np.diag([0.5, 0.3, 0.2])  # 单晶型取向
+
+    a2 = np.diag([0.5, 0.3, 0.2])
     E = anisotropic_enhancement_factor(a2)
 
     print(f"  温度 T = {T:.2f} K")
@@ -149,18 +119,17 @@ def run_module_1_constitutive():
 
 
 def run_module_2_thermomechanics():
-    """模块 2: 垂直温度剖面演化。"""
     print_section("模块 2: 冰盖热力学耦合 (隐式中点法)")
 
     nz = 51
-    z_max = 2000.0  # 2 km 冰层
-    dt = 86400.0 * 30.0  # 30 天
-    nt = 12  # 1 年
+    z_max = 2000.0
+    dt = 86400.0 * 30.0
+    nt = 12
 
-    surface_temp = 240.0  # K
-    basal_heat_flux = 0.042  # W/m^2 (典型地热)
-    w = -1e-9 * np.ones(nz, dtype=np.float64)  # ~3 cm/a 下沉 (典型冰盖)
-    phi = 1e-4 * np.ones(nz, dtype=np.float64)  # 耗散
+    surface_temp = 240.0
+    basal_heat_flux = 0.042
+    w = -1e-9 * np.ones(nz, dtype=np.float64)
+    phi = 1e-4 * np.ones(nz, dtype=np.float64)
 
     T_history = solve_temperature_evolution(nz, z_max, dt, nt,
                                              surface_temp, basal_heat_flux,
@@ -171,7 +140,7 @@ def run_module_2_thermomechanics():
     print(f"  1年后底部温度: {T_history[-1, -1]:.2f} K")
     print(f"  温度变化: {T_history[-1, -1] - T_history[0, -1]:.3f} K")
 
-    # 焓形式
+
     H_history, T_history_e, omega_history = solve_enthalpy_evolution(
         nz, z_max, dt, nt, surface_temp, basal_heat_flux, w, phi
     )
@@ -181,31 +150,30 @@ def run_module_2_thermomechanics():
 
 
 def run_module_3_ice_sheet_evolution():
-    """模块 3: SIA 冰厚度演化。"""
     print_section("模块 3: 浅水近似冰盖厚度演化")
 
     nx, ny = 41, 41
-    dx = dy = 5000.0  # 5 km
+    dx = dy = 5000.0
     Lx, Ly = nx * dx, ny * dy
 
     x = np.linspace(-Lx / 2, Lx / 2, nx)
     y = np.linspace(-Ly / 2, Ly / 2, ny)
     X, Y = np.meshgrid(x, y)
 
-    # 抛物型基岩
+
     bedrock = -500.0 + 0.5 * (X ** 2 + Y ** 2) / 1e6
     bedrock = np.clip(bedrock, -2000.0, 0.0)
 
-    # 初始厚度: Vialov 型
+
     R0 = 400e3
     H0 = 3000.0
     r = np.sqrt(X ** 2 + Y ** 2)
     H0_init = vialov_profile(r.flatten(), R0, H0).reshape(ny, nx)
 
-    # 积累率 (南极型: 中心高边缘低)
+
     accumulation = 0.3 / (365.25 * 86400.0) * np.exp(-r / (200e3))
 
-    total_time = 100.0 * 365.25 * 86400.0  # 100 年
+    total_time = 100.0 * 365.25 * 86400.0
     H_final, history = solve_sia_evolution(
         H0_init, bedrock, accumulation, dx, dy, total_time,
         temperature=253.15, output_interval=10
@@ -223,7 +191,6 @@ def run_module_3_ice_sheet_evolution():
 
 
 def run_module_4_ice_stream():
-    """模块 4: 冰流非线性振荡。"""
     print_section("模块 4: 冰流 Stick-Slip 非线性振荡 (Duffing 型)")
 
     params = {
@@ -244,9 +211,9 @@ def run_module_4_ice_stream():
         'm_eff': 1.0,
     }
 
-    y0 = np.array([1.0, 0.0, 1.0e6])  # [u, v, N]
-    t_span = (0.0, 10.0 * 365.25 * 86400.0)  # 10 年
-    dt = 86400.0  # 1 天
+    y0 = np.array([1.0, 0.0, 1.0e6])
+    t_span = (0.0, 10.0 * 365.25 * 86400.0)
+    dt = 86400.0
 
     t_arr, y_arr = solve_ice_stream_oscillation(y0, t_span, dt, params)
     stats = detect_stick_slip_events(t_arr, y_arr, velocity_threshold=0.5)
@@ -263,7 +230,6 @@ def run_module_4_ice_stream():
 
 
 def run_module_5_compass_calibration():
-    """模块 5: 罗盘搜索参数标定。"""
     print_section("模块 5: 流变参数 Compass Search 标定")
 
     theta_true, observed, model_func = demo_calibration_problem(
@@ -278,9 +244,9 @@ def run_module_5_compass_calibration():
         regularization_lambda=0.001
     )
 
-    # 使用 log10(A0) 变换改善不同量级参数的搜索效率
+
     def scaled_objective(theta_raw):
-        # theta_raw = [log10A0, Q, n]
+
         theta_physical = np.array([10.0 ** theta_raw[0], theta_raw[1], theta_raw[2]])
         return obj(theta_physical)
 
@@ -304,22 +270,21 @@ def run_module_5_compass_calibration():
 
 
 def run_module_6_matrix_exponential():
-    """模块 6: 矩阵指数积分器。"""
     print_section("模块 6: 矩阵指数积分器 (扩散算子)")
 
     n = 41
     dx = 100.0
-    D = 1.0  # 有效扩散系数
-    dt = 86400.0 * 10.0  # 10 天
+    D = 1.0
+    dt = 86400.0 * 10.0
 
-    # 初始高斯型厚度扰动
+
     x = np.linspace(-n * dx / 2, n * dx / 2, n)
     H = 100.0 * np.exp(-x ** 2 / (2.0 * (500.0) ** 2))
     accumulation = np.zeros(n, dtype=np.float64)
 
     H_new = exponential_integrator_ice_thickness(H, dt, dx, lambda h: D, accumulation)
 
-    # 计算体积守恒误差
+
     vol_old = np.trapezoid(H, x)
     vol_new = np.trapezoid(H_new, x)
 
@@ -332,14 +297,13 @@ def run_module_6_matrix_exponential():
 
 
 def run_module_7_spherical_cvt():
-    """模块 7: 球面 CVT 观测网。"""
     print_section("模块 7: 南极冰盖球面 CVT 观测网优化")
 
     n_gen = 200
     generators = sphere_cvt_iterate(n_gen, n_iterations=50, radius=6371e3, seed=42)
     energy = cvt_energy(generators)
 
-    # 投影到南极区域
+
     antarctic = project_to_ice_dome_region(generators, (-90.0, -60.0), (-180.0, 180.0))
 
     print(f"  全球节点数: {n_gen}")
@@ -351,10 +315,9 @@ def run_module_7_spherical_cvt():
 
 
 def run_module_8_mesh_io():
-    """模块 8: FEM 网格与刚度矩阵。"""
     print_section("模块 8: FEM 刚度矩阵组装与格式转换")
 
-    # 构造简单三角形网格 (南极某区域简化)
+
     nodes = np.array([
         [0.0, 0.0, 0.0],
         [1e5, 0.0, 0.0],
@@ -371,7 +334,7 @@ def run_module_8_mesh_io():
     vals, rows, cols, n_nodes, _ = assemble_ice_stiffness_matrix_2d(
         nodes, elements, diffusivity=1.0
     )
-    # 施加 Dirichlet 边界条件于节点 0：清零第 0 行/列，设对角元为 1
+
     mask = (rows != 0) & (cols != 0)
     vals_d = vals[mask]
     rows_d = rows[mask]
@@ -382,10 +345,10 @@ def run_module_8_mesh_io():
     data_csc, row_csc, col_ptr = coo_to_csc(vals_d, rows_d, cols_d, n_nodes, n_nodes)
     A_dense = csc_to_dense(data_csc, row_csc, col_ptr, n_nodes, n_nodes)
 
-    # 测试正定性
+
     eig_min = np.min(np.linalg.eigvalsh(A_dense))
 
-    # 写入 MEDIT 格式
+
     out_path = os.path.join(os.path.dirname(__file__), "demo_ice_mesh.mesh")
     write_medit_mesh(nodes, elements, boundary_nodes=None, filepath=out_path)
 
@@ -400,23 +363,22 @@ def run_module_8_mesh_io():
 
 
 def run_module_9_bayesian():
-    """模块 9: 贝叶斯参数推断。"""
     print_section("模块 9: 贝叶斯 Gamma/Dirichlet 参数推断")
 
-    # Gamma MLE
+
     rng = np.random.default_rng(42)
     gamma_data = rng.gamma(shape=3.0, scale=2.0, size=500)
     alpha_est, beta_est = gamma_mle_newton_raphson(gamma_data, alpha_init=2.0)
     print(f"  Gamma 数据: shape=3.0, scale=2.0")
     print(f"  MLE 估计: alpha={alpha_est:.3f}, beta={beta_est:.3f}")
 
-    # Dirichlet MLE
+
     dirich_data = rng.dirichlet(alpha=[2.0, 3.0, 5.0], size=300)
     alpha_dir = dirichlet_mle_newton(dirich_data)
     print(f"  Dirichlet 真值: [2.0, 3.0, 5.0]")
     print(f"  MLE 估计: [{alpha_dir[0]:.2f}, {alpha_dir[1]:.2f}, {alpha_dir[2]:.2f}]")
 
-    # MCMC 后验采样 (简单二维高斯后验)
+
     def log_posterior(theta):
         if len(theta) != 2:
             return -1e20
@@ -433,7 +395,6 @@ def run_module_9_bayesian():
 
 
 def run_module_10_drainage():
-    """模块 10: 排水流域分析。"""
     print_section("模块 10: 冰盖排水流域连通分量分析")
 
     nx, ny = 101, 101
@@ -442,13 +403,13 @@ def run_module_10_drainage():
     y = np.linspace(-50e3, 50e3, ny)
     X, Y = np.meshgrid(x, y)
 
-    # 合成表面: 三个独立的冰穹
+
     s1 = 3000.0 * np.exp(-(X ** 2 + Y ** 2) / (2.0 * (20e3) ** 2))
     s2 = 2500.0 * np.exp(-((X - 30e3) ** 2 + (Y - 20e3) ** 2) / (2.0 * (15e3) ** 2))
     s3 = 2000.0 * np.exp(-((X + 25e3) ** 2 + (Y - 30e3) ** 2) / (2.0 * (12e3) ** 2))
     surface = s1 + s2 + s3
 
-    # 厚度场
+
     bed = -500.0 * np.ones_like(surface)
     H = np.maximum(surface - bed, 0.0)
 
@@ -466,7 +427,6 @@ def run_module_10_drainage():
 
 
 def run_module_11_banded_solver():
-    """模块 11: 带状矩阵求解。"""
     print_section("模块 11: SIA 三对角系统 Thomas 算法")
 
     n = 101
@@ -479,7 +439,7 @@ def run_module_11_banded_solver():
     a, b, c, rhs = build_sia_tridiagonal(H, bed, dx, A, rho_g, GLEN_N)
     u = solve_tridiagonal(a, b, c, rhs)
 
-    # 验证残差
+
     residual = np.zeros(n, dtype=np.float64)
     residual[1:-1] = (a[1:-1] * u[:-2] + b[1:-1] * u[1:-1] + c[1:-1] * u[2:]
                       - rhs[1:-1])
@@ -494,7 +454,6 @@ def run_module_11_banded_solver():
 
 
 def run_module_12_elliptic():
-    """模块 12: 椭圆积分精确解。"""
     print_section("模块 12: 椭圆积分与 Vialov 精确解验证")
 
     k = 0.5
@@ -514,13 +473,13 @@ def run_module_12_elliptic():
     print(f"  数值积分体积: {V_num/1e9:.3f} km^3")
     print(f"  体积相对误差: {abs(V_num - V_exact)/V_exact * 100:.6f}%")
 
-    # Bueler 半径
+
     a_m = 0.3 / (365.25 * 86400.0)
     A = 1e-25
     R_bueler = bueler_exact_radius(a_m, A, ICE_DENSITY * GRAVITY, GLEN_N, H0)
     print(f"  Bueler 稳态半径: {R_bueler/1e3:.1f} km")
 
-    # 收敛性测试
+
     conv = convergence_test_vialov([51, 101, 201, 401], L, H0, GLEN_N)
     print(f"  网格收敛阶估计: {conv['order']:.2f}")
 
@@ -528,7 +487,6 @@ def run_module_12_elliptic():
 
 
 def run_module_13_fabric():
-    """模块 13: 冰晶取向蒙特卡洛。"""
     print_section("模块 13: 冰晶取向蒙特卡洛统计")
 
     result = monte_carlo_fabric_simulation(n_samples=5000, concentration=8.0, seed=42)
@@ -547,24 +505,23 @@ def run_module_13_fabric():
 
 
 def run_module_14_summary():
-    """模块 14: 综合性能与一致性汇总。"""
     print_section("综合性能与一致性汇总")
 
     checks = []
 
-    # 检查 1: 正厚度
+
     H_test = np.array([100.0, 200.0, 0.0, 50.0])
     checks.append(("厚度非负", np.all(H_test >= 0)))
 
-    # 检查 2: 温度范围
+
     T_test = np.array([220.0, 250.0, 270.0])
     checks.append(("温度物理范围 (200~273.15 K)", np.all((T_test >= 200) & (T_test <= 273.15))))
 
-    # 检查 3: 椭圆积分关系 K >= E
+
     k_test = 0.3
     checks.append(("K(k) >= E(k)", elliptic_k_complete(k_test) >= elliptic_e_complete(k_test)))
 
-    # 检查 4: 体积守恒 (Vialov 精确 vs 数值)
+
     L, H0 = 200e3, 1500.0
     x_fine = np.linspace(-L / 2, L / 2, 10001)
     H_fine = vialov_profile(x_fine, L, H0, GLEN_N)
@@ -572,7 +529,7 @@ def run_module_14_summary():
     V_exact = vialov_volume_exact(L, H0, GLEN_N)
     checks.append(("Vialov 体积守恒", abs(V_fine - V_exact) / V_exact < 1e-4))
 
-    # 检查 5: 各向异性张量迹为 1
+
     a2_test = np.diag([0.4, 0.35, 0.25])
     checks.append(("取向张量迹归一化", abs(np.trace(a2_test) - 1.0) < 1e-10))
 
@@ -587,16 +544,15 @@ def run_module_14_summary():
 
 
 def main():
-    """主入口函数。"""
     print("\n" + "#" * 70)
     print("#  冰川流变学与冰盖演化综合模拟系统")
     print("#  Geophysical Synthesis: Glacier Rheology & Ice Sheet Evolution")
     print("#" * 70)
 
-    # 设置数值环境
+
     np.seterr(divide='ignore', invalid='ignore')
 
-    # 依次运行所有模块
+
     run_module_1_constitutive()
     run_module_2_thermomechanics()
     run_module_3_ice_sheet_evolution()

@@ -1,54 +1,9 @@
-"""
-Radiation Diffusion FEM Module
-==============================
-Based on seed project 377_fem_neumann:
-- rd_lin_spline.m  →  1D reaction-diffusion FEM with Neumann BCs
-- basic_hat.m      →  piecewise-linear hat function
-
-Physics:
---------
-In the comoving frame of the GRB afterglow, the radiation energy
-density E_rad evolves according to the radiative diffusion equation:
-
-    ∂E_rad/∂t = ∂/∂x [ D(x) ∂E_rad/∂x ] + Γ(x, E_rad)
-
-with homogeneous Neumann boundary conditions at the blast-wave
-edges:
-
-    ∂E_rad/∂x |_{x=0} = 0,    ∂E_rad/∂x |_{x=1} = 0
-
-The diffusion coefficient is:
-
-    D(x) = c / (3 κ_R(x) ρ(x))
-
-and the nonlinear source term includes Compton cooling and
-synchrotron heating:
-
-    Γ(E_rad) = -Λ_C E_rad + η_syn ρ (v_sh/c)²
-
-where Λ_C is the Compton cooling rate and η_syn is the
-synchrotron heating efficiency.
-
-Using piecewise-linear (hat) basis functions φ_i(x), the Galerkin
-weak form yields the semi-discrete system:
-
-    M · d𝐮/dt = -K · 𝐮 + 𝐟(𝐮)
-
-where M is the mass matrix and K is the stiffness matrix.
-"""
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
 
 def basic_hat(x):
-    """
-    Basic hat function on [-1, 1]:
-
-        φ(x) = x + 1   for -1 ≤ x <  0
-        φ(x) = 1 - x   for  0 ≤ x ≤  1
-        φ(x) = 0       otherwise
-    """
     x = np.asarray(x, dtype=float)
     f = ((x + 1.0) * ((-1.0 <= x) & (x < 0.0))
          + (1.0 - x) * ((0.0 <= x) & (x <= 1.0)))
@@ -56,16 +11,6 @@ def basic_hat(x):
 
 
 def assemble_mass_matrix(n):
-    """
-    Assemble the consistent mass matrix for linear elements on [0,1]
-    with n intervals (n+1 nodes):
-
-        M_{ij} = ∫_0^1 φ_i(x) φ_j(x) dx
-
-    For uniform mesh h = 1/n:
-
-        M = (h/6) · tridiag(1, 4, 1)  with endpoint corrections.
-    """
     h = 1.0 / n
     main = np.full(n + 1, 4.0)
     main[0] = 2.0
@@ -76,15 +21,6 @@ def assemble_mass_matrix(n):
 
 
 def assemble_stiffness_matrix(n):
-    """
-    Assemble the stiffness matrix for linear elements:
-
-        K_{ij} = ∫_0^1 φ_i'(x) φ_j'(x) dx
-
-    For uniform mesh h = 1/n:
-
-        K = (1/h) · tridiag(-1, 2, -1)
-    """
     h = 1.0 / n
     main = np.full(n + 1, 2.0)
     off = np.full(n, -1.0)
@@ -93,28 +29,20 @@ def assemble_stiffness_matrix(n):
 
 
 def project_initial_condition(w0_func, n):
-    """
-    Project initial condition w0(x) onto the finite-element space
-    by computing L2 inner products with hat basis functions:
-
-        b_i = ⟨w0, φ_i⟩ = ∫_{x_{i-1}}^{x_{i+1}} w0(x) φ_i(x) dx
-
-    and solving M u0 = b.
-    """
     h = 1.0 / n
     b = np.zeros(n + 1)
 
-    # Node 0 (left boundary)
+
     x_left = np.linspace(0.0, h, 50)
     phi = basic_hat(n * x_left)
     b[0] = np.trapezoid(w0_func(x_left) * phi, x_left)
 
-    # Node n (right boundary)
+
     x_right = np.linspace((n - 1) * h, 1.0, 50)
     phi = basic_hat(n * x_right - n)
     b[-1] = np.trapezoid(w0_func(x_right) * phi, x_right)
 
-    # Interior nodes
+
     for jj in range(1, n):
         x_seg = np.linspace((jj - 1) * h, (jj + 1) * h, 100)
         phi = basic_hat(n * x_seg + 1 - jj)
@@ -126,42 +54,19 @@ def project_initial_condition(w0_func, n):
 
 
 def nonlinear_source(u, c_array, n, M):
-    """
-    Nonlinear source term for radiative diffusion:
-
-        f(u) = c1 + c2·u + c3·u² + c4·u³
-
-    integrated against the mass matrix for the Galerkin projection.
-
-    Parameters
-    ----------
-    u : ndarray, shape (n+1,)
-        Solution vector.
-    c_array : ndarray, shape (4,)
-        Coefficients [c1, c2, c3, c4].
-    n : int
-        Number of intervals.
-    M : ndarray
-        Mass matrix.
-
-    Returns
-    -------
-    val : ndarray
-        Projected nonlinear term.
-    """
     c1, c2, c3, c4 = c_array
 
-    # Constant term: c1 * h * [1/2, 1, 1, ..., 1, 1/2]
+
     h = 1.0 / n
     const_vec = np.full(n + 1, 1.0)
     const_vec[0] = 0.5
     const_vec[-1] = 0.5
     term_const = (c1 / n) * const_vec
 
-    # Linear term
+
     term_lin = c2 * (M @ u)
 
-    # Quadratic term (lumped-mass-like integration)
+
     u2 = u ** 2
     wx = (u[:-1] + u[1:]) ** 2
     term_quad = np.zeros(n + 1)
@@ -171,7 +76,7 @@ def nonlinear_source(u, c_array, n, M):
         term_quad[1:-1] = wx[:-1] + 4 * u2[1:-1] + wx[1:]
     term_quad = c3 * term_quad / (12.0 * n)
 
-    # Cubic term
+
     u3 = u ** 3
     wx3 = (u[:-1] + u[1:]) ** 3
     term_cubic = np.zeros(n + 1)
@@ -188,28 +93,6 @@ def nonlinear_source(u, c_array, n, M):
 def solve_radiation_diffusion(n=64, t_span=(0.0, 4.0),
                               c_array=None,
                               w0_func=None):
-    """
-    Solve the 1D radiative diffusion equation with Neumann BCs
-    using the finite-element method.
-
-    Parameters
-    ----------
-    n : int
-        Number of spatial intervals.
-    t_span : tuple
-        Time span for integration.
-    c_array : ndarray, shape (4,)
-        Nonlinear source coefficients.
-    w0_func : callable
-        Initial condition function w0(x).
-
-    Returns
-    -------
-    t : ndarray
-        Time points.
-    u : ndarray, shape (len(t), n+1)
-        Solution at time points.
-    """
     if c_array is None:
         c_array = np.array([0.0, -0.5, 0.0, 0.0])
     if w0_func is None:

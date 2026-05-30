@@ -1,34 +1,11 @@
-"""
-main.py
-=======
-Unified entry point for the synthesized doctoral-level scientific computing project:
-
-    "Generalized Polynomial Chaos Expansion and Sparse Adaptive Uncertainty
-     Quantification for High-Dimensional Stochastic Elliptic PDEs"
-
-This script runs the complete pipeline:
-    1. Self-tests of all submodules
-    2. Karhunen-Loeve expansion of random diffusion coefficient
-    3. Stochastic PDE solution via gPC pseudo-spectral projection
-    4. Stochastic PDE solution via intrusive Galerkin projection
-    5. Statistical moment extraction (mean, variance, Sobol indices)
-    6. Bayesian posterior inference via DREAM MCMC on a simplified model
-    7. Spectral stability and chaotic sensitivity analysis
-    8. Convergence diagnostics and output summary
-
-The project fuses algorithms from 15 seed projects into a coherent
-uncertainty-quantification workflow for stochastic elliptic PDEs.
-
-No command-line arguments required.
-"""
 
 import numpy as np
 import sys
 import time
 
-# ---------------------------------------------------------------------------
-# Submodule imports
-# ---------------------------------------------------------------------------
+
+
+
 from orthogonal_polynomials import (
     legendre_eval, gauss_legendre_nodes_weights, polynomial_roots_via_companion,
     test_orthogonal_polynomials
@@ -100,7 +77,7 @@ def demo_kl_expansion():
     print(f"  KL eigenfrequencies (omega_k): {omegas}")
     x = np.linspace(xL, xR, 101)
     phi = kl_eigenfunctions_1d(x, omegas, xL, xR)
-    # Check orthonormality
+
     for k in range(n_modes):
         for j in range(n_modes):
             ip = np.trapezoid(phi[:, k] * phi[:, j], x)
@@ -129,7 +106,7 @@ def demo_stochastic_pde_projection():
     print(f"  Mean solution at x=0.5: {np.interp(0.5, mesh, mean_proj):.6f}")
     print(f"  Variance at x=0.5: {np.interp(0.5, mesh, var_proj):.6e}")
 
-    # Sobol sensitivity
+
     S_first = gpc_sobol_sensitivity(coeffs_proj, idx_set, n_modes)
     S_total = gpc_total_order_sobol(coeffs_proj, idx_set, n_modes)
     print(f"  First-order Sobol indices: {S_first}")
@@ -159,7 +136,7 @@ def demo_stochastic_pde_galerkin():
 
 def demo_mcmc_inference():
     print_section("STEP 4: Bayesian Posterior Inference (DREAM MCMC)")
-    # Synthetic model: y = theta1 * exp(-theta2 * x) + noise
+
     np.random.seed(42)
     x_obs = np.array([0.1, 0.2, 0.4, 0.6, 0.8, 1.0])
     theta_true = np.array([2.0, 1.5])
@@ -189,7 +166,7 @@ def demo_mcmc_inference():
 
 def demo_spectral_stability():
     print_section("STEP 5: Spectral Stability & Chaotic Sensitivity")
-    # Condition number of a sample gPC-Galerkin matrix block
+
     n = 20
     diag = 2.0 * np.ones(n)
     off = -1.0 * np.ones(n - 1)
@@ -200,7 +177,7 @@ def demo_spectral_stability():
     print(f"  Gershgorin discs: centers in [{centers.min():.2f}, {centers.max():.2f}], "
           f"radii in [{radii.min():.2f}, {radii.max():.2f}]")
 
-    # Lyapunov exponents
+
     for k in [0.5, 1.5, 2.5]:
         lam = lyapunov_exponent_standard_map(k, n_iter=3000, n_burn=300)
         print(f"  Chirikov k={k}: Lyapunov exponent = {lam:.4f}")
@@ -208,7 +185,7 @@ def demo_spectral_stability():
 
 def demo_convergence_diagnostics():
     print_section("STEP 6: Convergence Diagnostics")
-    # Compare two gPC resolutions by Wasserstein-2 distance of QoI
+
     xL, xR = 0.0, 1.0
     n_elem = 30
     a0 = lambda x: 1.0
@@ -226,7 +203,7 @@ def demo_convergence_diagnostics():
     rel_err = np.linalg.norm(mean_low - mean_high) / np.linalg.norm(mean_high)
     print(f"  Relative L2 mean error (low vs high gPC): {rel_err:.3e}")
 
-    # Sample-based distribution comparison at x=0.5
+
     xi_mc = np.random.uniform(-1.0, 1.0, (2000, 2))
     u_low_mc = gpc_reconstruct(xi_mc, coeffs_low, idx_low, "uniform")
     u_high_mc = gpc_reconstruct(xi_mc, coeffs_high, idx_high, "uniform")
@@ -244,7 +221,7 @@ def demo_convergence_diagnostics():
 
 def demo_house_geometry():
     print_section("STEP 7: Complex Geometry Representation (House Polygon)")
-    # House data from seed project 546_house_data
+
     house_vertices = np.array([
         [0.75, 0.0],
         [1.0, 0.2],
@@ -259,7 +236,7 @@ def demo_house_geometry():
         [0.0, 0.2],
         [0.25, 0.0]
     ])
-    # Compute polygon area and centroid
+
     n = len(house_vertices)
     area = 0.0
     cx, cy = 0.0, 0.0
@@ -276,7 +253,7 @@ def demo_house_geometry():
     print(f"  House polygon vertices: {n}")
     print(f"  Polygon area: {area:.4f}")
     print(f"  Centroid: ({cx:.4f}, {cy:.4f})")
-    # Map house to [0,1] as a parameter domain for 1-D stochastic PDE
+
     print(f"  [OK] Geometry mapped to computational domain [0,1].")
 
 
@@ -285,7 +262,7 @@ def demo_spherical_sampling():
     d = 3
     n_samples = 500
     pts = sample_unit_sphere_uniform(d, n_samples)
-    # Project to first two coordinates as a surrogate for parameter sensitivity
+
     from uq_analysis import spherical_triangle_area
     v1 = np.array([1.0, 0.0, 0.0])
     v2 = np.array([0.0, 1.0, 0.0])
@@ -300,7 +277,7 @@ def demo_twb_quadrature():
     print_section("STEP 9: TWB Triangle Quadrature")
     from quadrature_rules import twb_triangle_rule, triangle_unit_monomial_integral
     nodes, weights = twb_triangle_rule(5)
-    # Integrate x^2 y^3
+
     val = np.sum(nodes[:, 0] ** 2 * nodes[:, 1] ** 3 * weights)
     exact = triangle_unit_monomial_integral(2, 3)
     print(f"  TWB quadrature for x^2 y^3: {val:.6e}")

@@ -1,32 +1,3 @@
-"""
-核裂变过程中的扩散系数与粘滞张量
-===================================
-融合原始项目:
-  - 283_diffusion_pde: 扩散 PDE 参数与导数
-  - 049_asa239: 正态累积分布函数 (alnorm)
-
-科学背景:
----------
-在核裂变的集体坐标描述中，内部自由度（核子运动）作为热浴
-对集体运动产生耗散与涨落。根据涨落-耗散定理 (Fluctuation-Dissipation Theorem, FDT):
-
-  γ_{ij} = (1/T) ∫_0^∞ dt ⟨ξ_i(t) ξ_j(0)⟩
-
-其中 γ_{ij} 为粘滞张量，T 为核温度，ξ_i 为随机力。
-Einstein 关系给出扩散系数:
-  D_{ij} = T γ_{ij}
-
-核温度由费米气体模型给出:
-  T = √(E* / a)   [MeV]
-其中 E* 为激发能，a = A/(8 MeV) 为能级密度参数。
-
-粘滞系数的微观计算（基于线性响应理论）:
-  γ_{ij} = (πℏ / T) Σ_{μ,ν} |⟨μ| ∂H/∂q_i |ν⟩|² n_μ(1-n_ν) δ(E_μ - E_ν)
-
-宏观上，粘滞系数常采用 Wall-Formula 或 One-Body-Dissipation (OBD) 近似:
-  γ_{wall} = (3/4) ρ v_F R₀² · (surface area ratio)
-其中 ρ 为核物质密度，v_F 为费米速度。
-"""
 
 import numpy as np
 from typing import Tuple
@@ -37,9 +8,6 @@ FERMI_ENERGY = 38.0
 
 
 def nuclear_temperature(excitation_energy: float, mass_number: int) -> float:
-    """
-    计算核温度 (MeV). 费米气体模型: T = √(E* / a).
-    """
     if excitation_energy < 0:
         return 0.0
     if mass_number <= 0:
@@ -52,9 +20,6 @@ def nuclear_temperature(excitation_energy: float, mass_number: int) -> float:
 
 
 def wall_formula_viscosity(mass_number: int, beta2: float = 0.0) -> float:
-    """
-    Wall-Formula 粘滞系数. γ_wall = (3/4) ρ v_F R₀² B_s(β₂).
-    """
     from collective_coordinates import nuclear_radius
     from potential_energy_surface import surface_area_ratio
     R0 = nuclear_radius(mass_number)
@@ -64,9 +29,6 @@ def wall_formula_viscosity(mass_number: int, beta2: float = 0.0) -> float:
 
 
 def one_body_dissipation(mass_number: int, charge_number: int, beta2: float, beta3: float = 0.0) -> np.ndarray:
-    """
-    计算集体坐标空间中的 One-Body-Dissipation 张量 (β₂, β₃) 子空间.
-    """
     gamma_wall = wall_formula_viscosity(mass_number, beta2)
     f22 = 1.0 + 0.3 * beta2 + 0.1 * beta2 ** 2
     f33 = 0.5 + 0.2 * abs(beta3) + 0.05 * beta2 ** 2
@@ -80,9 +42,6 @@ def one_body_dissipation(mass_number: int, charge_number: int, beta2: float, bet
 
 def diffusion_tensor(excitation_energy: float, mass_number: int, charge_number: int,
                      beta2: float, beta3: float = 0.0) -> np.ndarray:
-    """
-    扩散张量 D = T · γ (Einstein 关系).
-    """
     T = nuclear_temperature(excitation_energy, mass_number)
     gamma = one_body_dissipation(mass_number, charge_number, beta2, beta3)
     D = T * gamma
@@ -91,10 +50,6 @@ def diffusion_tensor(excitation_energy: float, mass_number: int, charge_number: 
 
 def diffusion_deriv_1d(t: float, u: np.ndarray, x: np.ndarray, mu: float,
                        source: np.ndarray = None) -> np.ndarray:
-    """
-    一维扩散方程右端项: du/dt = μ · u_xx + S(x).
-    Neumann 零通量边界.
-    """
     if len(u) < 3:
         raise ValueError("u must have at least 3 elements")
     if len(x) != len(u):
@@ -118,10 +73,6 @@ def diffusion_deriv_1d(t: float, u: np.ndarray, x: np.ndarray, mu: float,
 
 
 def alnorm(x: float, upper: bool = True) -> float:
-    """
-    标准正态分布累积密度函数 (Hill Algorithm AS 66).
-    用于计算能量高于势垒的透射系数.
-    """
     a1 = 5.75885480458
     a2 = 2.62433121679
     a3 = 5.92885724438
@@ -162,16 +113,12 @@ def alnorm(x: float, upper: bool = True) -> float:
 
 
 def gammad(x: float, p: float) -> float:
-    """
-    不完全伽马函数比 P(X,P) = γ(x,p) / Γ(p) 的近似.
-    在核物理中用于能级密度计算.
-    """
     if x < 0.0 or p <= 0.0 or x == 0.0:
         return 0.0
-    # 使用级数展开
+
     import math
     gln = math.lgamma(p)
-    # 级数求和
+
     ap = p
     sum_val = 1.0 / p
     del_val = sum_val

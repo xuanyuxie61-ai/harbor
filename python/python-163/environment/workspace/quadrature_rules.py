@@ -1,36 +1,8 @@
-r"""
-quadrature_rules.py
-===================
-High-precision quadrature rules for 3D volume integration over hexahedral
-and cubic elements in the geothermal reservoir THM model.
-
-Incorporates algorithms from:
-  - 532_hexahedron_witherden_rule: symmetric quadrature on hexahedra
-  - 232_cube_felippa_rule: Gaussian product rules on cubes
-
-Mathematical formulation:
-For a function f(x,y,z) over the unit hexahedron [0,1]^3:
-
-  \int_{0}^{1} \int_{0}^{1} \int_{0}^{1} f(x,y,z) \, dx \, dy \, dz
-  \approx \sum_{i=1}^{n} w_i \, f(x_i, y_i, z_i)
-
-For the cube [a,b]\times[c,d]\times[e,f], the transformation is:
-  x = \frac{(1-\xi)a + (1+\xi)b}{2}, \quad dx = \frac{b-a}{2} d\xi
-
-Hexahedron Witherden rules achieve polynomial exactness up to degree 11
-using symmetric point sets.
-
-For a product rule of order p in each dimension:
-  \int_{-1}^{1} \int_{-1}^{1} \int_{-1}^{1} f(\xi,\eta,\zeta) d\xi d\eta d\zeta
-  \approx \sum_{i,j,k} w_i w_j w_k f(\xi_i, \eta_j, \zeta_k)
-
-where {\xi_i, w_i} are 1D Gauss-Legendre quadrature points and weights.
-"""
 
 import numpy as np
 
 
-# 1D Gauss-Legendre rules on [-1, 1] for orders 1 to 5
+
 _LINE_RULES = {
     1: (np.array([0.0]), np.array([2.0])),
     2: (np.array([-1.0/np.sqrt(3.0), 1.0/np.sqrt(3.0)]),
@@ -49,21 +21,6 @@ _LINE_RULES = {
 
 
 def line_unit_rule(order):
-    """
-    Return 1D Gauss-Legendre quadrature rule on [-1, 1].
-
-    Parameters
-    ----------
-    order : int
-        Quadrature order (1 to 5).
-
-    Returns
-    -------
-    x : np.ndarray
-        Abscissae.
-    w : np.ndarray
-        Weights.
-    """
     if order not in _LINE_RULES:
         raise ValueError(f"Order {order} not supported. Use 1-5.")
     x, w = _LINE_RULES[order]
@@ -71,25 +28,6 @@ def line_unit_rule(order):
 
 
 def cube_rule(a, b, order_1d):
-    """
-    Construct a product Gauss-Legendre quadrature rule for a cube.
-
-    Parameters
-    ----------
-    a : np.ndarray, shape (3,)
-        Lower corner [ax, ay, az].
-    b : np.ndarray, shape (3,)
-        Upper corner [bx, by, bz].
-    order_1d : list of int
-        Order in each dimension (1 to 5).
-
-    Returns
-    -------
-    w : np.ndarray
-        Weights.
-    xyz : np.ndarray, shape (n, 3)
-        Abscissae.
-    """
     a = np.asarray(a, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
     order_1d = np.asarray(order_1d, dtype=np.int64)
@@ -101,13 +39,13 @@ def cube_rule(a, b, order_1d):
     if np.any(b <= a):
         raise ValueError("Upper bounds must exceed lower bounds.")
 
-    # Build tensor product
+
     coords = []
     weights = []
     for dim in range(3):
         o = int(order_1d[dim])
         xi, wi = line_unit_rule(o)
-        # Map from [-1, 1] to [a[dim], b[dim]]
+
         x_mapped = ((1.0 - xi) * a[dim] + (1.0 + xi) * b[dim]) / 2.0
         w_mapped = wi * (b[dim] - a[dim]) / 2.0
         coords.append(x_mapped)
@@ -132,24 +70,6 @@ def cube_rule(a, b, order_1d):
 
 
 def hexahedron_witherden_rule(precision):
-    """
-    Return a symmetric quadrature rule for the unit hexahedron [0,1]^3.
-    Rules from Witherden & Vincent (2015), exact for polynomials up to degree `precision`.
-
-    Parameters
-    ----------
-    precision : int
-        Desired precision (0, 1, 3, 5, 7, 9, 11).
-
-    Returns
-    -------
-    n : int
-        Number of points.
-    x, y, z : np.ndarray
-        Coordinates.
-    w : np.ndarray
-        Weights.
-    """
     if precision < 0 or precision > 11:
         raise ValueError("Precision must be in [0, 11].")
 
@@ -168,7 +88,6 @@ def hexahedron_witherden_rule(precision):
 
 
 def _rule01():
-    """1-point rule, degree 1."""
     n = 1
     x = np.array([0.5])
     y = np.array([0.5])
@@ -178,10 +97,9 @@ def _rule01():
 
 
 def _rule03():
-    """8-point rule, degree 3 (tensor product of 2-point Gauss)."""
     xi = np.array([-1.0, 1.0]) / np.sqrt(3.0)
     wi = np.array([1.0, 1.0])
-    # Map to [0, 1]
+
     xi = (xi + 1.0) / 2.0
     wi = wi / 8.0
     n = 8
@@ -196,13 +114,12 @@ def _rule03():
                 x[idx] = xi[i]
                 y[idx] = xi[j]
                 z[idx] = xi[k]
-                w[idx] = wi[i] * wi[j] * wi[k] * 8.0  # account for volume=1
+                w[idx] = wi[i] * wi[j] * wi[k] * 8.0
                 idx += 1
     return n, x, y, z, w
 
 
 def _rule05():
-    """27-point rule, degree 5 (tensor product of 3-point Gauss)."""
     xi = np.array([-np.sqrt(3.0/5.0), 0.0, np.sqrt(3.0/5.0)])
     wi = np.array([5.0/9.0, 8.0/9.0, 5.0/9.0])
     xi = (xi + 1.0) / 2.0
@@ -225,7 +142,6 @@ def _rule05():
 
 
 def _rule07():
-    """64-point rule, degree 7 (tensor product of 4-point Gauss)."""
     xi = np.array([-0.8611363115940526, -0.3399810435848563,
                     0.3399810435848563, 0.8611363115940526])
     wi = np.array([0.3478548451374538, 0.6521451548625461,
@@ -250,7 +166,6 @@ def _rule07():
 
 
 def _rule09():
-    """125-point rule, degree 9 (tensor product of 5-point Gauss)."""
     xi = np.array([-0.9061798459386640, -0.5384693101056831, 0.0,
                     0.5384693101056831, 0.9061798459386640])
     wi = np.array([0.2369268850561891, 0.4786286704993665, 0.5688888888888889,
@@ -275,8 +190,7 @@ def _rule09():
 
 
 def _rule11():
-    """216-point rule, degree 11 (tensor product of 6-point Gauss approximation)."""
-    # 6-point Gauss-Legendre on [-1,1]
+
     xi = np.array([-0.9324695142031521, -0.6612093864662645,
                    -0.2386191860831969, 0.2386191860831969,
                    0.6612093864662645, 0.9324695142031521])
@@ -303,22 +217,6 @@ def _rule11():
 
 
 def integrate_scalar_field_hexahedron(f_func, a, b, order_1d):
-    """
-    Integrate a scalar field over a hexahedral region using product Gauss rules.
-
-    Parameters
-    ----------
-    f_func : callable
-        f(x, y, z) -> float.
-    a, b : np.ndarray, shape (3,)
-        Lower and upper corners.
-    order_1d : list of int
-        Quadrature order in each dimension.
-
-    Returns
-    -------
-    integral : float
-    """
     w, xyz = cube_rule(a, b, order_1d)
     integral = 0.0
     for i in range(w.size):
@@ -327,13 +225,6 @@ def integrate_scalar_field_hexahedron(f_func, a, b, order_1d):
 
 
 def integrate_vector_field_hexahedron(f_vec_func, a, b, order_1d):
-    """
-    Integrate a vector field over a hexahedral region.
-
-    Returns
-    -------
-    integral : np.ndarray
-    """
     w, xyz = cube_rule(a, b, order_1d)
     integral = None
     for i in range(w.size):

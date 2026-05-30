@@ -1,83 +1,30 @@
-"""
-spectral_quadrature.py
-======================
-基于 665_legendre_rule、004_alpert_rule、163_chebyshev_series、
-1362_truncated_normal_sparse_grid 改造的谱方法与高级数值积分模块。
-
-在气泡柱反应器 CFD 模拟中，本模块承担以下核心任务：
-1. Gauss-Legendre 积分：计算 PBE 矩、反应速率体积平均
-2. Alpert 混合积分：处理破裂核函数在 V→0 处的对数奇异性
-3. Chebyshev 谱展开：快速逼近温度与浓度场的一维分布
-4. 稀疏网格积分：高维矩空间（如双变量 PBE）的 Smolyak 型积分
-
-核心公式
---------
-1. Gauss-Legendre 积分：
-       ∫_a^b f(x) dx ≈ Σ_{i=1}^{n} w_i f(x_i)
-   节点 x_i 为 Legendre 多项式 P_n(x) 的零点，权重：
-       w_i = 2 / [(1-x_i^2) (P_n'(x_i))^2]
-
-2. Jacobi 矩阵构造（IQPACK）：
-       对称三对角矩阵 T，其对角元 a_j、次对角元 b_j
-       由正交多项式递推系数确定。特征值即节点，特征向量首分量平方即权重。
-
-3. Alpert 混合规则（对数奇异）：
-       ∫_0^h f(x) ln(x) dx ≈ Σ w_i f(x_i) + 梯形尾项
-   适用于气泡破裂核 β(V,V') ~ ln(V/V') 的奇异性。
-
-4. Chebyshev 级数（Clenshaw 算法）：
-       f(x) = Σ_{k=0}^{N-1} c_k T_k(x),  x∈[-1,1]
-       递推：b_0 = c_N, b_1 = 0, b_2 = 0
-              b_k = c_k - b_{k+2} + 2x b_{k+1}
-       f(x) = (b_0 - b_2)/2
-
-5. 稀疏网格（Smolyak）积分：
-       A(q,d) = Σ_{q-d+1 ≤ |l|_1 ≤ q} (-1)^{q-|l|_1} C(d-1, q-|l|_1) (U^{l_1}⊗...⊗U^{l_d})
-   其中 U^{l} 为一维 Gauss-Legendre 规则，层数 l 对应精度 2l-1。
-"""
 
 import numpy as np
 from math import gamma
 
 
-# ---------------------------------------------------------------------------
-# Gauss-Legendre quadrature (from legendre_rule)
-# ---------------------------------------------------------------------------
+
+
+
 
 def legendre_nodes_weights(n, a=-1.0, b=1.0):
-    """
-    使用 Jacobi 矩阵特征值分解计算 n 点 Gauss-Legendre 节点与权重。
-    基于 IQPACK 算法（665_legendre_rule）。
-
-    Parameters
-    ----------
-    n : int
-        点数。
-    a, b : float
-        积分区间。
-
-    Returns
-    -------
-    x : ndarray, shape (n,)
-    w : ndarray, shape (n,)
-    """
     if n <= 0:
         raise ValueError("order must be positive")
 
-    # Legendre: aj=0, bj = i/sqrt(4i^2-1)
+
     aj = np.zeros(n)
     bj = np.zeros(n)
     for i in range(1, n + 1):
         bj[i - 1] = i / np.sqrt(4.0 * i * i - 1.0)
 
-    # 构造对称三对角 Jacobi 矩阵
+
     T = np.diag(aj) + np.diag(bj[:-1], 1) + np.diag(bj[:-1], -1)
     eigenvalues, eigenvectors = np.linalg.eigh(T)
 
     x = eigenvalues
     w = 2.0 * (eigenvectors[0, :] ** 2)
 
-    # 缩放到 [a,b]
+
     if not (a == -1.0 and b == 1.0):
         scale = (b - a) / 2.0
         shift = (a + b) / 2.0
@@ -88,34 +35,15 @@ def legendre_nodes_weights(n, a=-1.0, b=1.0):
 
 
 def gauss_legendre_integral(f, a, b, n=64):
-    """
-    用 n 点 Gauss-Legendre 规则计算 ∫_a^b f(x) dx。
-    """
     x, w = legendre_nodes_weights(n, a, b)
     return np.sum(w * f(x))
 
 
-# ---------------------------------------------------------------------------
-# Alpert hybrid quadrature for log singularity (from 004_alpert_rule)
-# ---------------------------------------------------------------------------
+
+
+
 
 def alpert_log_rule(rule_idx):
-    """
-    返回 Alpert 对数奇异积分规则的节点与权重。
-    规则编号 1-10，对应不同精度。
-
-    Parameters
-    ----------
-    rule_idx : int
-        1 到 10。
-
-    Returns
-    -------
-    x : ndarray
-        相对节点（相对于区间 [0,h]）。
-    w : ndarray
-        权重。
-    """
     if rule_idx < 1 or rule_idx > 10:
         raise ValueError("rule_idx must be in [1,10]")
 
@@ -200,39 +128,16 @@ def alpert_log_rule(rule_idx):
 
 
 def alpert_log_integral(f, h, rule_idx=5):
-    """
-    用 Alpert 规则计算 ∫_0^h f(x) ln(x/h) dx。
-    注：Alpert 规则给出的是 ∫_0^h f(x) dx 的近似，权重已包含对数权重。
-    这里实际计算 ∫_0^h f(x) dx，其中 f 可能含有 ln 奇异性。
-
-    更准确地说，Alpert 规则设计为：
-        ∫_0^h g(x) dx ≈ Σ w_i g(x_i)   (g = f * ln(x))
-    为保持通用性，我们直接返回 Σ w_i f(x_i)，其中 f 是完整的被积函数。
-    """
     x_rel, w = alpert_log_rule(rule_idx)
     x = x_rel * h
     return np.sum(w * f(x))
 
 
-# ---------------------------------------------------------------------------
-# Chebyshev series (from 163_chebyshev_series)
-# ---------------------------------------------------------------------------
+
+
+
 
 def chebyshev_eval(x, coef):
-    """
-    Clenshaw 算法求 Chebyshev 级数值。
-
-    Parameters
-    ----------
-    x : float or ndarray
-        求值点，必须在 [-1,1]。
-    coef : ndarray
-        Chebyshev 系数 [c0, c1, ..., c_{N-1}]。
-
-    Returns
-    -------
-    y : float or ndarray
-    """
     coef = np.asarray(coef, dtype=float)
     nc = coef.size
     if nc == 0:
@@ -244,7 +149,7 @@ def chebyshev_eval(x, coef):
         x = x.reshape(1)
         scalar_input = True
 
-    # 边界保护
+
     x_clip = np.clip(x, -1.0, 1.0)
 
     x2 = 2.0 * x_clip
@@ -264,10 +169,6 @@ def chebyshev_eval(x, coef):
 
 
 def chebyshev_coefficients(f, n):
-    """
-    用离散 Chebyshev 变换求函数 f 在 [-1,1] 上的前 n 个 Chebyshev 系数。
-    节点取 Chebyshev-Gauss-Lobatto 点：x_j = cos(jπ/n)。
-    """
     j = np.arange(n + 1)
     x = np.cos(np.pi * j / n)
     fx = f(x)
@@ -281,14 +182,11 @@ def chebyshev_coefficients(f, n):
     return c
 
 
-# ---------------------------------------------------------------------------
-# Sparse grid integration (from 1362_truncated_normal_sparse_grid)
-# ---------------------------------------------------------------------------
+
+
+
 
 def _tensor_product_1d(x_list, w_list):
-    """
-    多维张量积节点与权重。
-    """
     dim = len(x_list)
     if dim == 1:
         return x_list[0].reshape(-1, 1), w_list[0]
@@ -298,7 +196,7 @@ def _tensor_product_1d(x_list, w_list):
     for d in range(1, dim):
         xi = x_list[d].reshape(-1, 1)
         wi = w_list[d]
-        # 张量积
+
         n_new = nodes.shape[0] * xi.shape[0]
         new_nodes = np.zeros((n_new, d + 1))
         new_weights = np.zeros(n_new)
@@ -315,9 +213,6 @@ def _tensor_product_1d(x_list, w_list):
 
 
 def _get_sequences(dim, total):
-    """
-    生成所有 dim 维正整数向量（每个分量 ≥ 1），其和为 total。
-    """
     if total < dim:
         return np.empty((0, dim), dtype=int)
     if dim == 1:
@@ -331,36 +226,15 @@ def _get_sequences(dim, total):
 
 
 def sparse_grid_gauss_legendre(dim, k, f, a=-1.0, b=1.0):
-    """
-    基于 Smolyak 构造的稀疏网格 Gauss-Legendre 积分。
-
-    Parameters
-    ----------
-    dim : int
-        维数。
-    k : int
-        精度层数（level）。
-    f : callable
-        被积函数 f(x) 其中 x 为 ndarray, shape (dim,)。
-    a, b : float
-        每维积分区间（统一）。
-
-    Returns
-    -------
-    val : float
-        积分近似值。
-    n_eval : int
-        函数求值次数。
-    """
     if dim <= 0 or k <= 0:
         raise ValueError("dim and k must be positive")
 
-    # 预计算各层 1D 规则
+
     x1d = []
     w1d = []
     n1d = []
     for level in range(1, k + 1):
-        n_pts = level  # 简单对应：层数 l 对应 l 点 Gauss-Legendre
+        n_pts = level
         xi, wi = legendre_nodes_weights(n_pts, a, b)
         x1d.append(xi)
         w1d.append(wi)
@@ -376,7 +250,7 @@ def sparse_grid_gauss_legendre(dim, k, f, a=-1.0, b=1.0):
         bq = ((-1) ** (maxq - q)) * _n_choose_k(dim - 1, dim + q - k)
         seqs = _get_sequences(dim, dim + q)
         for s in seqs:
-            # 每维层号 = s[i] （已经是 ≥1 的层数索引）
+
             levels = s
             xl = [x1d[lv - 1] for lv in levels]
             wl = [w1d[lv - 1] for lv in levels]
@@ -390,11 +264,11 @@ def sparse_grid_gauss_legendre(dim, k, f, a=-1.0, b=1.0):
     nodes = np.vstack(all_nodes)
     weights = np.hstack(all_weights)
 
-    # 合并重复节点
-    # 按字典序排序并合并
-    # 使用四舍五入避免浮点差异
+
+
+
     rounded = np.round(nodes, decimals=12)
-    # 构造元组列表用于去重
+
     order = np.lexsort(rounded.T)
     nodes_sorted = rounded[order]
     weights_sorted = weights[order]
@@ -411,7 +285,7 @@ def sparse_grid_gauss_legendre(dim, k, f, a=-1.0, b=1.0):
     unique_nodes = np.array(unique_nodes)
     unique_weights = np.array(unique_weights)
 
-    # 归一化权重（Smolyak 构造已保证，但做保险）
+
     vol = (b - a) ** dim
     if abs(np.sum(unique_weights)) > 1e-15:
         unique_weights = unique_weights / np.sum(unique_weights) * vol
@@ -424,7 +298,6 @@ def sparse_grid_gauss_legendre(dim, k, f, a=-1.0, b=1.0):
 
 
 def _n_choose_k(n, k):
-    """二项式系数 C(n,k)，支持 n<0 或 k<0 时返回 0。"""
     if n < 0 or k < 0 or k > n:
         return 0
     if k == 0 or k == n:

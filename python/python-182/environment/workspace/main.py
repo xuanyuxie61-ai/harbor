@@ -1,18 +1,3 @@
-"""
-main.py
-
-Unified zero-parameter entry point for the Bayesian Hierarchical Calibration
-of a Spatially-Coupled Reaction-Diffusion System on an Annular Domain.
-
-Running this script executes the complete pipeline:
-  1. Synthetic data generation on an annular grid
-  2. FEM basis spatial discretization and GMRF prior construction
-  3. Periodic tridiagonal covariance computation via r83p
-  4. Polynomial surrogate construction for FHN forward model
-  5. Latin-hypercube-initialized adaptive MCMC with unicycle rotation proposals
-  6. Bayesian quadrature for model evidence (line, square, triangle domains)
-  7. Posterior summary output
-"""
 from inference_engine import run_bayesian_inference
 
 

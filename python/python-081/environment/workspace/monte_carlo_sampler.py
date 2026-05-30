@@ -1,25 +1,3 @@
-"""
-蒙特卡洛采样与统计验证模块
-==========================
-基于种子项目:
-  - 779_monty_hall_simulation: 蒙特卡洛随机模拟
-
-科学背景:
-  蒙特卡洛方法(Monte Carlo, MC)是不确定性量化的基准验证工具。
-  通过大量随机采样，可估计响应量的统计矩、概率密度及失效概率。
-  本模块实现：
-  1. 基于截断正态分布的材料参数随机采样
-  2. 有限元响应的蒙特卡洛估计
-  3. 统计收敛性分析与置信区间估计
-
-关键公式:
-  - 样本均值: μ̂ = (1/N) Σ y_i
-  - 样本方差: σ̂^2 = (1/(N-1)) Σ (y_i - μ̂)^2
-  - 标准误: SE = σ̂ / sqrt(N)
-  - 95% 置信区间: [μ̂ - 1.96 SE, μ̂ + 1.96 SE]
-  - 失效概率: P_f = (1/N) Σ I(g(x_i) < 0)
-  - Monte Carlo 收敛率: O(N^{-1/2})
-"""
 
 import numpy as np
 from typing import Callable, Tuple, Optional
@@ -32,20 +10,6 @@ def monte_carlo_simulation(model_func: Callable[[np.ndarray], float],
                             bounds: np.ndarray,
                             n_samples: int = 1000,
                             seed: int = 42) -> dict:
-    """
-    对具有截断正态不确定参数的模型执行蒙特卡洛模拟。
-
-    参数:
-        model_func: 模型函数，输入为参数向量，输出为标量响应
-        mu_params: (n_param,) 参数均值
-        sigma_params: (n_param,) 参数标准差
-        bounds: (n_param, 2) 参数截断区间 [[a1,b1], [a2,b2], ...]
-        n_samples: 蒙特卡洛采样数
-        seed: 随机种子
-
-    返回:
-        results: 包含统计结果的字典
-    """
     rng = np.random.default_rng(seed=seed)
     n_param = len(mu_params)
     responses = np.zeros(n_samples, dtype=np.float64)
@@ -66,7 +30,7 @@ def monte_carlo_simulation(model_func: Callable[[np.ndarray], float],
         except Exception:
             responses[i] = np.nan
 
-    # 边界处理: 移除NaN值
+
     valid_mask = ~np.isnan(responses)
     valid_responses = responses[valid_mask]
     n_valid = len(valid_responses)
@@ -80,7 +44,7 @@ def monte_carlo_simulation(model_func: Callable[[np.ndarray], float],
     ci_lower = mean_val - 1.96 * se
     ci_upper = mean_val + 1.96 * se
 
-    # 分位数
+
     q25 = float(np.percentile(valid_responses, 25))
     q50 = float(np.percentile(valid_responses, 50))
     q75 = float(np.percentile(valid_responses, 75))
@@ -109,19 +73,6 @@ def estimate_failure_probability(model_func: Callable[[np.ndarray], float],
                                   bounds: np.ndarray,
                                   n_samples: int = 5000,
                                   seed: int = 42) -> dict:
-    """
-    使用蒙特卡洛方法估计失效概率 P_f = P(model_func(params) < threshold)。
-
-    参数:
-        model_func: 模型函数
-        threshold: 失效阈值
-        mu_params, sigma_params, bounds: 参数分布
-        n_samples: 采样数
-        seed: 随机种子
-
-    返回:
-        包含失效概率估计和置信区间的字典
-    """
     rng = np.random.default_rng(seed=seed)
     n_param = len(mu_params)
     failures = 0
@@ -145,7 +96,7 @@ def estimate_failure_probability(model_func: Callable[[np.ndarray], float],
             pass
 
     pf = failures / n_samples if n_samples > 0 else 0.0
-    # 二项分布近似置信区间 (Wilson score interval)
+
     z = 1.96
     n = n_samples
     denom = 1 + z**2 / n
@@ -167,14 +118,6 @@ def convergence_analysis(model_func: Callable[[np.ndarray], float],
                           bounds: np.ndarray,
                           sample_sizes: Optional[np.ndarray] = None,
                           seed: int = 42) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    分析蒙特卡洛估计随样本量增加的收敛行为。
-
-    返回:
-        Ns: 样本量数组
-        means: 对应均值估计数组
-        stds: 对应标准差估计数组
-    """
     if sample_sizes is None:
         sample_sizes = np.array([50, 100, 200, 500, 1000, 2000], dtype=np.int32)
 

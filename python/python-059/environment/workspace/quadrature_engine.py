@@ -1,19 +1,3 @@
-"""
-quadrature_engine.py
-高维高精度数值积分引擎
-
-整合原项目:
-  - 1246_tetrahedron_felippa_rule: 四面体高斯求积
-  - 1148_square_minimal_rule: 正方形最小点高斯求积
-  - 165_chebyshev1_rule: 第一类切比雪夫求积
-
-功能:
-  为气溶胶辐射传输计算提供多角度、多区域的高精度数值积分。
-  包括:
-    1. 单位四面体上的 24 点 Felippa 求积（用于 3D 粒子形状积分）
-    2. 正方形上的最小点求积（用于 2D 辐射通量角积分）
-    3. 第一类切比雪夫求积（用于角度散射积分的奇异性处理）
-"""
 
 import numpy as np
 from math import pi, sqrt
@@ -25,19 +9,6 @@ class QuadratureError(Exception):
 
 
 def tetrahedron_unit_o24():
-    """
-    返回单位四面体上的 24 点 Felippa 求积规则。
-
-    积分区域:
-      { (x,y,z) | x>=0, y>=0, z>=0, x+y+z <= 1 }
-
-    权重之和 = 1/6 (单位四面体体积)。
-
-    在气溶胶科学中的应用:
-      对非球形气溶胶粒子（如立方体、六面体）的几何形状
-      进行体积积分，计算等效光学截面积:
-        C_ext = ∫∫∫_V σ_ext(r) dV
-    """
     w = np.array([
         0.039922750257869636194, 0.039922750257869636194,
         0.039922750257869636194, 0.039922750257869636194,
@@ -84,19 +55,6 @@ def tetrahedron_unit_o24():
 
 
 def integrate_tetrahedron(f, scale=1.0, translate=np.zeros(3)):
-    """
-    使用 Felippa 24 点规则在仿射变换后的四面体上积分函数 f(x,y,z)。
-
-    雅可比行列式 |J| = scale^3。
-
-    参数:
-      f: 接受 (N,3) 数组的函数
-      scale: 缩放因子
-      translate: 平移向量
-
-    返回:
-      积分近似值
-    """
     w, xyz = tetrahedron_unit_o24()
     pts = xyz * scale + translate
     vals = f(pts)
@@ -105,19 +63,10 @@ def integrate_tetrahedron(f, scale=1.0, translate=np.zeros(3)):
 
 
 def square_minimal_rule(deg):
-    """
-    返回正方形 [-1,1]×[-1,1] 上的最小点高斯求积规则。
-    支持 degree 1~17（部分）。
-
-    在辐射传输中的应用:
-      对立体角进行二维高斯积分:
-        ∫_{-1}^{1} ∫_{-1}^{1} I(μ, φ) dμ dφ ≈ Σ_i w_i I(μ_i, φ_i)
-      其中 μ = cos(θ) 为天顶角余弦，φ 为方位角。
-    """
     if deg < 1 or deg > 17:
         raise QuadratureError("square_minimal_rule: 仅支持 degree 1~17")
 
-    # 预存部分规则数据 (degree 1~8)
+
     rules = {
         1: np.array([[0.0, 0.0, 4.0]]),
         2: np.array([
@@ -202,10 +151,6 @@ def square_minimal_rule(deg):
 
 
 def integrate_square(f, deg=6):
-    """
-    使用正方形最小点规则积分 f(x,y)。
-    积分域: [-1,1] × [-1,1]
-    """
     x, y, w = square_minimal_rule(deg)
     pts = np.column_stack([x, y])
     vals = f(pts)
@@ -213,20 +158,6 @@ def integrate_square(f, deg=6):
 
 
 def chebyshev1_abscissas_weights(n, a=-1.0, b=1.0):
-    """
-    生成 [a,b] 区间上 n 点第一类切比雪夫求积的节点和权重。
-
-    数学公式:
-      x_i = (a+b)/2 + (b-a)/2 * cos( (2i-1)π / (2n) ),  i=1,...,n
-      w_i = π / n,  对所有 i
-
-    权重函数: w(x) = 1 / sqrt((x-a)(b-x))
-
-    在辐射传输中的应用:
-      处理角度积分的奇异性，例如:
-        ∫_{-1}^{1} P(μ,μ') / sqrt(1-μ^2) dμ
-      其中 P 为散射相函数。
-    """
     if n < 1:
         raise QuadratureError("chebyshev1_abscissas_weights: n 必须 >= 1")
     if abs(b - a) < 1e-15:
@@ -235,18 +166,14 @@ def chebyshev1_abscissas_weights(n, a=-1.0, b=1.0):
     i = np.arange(1, n + 1, dtype=np.float64)
     x = 0.5 * (a + b) + 0.5 * (b - a) * np_cos((2.0 * i - 1.0) * pi / (2.0 * n))
     w = np.full(n, pi / n, dtype=np.float64)
-    # 权重需要乘以 (b-a)/2 以适配一般区间
+
     w *= 0.5 * (b - a)
     return x, w
 
 
 def integrate_chebyshev1(f, n, a=-1.0, b=1.0):
-    """
-    使用第一类切比雪夫求积近似计算:
-      ∫_a^b f(x) / sqrt((x-a)(b-x)) dx
-    """
     x, w = chebyshev1_abscissas_weights(n, a, b)
     vals = f(x)
-    # 这里权重已经包含了 dx 变换，但不含权重函数 1/sqrt(...)
-    # 因为切比雪夫求积本身是为该权重设计的
+
+
     return np.sum(w * vals) / (0.5 * (b - a)) * (pi / n) * (0.5 * (b - a))

@@ -1,31 +1,12 @@
 # -*- coding: utf-8 -*-
-"""
-numerical_utils.py
-基于 791_ncm (Numerical Computing with MATLAB) 合成
-数值算法工具库：LU分解、三对角求解、Brent求根、自适应Simpson积分、
-三次样条插值、Cooley-Tukey FFT、带列主元高斯消去。
-"""
 
 import numpy as np
 from typing import Callable, Tuple, Optional
 
-# ---------------------------------------------------------------------------
-# 1. LU 分解（基于 lutx / bslashtx 思想）
-# ---------------------------------------------------------------------------
-def lu_decomposition(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    带列主元的 Doolittle LU 分解。
-    A = P @ L @ U
 
-    公式：
-      对于 k = 1,...,n-1:
-        选主元 i = argmax_{j>=k} |A[j,k]|
-        交换行 k 与 i
-        对 j = k+1,...,n:
-          A[j,k] = A[j,k] / A[k,k]
-          对 l = k+1,...,n:
-            A[j,l] = A[j,l] - A[j,k] * A[k,l]
-    """
+
+
+def lu_decomposition(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     A = np.array(A, dtype=np.float64, copy=True)
     n = A.shape[0]
     if A.shape[0] != A.shape[1]:
@@ -33,7 +14,7 @@ def lu_decomposition(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
     p = np.arange(n, dtype=int)
 
     for k in range(n - 1):
-        # 列主元
+
         piv = np.argmax(np.abs(A[k:n, k])) + k
         if A[piv, k] == 0.0:
             raise ValueError("矩阵奇异，无法LU分解")
@@ -41,22 +22,21 @@ def lu_decomposition(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
             A[[k, piv], :] = A[[piv, k], :]
             p[[k, piv]] = p[[piv, k]]
 
-        # 下三角乘子
+
         rows = k + 1
         A[rows:n, k] /= A[k, k]
-        # 更新 Schur 补
+
         A[rows:n, rows:n] -= np.outer(A[rows:n, k], A[k, rows:n])
 
     L = np.tril(A, -1) + np.eye(n)
     U = np.triu(A)
-    # 构造置换矩阵
+
     P = np.zeros((n, n), dtype=np.float64)
     P[p, np.arange(n)] = 1.0
     return P, L, U
 
 
 def solve_lu(P: np.ndarray, L: np.ndarray, U: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """利用 PLU 分解求解线性方程组 Ax = b。先解 Ly=Pb，再解 Ux=y。"""
     n = L.shape[0]
     Pb = P @ b
     y = np.zeros(n, dtype=np.float64)
@@ -69,7 +49,6 @@ def solve_lu(P: np.ndarray, L: np.ndarray, U: np.ndarray, b: np.ndarray) -> np.n
 
 
 def solve_linear(A: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """高鲁棒性线性方程组求解入口。"""
     A = np.asarray(A, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
     if A.shape[0] != A.shape[1]:
@@ -79,7 +58,7 @@ def solve_linear(A: np.ndarray, b: np.ndarray) -> np.ndarray:
     if A.shape[0] != b.shape[0]:
         raise ValueError("A与b维度不匹配")
 
-    # 若对称正定，用Cholesky
+
     if np.allclose(A, A.T, atol=1e-12) and np.all(np.linalg.eigvalsh(A) > 0):
         L = np.linalg.cholesky(A)
         n = A.shape[0]
@@ -95,21 +74,10 @@ def solve_linear(A: np.ndarray, b: np.ndarray) -> np.ndarray:
     return solve_lu(P, L, U, b).squeeze()
 
 
-# ---------------------------------------------------------------------------
-# 2. 三对角系统求解（Thomas 算法，基于 tridisolve）
-# ---------------------------------------------------------------------------
-def tridiag_solve(a: np.ndarray, b: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray:
-    """
-    求解三对角系统：
-      a_i x_{i-1} + b_i x_i + c_i x_{i+1} = d_i
-    a[0] 与 c[-1] 不被使用。
 
-    前向消去：
-      c'_i = c_i / (b_i - a_i c'_{i-1})
-      d'_i = (d_i - a_i d'_{i-1}) / (b_i - a_i c'_{i-1})
-    回代：
-      x_n = d'_n, x_i = d'_i - c'_i x_{i+1}
-    """
+
+
+def tridiag_solve(a: np.ndarray, b: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray:
     n = len(b)
     a = np.asarray(a, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
@@ -134,15 +102,11 @@ def tridiag_solve(a: np.ndarray, b: np.ndarray, c: np.ndarray, d: np.ndarray) ->
     return x
 
 
-# ---------------------------------------------------------------------------
-# 3. Brent 求根法（基于 fzerotx）
-# ---------------------------------------------------------------------------
+
+
+
 def brent_root(f: Callable[[float], float], a: float, b: float,
                tol: float = 1e-12, max_iter: int = 100) -> float:
-    """
-    Brent 方法求根：结合二分法、割线法与反二次插值。
-    要求 f(a)*f(b) < 0。
-    """
     fa = f(a)
     fb = f(b)
     if fa * fb > 0:
@@ -168,11 +132,11 @@ def brent_root(f: Callable[[float], float], a: float, b: float,
         else:
             s = fb / fa
             if a == c:
-                # 割线法
+
                 p = 2.0 * m * s
                 q = 1.0 - s
             else:
-                # 反二次插值
+
                 q = fa / fc
                 r = fb / fc
                 p = s * (2.0 * m * q * (q - r) - (b - a) * (r - 1.0))
@@ -195,16 +159,11 @@ def brent_root(f: Callable[[float], float], a: float, b: float,
     return b
 
 
-# ---------------------------------------------------------------------------
-# 4. 自适应 Simpson 积分（基于 quadtx）
-# ---------------------------------------------------------------------------
+
+
+
 def adaptive_simpson(f: Callable[[float], float], a: float, b: float,
                      tol: float = 1e-10, max_level: int = 20) -> float:
-    """
-    递归自适应 Simpson 积分。
-    S(a,b) = (b-a)/6 * [f(a) + 4f(c) + f(b)]
-    误差估计：|S(a,c)+S(c,b) - S(a,b)| / 15
-    """
     c = 0.5 * (a + b)
     fa, fb = f(a), f(b)
     fc = f(c)
@@ -232,14 +191,10 @@ def _adaptive_simpson_recursive(f, a, b, tol, max_level, fa, fb, fc, S):
     return left + right
 
 
-# ---------------------------------------------------------------------------
-# 5. 三次样条插值（基于 splinetx，not-a-knot 边界）
-# ---------------------------------------------------------------------------
+
+
+
 def cubic_spline_coeffs(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    计算 not-a-knot 边界条件下的三次样条系数 (a,b,c,d)。
-    S_i(x) = a_i + b_i*(x-x_i) + c_i*(x-x_i)^2 + d_i*(x-x_i)^3
-    """
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
     n = len(x) - 1
@@ -248,7 +203,7 @@ def cubic_spline_coeffs(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.nd
     h = np.diff(x)
     delta = np.diff(y) / h
 
-    # 三对角系统 for c
+
     a_tri = np.zeros(n + 1, dtype=np.float64)
     b_tri = np.zeros(n + 1, dtype=np.float64)
     c_tri = np.zeros(n + 1, dtype=np.float64)
@@ -278,7 +233,6 @@ def cubic_spline_coeffs(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.nd
 
 def cubic_spline_eval(xi: np.ndarray, x: np.ndarray, a: np.ndarray,
                       b: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray:
-    """在点 xi 上评估样条值。"""
     xi = np.asarray(xi, dtype=np.float64)
     result = np.zeros_like(xi)
     for j, xv in enumerate(xi):
@@ -294,27 +248,23 @@ def cubic_spline_eval(xi: np.ndarray, x: np.ndarray, a: np.ndarray,
     return result
 
 
-# ---------------------------------------------------------------------------
-# 6. Cooley-Tukey FFT（基于 ffttx / fft_serial）
-# ---------------------------------------------------------------------------
+
+
+
 def cooley_tukey_fft(x: np.ndarray) -> np.ndarray:
-    """
-    基-2 Cooley-Tukey FFT，递归实现。
-    若长度非2的幂，则补零到下一个2的幂。
-    """
     x = np.asarray(x, dtype=np.complex128)
     n = len(x)
     if n == 0:
         return x
-    # 补零到2的幂
+
     N = 1
     while N < n:
         N <<= 1
     if N > n:
         x = np.pad(x, (0, N - n), mode='constant')
-    # 位反转置换
+
     x = _bit_reverse_copy(x)
-    # 迭代蝶形运算
+
     for s in range(1, int(np.log2(N)) + 1):
         m = 1 << s
         wm = np.exp(-2j * np.pi / m)
@@ -331,7 +281,6 @@ def cooley_tukey_fft(x: np.ndarray) -> np.ndarray:
 
 
 def inverse_fft(x: np.ndarray) -> np.ndarray:
-    """逆FFT。"""
     n = len(x)
     return np.conj(cooley_tukey_fft(np.conj(x))) / n
 
@@ -348,11 +297,10 @@ def _bit_reverse_copy(x: np.ndarray) -> np.ndarray:
     return A
 
 
-# ---------------------------------------------------------------------------
-# 7. 矩阵条件数估计与数值稳定性检查
-# ---------------------------------------------------------------------------
+
+
+
 def matrix_condition_estimate(A: np.ndarray) -> float:
-    """利用 numpy 的 SVD 估计矩阵2-范数条件数。"""
     s = np.linalg.svd(A, compute_uv=False)
     if s[-1] == 0:
         return np.inf
@@ -360,7 +308,6 @@ def matrix_condition_estimate(A: np.ndarray) -> float:
 
 
 def safe_divide(a: np.ndarray, b: np.ndarray, fill_value: float = 0.0) -> np.ndarray:
-    """安全除法，避免除以零。"""
     b = np.asarray(b, dtype=np.float64)
     result = np.full_like(a, fill_value, dtype=np.float64)
     mask = np.abs(b) > 1e-300

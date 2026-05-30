@@ -1,35 +1,10 @@
-"""
-main.py
-================================================================================
-激光诱导空化气泡崩溃的多物理场合成计算框架
-================================================================================
-
-科学问题：激光诱导空化气泡在近壁面处的非球形崩溃动力学
-
-本程序基于 15 个种子项目的核心算法，在计算流体力学（气泡动力学与空化）
-领域内融合构建了一个博士级多物理场计算框架，涵盖：
-  1. 扩展 Rayleigh-Plesset / Keller-Miksis 气泡壁运动方程
-  2. 高阶非球形变形模式（Legendre 展开）与椭圆映射
-  3. 混沌微团破碎模型（迭代函数系统 IFS）
-  4. 二维有限元法（FEM）压力波传播求解
-  5. 三维径向基函数（RBF）压力场重建
-  6. Gauss-Chebyshev / Gauss-Legendre 高阶数值积分
-  7. 随机成核统计模型（Monte Carlo + 泊松过程）
-  8. 多物理场非线性耦合 Newton-Krylov 求解器
-  9. 能量耗散路径优化（组合搜索）
-
-运行方式：
-  python main.py
-
-无需输入参数，全部参数在代码中预设。
-"""
 
 import numpy as np
 import sys
 
-# =====================================================================
-# 导入各模块
-# =====================================================================
+
+
+
 from utils import (
     WATER_DENSITY, WATER_VISCOSITY, SURFACE_TENSION, SOUND_SPEED_WATER,
     VAPOR_PRESSURE, ATMOSPHERIC_PRESSURE, timestamp, disk01_sample,
@@ -87,19 +62,19 @@ def main():
     print("  Multi-Physics Synthesis Framework for Laser-Induced Cavitation")
     print("=" * 78)
 
-    # =================================================================
-    # 1. 基本物理参数设置
-    # =================================================================
+
+
+
     section_header("1. 物理参数与初始条件")
-    R0 = 50.0e-6          # 初始气泡半径 [m]
-    p_g0 = 101325.0       # 初始气体压力 [Pa]
-    p_inf = 101325.0      # 远场压力 [Pa]
-    p_v = VAPOR_PRESSURE  # 蒸汽压力 [Pa]
-    rho = WATER_DENSITY   # 水密度 [kg/m³]
-    mu = WATER_VISCOSITY  # 动力粘度 [Pa·s]
-    sigma = SURFACE_TENSION  # 表面张力 [N/m]
-    c = SOUND_SPEED_WATER # 声速 [m/s]
-    T_ambient = 293.15    # 环境温度 [K]
+    R0 = 50.0e-6
+    p_g0 = 101325.0
+    p_inf = 101325.0
+    p_v = VAPOR_PRESSURE
+    rho = WATER_DENSITY
+    mu = WATER_VISCOSITY
+    sigma = SURFACE_TENSION
+    c = SOUND_SPEED_WATER
+    T_ambient = 293.15
 
     print(f"  初始气泡半径 R0       = {R0*1e6:.2f} μm")
     print(f"  远场压力 p_∞          = {p_inf/1e5:.4f} bar")
@@ -109,9 +84,9 @@ def main():
     print(f"  表面张力 σ            = {sigma:.4f} N/m")
     print(f"  声速 c                = {c:.1f} m/s")
 
-    # =================================================================
-    # 2. 临界成核核半径（二分法）
-    # =================================================================
+
+
+
     section_header("2. 临界空化核半径（Blake 阈值，二分法）")
     R_crit = critical_nucleation_radius_bisection(
         p_inf, p_v, sigma, rho, R_min=1e-9, R_max=1e-3
@@ -119,9 +94,9 @@ def main():
     print(f"  Blake 临界半径 R_crit = {R_crit*1e6:.4f} μm")
     print(f"  初始半径 R0 / R_crit  = {R0/R_crit:.4f}")
 
-    # =================================================================
-    # 3. 求解稳态（Newton 法）
-    # =================================================================
+
+
+
     section_header("3. 气泡稳态 Newton 求解")
     y_steady = solve_steady_state_newton(p_inf, sigma, rho, mu, R0, p_g0)
     R_steady, _, T_steady, n_steady = y_steady
@@ -129,11 +104,11 @@ def main():
     print(f"  稳态温度 T_eq         = {T_steady:.2f} K")
     print(f"  气体摩尔数 n_eq       = {n_steady:.4e} mol")
 
-    # =================================================================
-    # 4. 扩展 Rayleigh-Plesset 时间演化
-    # =================================================================
+
+
+
     section_header("4. Keller-Miksis 气泡壁运动时间演化")
-    t_span = [0.0, 50.0e-6]  # 50 μs
+    t_span = [0.0, 50.0e-6]
     sol = solve_rayleigh_plesset(R0, p_g0, p_inf, t_span, method='RK45', use_keller_miksis=True)
     t_eval = np.linspace(t_span[0], t_span[1], 200)
     y_eval = sol.sol(t_eval)
@@ -142,7 +117,7 @@ def main():
     T_t = y_eval[2, :]
     n_t = y_eval[3, :]
 
-    # 找到最小半径（崩溃点）
+
     idx_min = np.argmin(R_t)
     t_min = t_eval[idx_min]
     R_min = R_t[idx_min]
@@ -150,9 +125,9 @@ def main():
     print(f"  最小半径 R_min        = {R_min*1e9:.2f} nm")
     print(f"  最大径向速度 |dR/dt|  = {np.max(np.abs(dRdt_t)):.2f} m/s")
 
-    # =================================================================
-    # 5. 气泡形状变形与椭圆映射
-    # =================================================================
+
+
+
     section_header("5. 气泡非球形变形（椭圆映射）")
     A_shape = np.array([[2.0, 0.3], [0.3, 1.5]])
     V_center = np.array([0.0, 0.0])
@@ -161,9 +136,9 @@ def main():
     print(f"  变形矩阵条件数 κ(A)   = {cond_num:.4f}")
     print(f"  变形程度评估: {'严重变形' if cond_num > 2.0 else '轻微变形'}")
 
-    # =================================================================
-    # 6. 混沌微团破碎
-    # =================================================================
+
+
+
     section_header("6. 气泡破碎微团混沌运动（IFS）")
     x_frag, lyap = chaotic_microfragmentation(num_points=2000, iterations=2000)
     D_box = fragmentation_dimension(x_frag)
@@ -172,9 +147,9 @@ def main():
     print(f"  计盒维数 D_box        = {D_box:.4f}")
     print(f"  混沌特征: {'强混沌' if lyap > 0.3 else '弱混沌/有序'}")
 
-    # =================================================================
-    # 7. 高阶数值积分（表面积、体积、能量）
-    # =================================================================
+
+
+
     section_header("7. 高阶数值积分（Gauss-Legendre / Chebyshev）")
     def r_spherical(theta, phi):
         return R0 * (1.0 + 0.05 * np.cos(2.0 * theta))
@@ -192,26 +167,26 @@ def main():
     print(f"  表面张力能 E_σ        = {E_surface*1e12:.4f} pJ")
     print(f"  初始动能 E_k          = {E_kin*1e12:.4f} pJ")
 
-    # Chebyshev 积分测试
+
     cheb_test = chebyshev_surface_integral(lambda s: np.sin(np.pi * s), -1.0, 1.0, n=32)
     print(f"  Chebyshev 积分测试    = {cheb_test:.6f} (理论值 ≈ 0.0)")
 
-    # 3D 精确度测试
+
     errors = legendre_3d_exactness_test(n_points=4, max_degree=3)
     max_err = max(e[3] for e in errors)
     print(f"  3D Legendre 最大误差  = {max_err:.2e}")
 
-    # =================================================================
-    # 8. FEM 压力波传播
-    # =================================================================
+
+
+
     section_header("8. 有限元法压力波传播")
-    a_domain, b_domain = -0.005, 0.005  # 5 mm 域
+    a_domain, b_domain = -0.005, 0.005
     h_fem = 0.001
     nodes, elements = generate_square_mesh(a_domain, b_domain, h_fem)
     print(f"  FEM 网格节点数        = {len(nodes)}")
     print(f"  FEM 三角形单元数      = {len(elements)}")
 
-    # 定义气泡半径和压力壁函数
+
     def R_func(t):
         return np.interp(t, t_eval, R_t)
 
@@ -219,7 +194,7 @@ def main():
         R = R_func(t)
         if R <= 0:
             R = 1e-9
-        # 近似壁面压力
+
         p_g = p_g0 * (R0 / R) ** (3.0 * 1.4)
         return p_g - 2.0 * sigma / R
 
@@ -240,9 +215,9 @@ def main():
         print(f"  FEM 求解完成（小规模网格简化运行）")
         p_history = None
 
-    # =================================================================
-    # 9. RBF 三维压力场重建
-    # =================================================================
+
+
+
     section_header("9. RBF 三维压力场重建")
     center_3d = np.array([0.0, 0.0, 0.0])
     xi_grid, p_eval = reconstruct_3d_pressure_field(
@@ -256,24 +231,24 @@ def main():
     print(f"  重构压力最大值        = {p_rbf_max/1e6:.4f} MPa")
     print(f"  重构压力最小值        = {p_rbf_min/1e6:.4f} MPa")
 
-    # =================================================================
-    # 10. 成核统计模型
-    # =================================================================
+
+
+
     section_header("10. 空化成核统计模型")
-    mu_R = 1.0e-6  # 1 μm
+    mu_R = 1.0e-6
     sigma_R = 0.5
     positions, radii = sample_nuclei_monte_carlo(500, mu_R, sigma_R, method='ellipsoid')
     print(f"  采样空化核数量        = {len(radii)}")
     print(f"  核半径均值            = {np.mean(radii)*1e6:.3f} μm")
     print(f"  核半径标准差          = {np.std(radii)*1e6:.3f} μm")
 
-    # 成核速率
+
     J_rate = nucleation_rate(p_inf, p_v, sigma, T_ambient)
     delta_G = nucleation_barrier_energy(p_inf, p_v, sigma)
     print(f"  成核势垒 ΔG*          = {delta_G:.4e} J")
     print(f"  成核速率 J            = {J_rate:.4e} m⁻³s⁻¹")
 
-    # 全牌统计
+
     p_inf_range = np.linspace(50000.0, 150000.0, 20)
     stats = full_deck_nucleation_stats(50, p_inf_range, p_v, sigma, T_ambient, surface_area=1e-4)
     print(f"  成核统计（50次实验）")
@@ -282,17 +257,17 @@ def main():
     print(f"    平均成核数          = {stats['mean']:.2f}")
     print(f"    方差                = {stats['variance']:.2f}")
 
-    # 位点激活概率
+
     p_activate = vacancy_activation_probability(100, p_inf, p_v, sigma, T_ambient, span_years=1.0)
     print(f"  位点激活概率          = {p_activate:.4e}")
 
-    # 临界核比例
+
     frac = critical_nuclei_fraction(p_inf, p_v, sigma, T_ambient, R0, mu_R, sigma_R)
     print(f"  可生长核比例          = {frac*100:.2f} %")
 
-    # =================================================================
-    # 11. 非线性耦合求解
-    # =================================================================
+
+
+
     section_header("11. 多物理场非线性耦合 Newton 求解")
     params_couple = {
         'p_inf': p_inf,
@@ -314,9 +289,9 @@ def main():
     print(f"  三阶模式振幅 a3       = {U_sol[6]:.4e}")
     print(f"  最终残差范数          = {history[-1]:.4e}")
 
-    # =================================================================
-    # 12. 分岔分析
-    # =================================================================
+
+
+
     section_header("12. 气泡稳定性分岔分析")
     p_bif_range = np.linspace(80000.0, 150000.0, 10)
     bif_results = bifurcation_analysis(params_couple, p_bif_range)
@@ -329,9 +304,9 @@ def main():
     else:
         print("  分岔分析：部分点未收敛（物理上对应不稳定区）")
 
-    # =================================================================
-    # 13. 能量分析与优化
-    # =================================================================
+
+
+
     section_header("13. 气泡崩溃能量耗散分析")
     energies = bubble_energy_budget(R0, dRdt_t[0], p_inf, p_v, sigma, rho, c)
     print(f"  初始动能 E_k          = {energies['kinetic']*1e9:.4f} nJ")
@@ -342,23 +317,23 @@ def main():
     eta = collapse_efficiency(R0, R_min, p_inf, p_v, sigma, rho, c)
     print(f"  崩溃效率 η            = {eta*100:.2f} %")
 
-    # 能量分配优化
+
     best_alloc, best_cost = random_search_energy_allocation(
         N_stages=10, energy_budget=energies['total'],
         efficiency_weights=[1.0, 0.5, 0.2], num_samples=2000
     )
     print(f"  能量分配优化目标      = {best_cost*1e9:.4f} nJ")
 
-    # 频谱分析
+
     freqs, R_fft, v_fft = energy_spectrum_analysis(R_t, dRdt_t, t_eval[1]-t_eval[0])
     if len(freqs) > 1:
         peak_idx = np.argmax(R_fft[1:]) + 1
         f_peak = freqs[peak_idx]
         print(f"  主导频率 f_peak       = {f_peak/1e6:.2f} MHz")
 
-    # =================================================================
-    # 14. 参数优化
-    # =================================================================
+
+
+
     section_header("14. 崩溃参数空间优化")
     best_params, best_eta, all_results = optimize_collapse_parameters(
         p_inf_range=[50000.0, 200000.0],
@@ -370,9 +345,9 @@ def main():
     print(f"  最优初始半径 R0*      = {best_params[1]*1e6:.2f} μm")
     print(f"  最优效率 η*           = {best_eta*100:.2f} %")
 
-    # =================================================================
-    # 总结
-    # =================================================================
+
+
+
     section_header("计算完成总结")
     print("  本合成项目成功整合了以下 15 个种子项目的核心算法：")
     print("    [1]  gmsh_to_fem         → FEM 网格生成")

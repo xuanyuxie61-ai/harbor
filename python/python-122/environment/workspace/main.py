@@ -1,22 +1,9 @@
-"""
-脑血流动力学多尺度耦合模拟与血管网络质量评估系统
-================================================================================
-基于 15 个种子科研项目的核心算法融合构建的博士级生物医学计算项目。
-
-科学问题:
-    模拟从宏观脑动脉血压波传播 → 中观血管网络几何生成与质量评估 →
-    微观组织氧扩散与代谢 → 细胞级血管重构动力学的完整多尺度脑血流动力学系统。
-
-运行方式:
-    python main.py
-    （零参数运行，自动完成从网格生成到结果输出的全流程）
-"""
 
 import numpy as np
 import os
 import sys
 
-# 确保模块路径
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cerebral_vascular_mesh import (
@@ -66,23 +53,23 @@ def main():
     print("Cerebral Hemodynamics Multi-scale Coupled Simulation System")
     print("=" * 80)
 
-    # ==================================================================
-    # 阶段 1: 脑血管网格生成 (distmesh 2D/3D)
-    # ==================================================================
+
+
+
     print("\n[阶段 1] 脑血管网格生成")
     print("-" * 40)
 
-    # 生成 Willis 环二维截面网格
+
     p2d, t2d = generate_willis_ring_mesh(h0=0.18, iteration_max=40)
     print(f"  2D Willis 环网格: 节点数 = {p2d.shape[0]}, 三角形数 = {t2d.shape[0]}")
 
-    # 生成三维脑血管网格
+
     p3d, t3d = generate_cerebral_vessel_3d(h0=0.35, iteration_max=25)
     print(f"  3D 脑血管网格: 节点数 = {p3d.shape[0]}, 四面体数 = {t3d.shape[0]}")
 
-    # ==================================================================
-    # 阶段 2: 血管网络拓扑质量评估 (quality measures)
-    # ==================================================================
+
+
+
     print("\n[阶段 2] 血管网络拓扑质量评估")
     print("-" * 40)
 
@@ -97,7 +84,7 @@ def main():
         tq = tetrahedron_quality(p3d, t3d)
         print(f"  3D 四面体质量 (最小)  = {tq:.4f}")
 
-    # 保存网格文件 (triangle_io)
+
     tmp_dir = os.path.join(os.path.dirname(__file__), "tmp_mesh")
     os.makedirs(tmp_dir, exist_ok=True)
     triangle_node_write(os.path.join(tmp_dir, "willis_nodes.txt"), p2d)
@@ -106,13 +93,13 @@ def main():
     t2d_read = triangle_element_read(os.path.join(tmp_dir, "willis_elements.txt"))
     print(f"  网格 I/O 验证: 读取节点 {p2d_read.shape[0]}, 读取单元 {t2d_read.shape[0]}")
 
-    # ==================================================================
-    # 阶段 3: 血压波传播与压力场求解 (Burgers + Laplace)
-    # ==================================================================
+
+
+
     print("\n[阶段 3] 血压波传播与压力场求解")
     print("-" * 40)
 
-    # Burgers 方程模拟压力脉冲在脑动脉中的传播
+
     def ic_gaussian(x):
         return np.exp(-20.0 * x ** 2)
 
@@ -123,7 +110,7 @@ def main():
     print(f"  初始压力峰值 = {np.max(U_burgers[0, :]):.4f}")
     print(f"  t=0.5 时压力峰值 = {np.max(U_burgers[-1, :]):.4f}")
 
-    # Laplace 径向压力场
+
     theta = np.linspace(0, 2 * np.pi, 100)
     r_test = 0.5
     x_test = r_test * np.cos(theta)
@@ -133,7 +120,7 @@ def main():
     print(f"  Laplace 径向解验证: max|∇²u| = {np.max(np.abs(laplacian_check)):.2e}")
     print(f"  壁面压力 = {np.mean(u_lap):.4f} ± {np.std(u_lap):.4f} mmHg")
 
-    # Windkessel 模型
+
     dt_wk = 0.01
     n_steps_wk = 500
     t_wk = np.arange(n_steps_wk) * dt_wk
@@ -141,14 +128,14 @@ def main():
     P_out_wk = windkessel_pressure_outflow(Q_in_wk, R=1.2e9, C=2.5e-11, dt=dt_wk, n_steps=n_steps_wk)
     print(f"  Windkessel 模型: 平均出口压力 = {np.mean(P_out_wk):.2f} Pa")
 
-    # HOLE_3A: 从网格 t2d 生成血管网络边集，设置边半径与进出口节点，
-    # 调用 compute_vascular_pressure_field 求解节点压力场并输出结果
-    # 还需调用 poiseuille_flow_rate 演示流量计算
+
+
+
     raise NotImplementedError("HOLE_3A: 血管网络压力场计算流程待实现")
 
-    # ==================================================================
-    # 阶段 4: 组织氧扩散与代谢 (Fisher-KPP PDE)
-    # ==================================================================
+
+
+
     print("\n[阶段 4] 组织氧扩散与代谢")
     print("-" * 40)
 
@@ -164,7 +151,7 @@ def main():
     print(f"  1D 氧扩散: 初始均值 C = {np.mean(C_1d[0, :]):.4f}")
     print(f"  1D 氧扩散: 终态均值 C = {np.mean(C_1d[-1, :]):.4f}")
 
-    # 2D 径向 Krogh 模型
+
     def c0_radial(r):
         return np.zeros_like(r)
 
@@ -176,74 +163,74 @@ def main():
     print(f"  2D 径向氧扩散: 毛细血管壁 C = {C_rad[-1, 0]:.4f}")
     print(f"  2D 径向氧扩散: 组织远端 C = {C_rad[-1, -1]:.4f}")
 
-    # Michaelis-Menten 消耗
+
     V_mm = michaelis_menten_oxygen_consumption(C_1d[-1, :], V_max=0.5, K_m=0.05)
     print(f"  Michaelis-Menten 消耗: 均值 V = {np.mean(V_mm):.4f}")
 
-    # Krogh 解析解
+
     r_krogh = np.linspace(0.003, 0.05, 50)
     P_krogh = krogh_oxygen_tension(r_krogh, R_t=0.05, R_c=0.003,
                                     P_c=100.0, P_tissue=20.0, D_t=2.0e-5, M0=0.01)
     print(f"  Krogh 解析解: 平均组织氧分压 = {np.mean(P_krogh):.2f} mmHg")
 
-    # ==================================================================
-    # 阶段 5: 血管重构动力学 (SIR + Predator-Prey ODE)
-    # ==================================================================
+
+
+
     print("\n[阶段 5] 血管重构动力学")
     print("-" * 40)
 
-    # HOLE_3B: 构建血管重构参数字典 params_remodel 与初始状态向量 y0_remodel，
-    # 调用 coupled_vascular_remodeling 求解耦合ODE，
-    # 提取 Y_remodel[5,:]（半径）与 Y_remodel[3,:]（内皮细胞密度）并输出
+
+
+
     raise NotImplementedError("HOLE_3B: 血管重构动力学模拟流程待实现")
 
-    # Murray 分支定律
+
     r_children = murray_branching_law(2.5, theta=0.0, n_branches=2)
     print(f"  Murray 对称二分: 子血管半径 = {r_children[0]:.4f} mm")
     theta1, theta2 = branch_angle_from_murray(2.5, r_children[0], r_children[1])
     print(f"  对应分支角度: θ1 = {np.degrees(theta1):.2f}°, θ2 = {np.degrees(theta2):.2f}°")
 
-    # 壁面剪切应力
+
     tau_w = wall_shear_stress(radius=2.5e-3, Q=1.0e-6)
     print(f"  壁面剪切应力 τ_w = {tau_w:.4f} Pa")
 
-    # ==================================================================
-    # 阶段 6: 血细胞动力学与统计变异性 (Jai-Alai + ASA111)
-    # ==================================================================
+
+
+
     print("\n[阶段 6] 血细胞动力学与统计变异性")
     print("-" * 40)
 
-    # Fahraeus-Lindqvist 效应
+
     mu_app = fahraeus_lindqvist_viscosity(diameter_um=50.0, Hct=0.45)
     print(f"  Fahraeus-Lindqvist 粘度 (D=50μm): μ_app = {mu_app:.4e} Pa·s")
     mu_app_cap = fahraeus_lindqvist_viscosity(diameter_um=5.0, Hct=0.45)
     print(f"  Fahraeus-Lindqvist 粘度 (D=5μm): μ_app = {mu_app_cap:.4e} Pa·s")
 
-    # 红细胞压积分配
+
     Hct_d1, Hct_d2 = hematocrit_partition(
         Q_parent=1.0e-6, Q_daughter1=0.6e-6, Q_daughter2=0.4e-6,
         Hct_parent=0.45, D_parent=100.0, D_d1=80.0, D_d2=70.0
     )
     print(f"  分叉处 Hct 分配: Hct_d1 = {Hct_d1:.4f}, Hct_d2 = {Hct_d2:.4f}")
 
-    # ASA111 血流变异性
+
     flow_samples = blood_flow_variability(mean_flow=5.0e-5, std_fraction=0.15, n_samples=1000)
     print(f"  血流变异性采样: 均值 = {np.mean(flow_samples):.4e}, 标准差 = {np.std(flow_samples):.4e}")
 
-    # 血细胞竞争模拟
+
     np.random.seed(42)
     cell_strength = np.array([0.9, 0.8, 0.85, 0.75, 0.7, 0.95, 0.6, 0.8])
     cell_stats = blood_cell_competition_simulation(cell_strength, n_games=500)
     print(f"  血细胞分叉竞争 (500次): 最强群胜率 = {cell_stats[np.argmax(cell_strength)]}/{500}")
 
-    # 随机脉动血流
+
     t_pulse = np.linspace(0.0, 2.0, 200)
     Q_pulse = stochastic_pulsatile_flow(Q_mean=5.0e-5, f_heart=1.17, t_array=t_pulse, amplitude=0.3)
     print(f"  脉动血流: 均值 Q = {np.mean(Q_pulse):.4e}, 峰值/谷值 = {np.max(Q_pulse):.4e}/{np.min(Q_pulse):.4e}")
 
-    # ==================================================================
-    # 阶段 7: 血管分支递归生成 (Collatz-like recursion)
-    # ==================================================================
+
+
+
     print("\n[阶段 7] 血管分支递归生成")
     print("-" * 40)
 
@@ -260,13 +247,13 @@ def main():
     print(f"    最大半径      = {stats_tree['max_radius']:.4f} mm")
     print(f"    总血管长度    = {stats_tree['total_length']:.2f} mm")
 
-    # ==================================================================
-    # 阶段 8: 血流周期性与循环检测 (Brent Cycle Detection)
-    # ==================================================================
+
+
+
     print("\n[阶段 8] 血流周期性与循环检测")
     print("-" * 40)
 
-    # 生成模拟 CBF 时间序列
+
     dt_cbf = 0.01
     n_cbf = 1000
     cbf_series = []
@@ -295,29 +282,29 @@ def main():
         print(f"  主频分析: 主导频率 = {freqs[np.argmax(amps[1:])+1]:.3f} Hz")
     print(f"  血流状态分类      = {regime}")
 
-    # ==================================================================
-    # 阶段 9: 血流积分与随机采样 (Tetrahedron + Hypersphere)
-    # ==================================================================
+
+
+
     print("\n[阶段 9] 血流积分与随机采样")
     print("-" * 40)
 
-    # 四面体血容量
+
     vol_blood = integrate_blood_volume_tetrahedral(p3d, t3d)
     print(f"  3D 血管区域血容量 (四面体积分) = {vol_blood:.4f} mm³")
 
-    # 单项式积分验证
+
     int_000 = tetrahedron01_monomial_integral([0, 0, 0])
     int_100 = tetrahedron01_monomial_integral([1, 0, 0])
     print(f"  单位四面体积分验证: ∫1 dV = {int_000:.6f} (理论 1/6 = {1/6:.6f})")
     print(f"  单位四面体积分验证: ∫x dV = {int_100:.6f} (理论 1/24 = {1/24:.6f})")
 
-    # 血管截面采样
+
     cross_points = sample_vascular_cross_section(
         n_points=500, radius=1.0, center=np.array([0.0, 0.0, 0.0]), normal=np.array([0.0, 0.0, 1.0])
     )
     print(f"  血管截面随机采样: 生成 {len(cross_points)} 个点")
 
-    # 抛物线速度剖面的蒙特卡洛流量估计
+
     def parabolic_velocity(r):
         r_safe = np.clip(r, 0.0, 1.0)
         return 2.0 * (1.0 - r_safe ** 2)
@@ -325,14 +312,14 @@ def main():
     Q_mc = monte_carlo_flow_rate_integral(n_samples=2000, radius=1.0, velocity_profile_func=parabolic_velocity)
     print(f"  蒙特卡洛流量估计 (抛物线剖面) = {Q_mc:.4f} (理论 π ≈ {np.pi:.4f})")
 
-    # ==================================================================
-    # 总结输出
-    # ==================================================================
+
+
+
     print("\n" + "=" * 80)
     print("模拟完成。所有核心模块已验证通过。")
     print("=" * 80)
 
-    # 将所有关键结果汇总到文本报告
+
     report_path = os.path.join(os.path.dirname(__file__), "simulation_report.txt")
     with open(report_path, 'w') as f:
         f.write("脑血流动力学多尺度耦合模拟报告\n")

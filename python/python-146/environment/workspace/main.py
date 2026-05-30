@@ -1,24 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-main.py
-脉冲神经网络编码与解码 — 统一入口
-
-零参数运行，执行完整的多物理场耦合 SNN 计算流程：
-  1. 神经元动力学仿真 (Hodgkin-Huxley + RK4)
-  2. 轴突信号传播 (DG 离散 + MHD 耦合)
-  3. 突触编码优化 (背包问题 + 离散卷积)
-  4. 脉冲模式分析 (多格拼板枚举 + 聚类去重)
-  5. 信号重建 (Hermite 插值 + 稳定性分析)
-  6. 皮层网格拓扑 (网格生成 + 距离统计)
-  7. 突触权重随机模型 (对数正态 + SDE)
-  8. 脑流场与体积积分 (NS 精确解 + Keast 积分)
-"""
 
 import numpy as np
 import sys
 
-# 模块导入
+
 from spike_neuron import (
     HHNeuron, NeuronPopulation, demo_single_neuron, demo_population
 )
@@ -58,10 +44,9 @@ def print_section(title):
 
 
 def run_neuron_dynamics():
-    """模块 1: 脉冲神经元动力学"""
     print_section("模块 1: Hodgkin-Huxley 脉冲神经元动力学")
 
-    # 单神经元 demo
+
     print("\n[单神经元恒定电流注入]")
     V_trace, spikes = demo_single_neuron()
     print(f"  仿真时长: 50 ms, 时间步长: 0.01 ms")
@@ -71,7 +56,7 @@ def run_neuron_dynamics():
         isi = np.diff(spikes)
         print(f"  平均 ISI: {np.mean(isi):.2f} ms, 发放率: {1000.0/np.mean(isi):.1f} Hz")
 
-    # 群体 demo
+
     print("\n[兴奋-抑制神经元群体 (E=10, I=5)]")
     voltage_trace, spike_raster, pop_spikes = demo_population()
     total_spikes = sum(len(s) for s in pop_spikes)
@@ -80,7 +65,6 @@ def run_neuron_dynamics():
 
 
 def run_axon_propagation():
-    """模块 2: 轴突非线性信号传播"""
     print_section("模块 2: 轴突 DG 离散信号传播与 MHD 耦合")
 
     print("\n[一维神经电缆 DG 仿真]")
@@ -96,7 +80,6 @@ def run_axon_propagation():
 
 
 def run_synaptic_encoding():
-    """模块 3: 突触编码优化"""
     print_section("模块 3: 能量约束下的最优突触编码")
 
     print("\n[突触权重优化 (背包问题)]")
@@ -112,14 +95,13 @@ def run_synaptic_encoding():
     c = polynomial_multiply_convolution(a, b)
     print(f"  a = {a}, b = {b}")
     print(f"  a * b = {c}")
-    # 验证
+
     expected = np.convolve(a, b)
     print(f"  numpy.convolve 验证: {expected}")
     print(f"  误差: {np.max(np.abs(c - expected)):.2e}")
 
 
 def run_spike_pattern():
-    """模块 4: 脉冲模式组合分析"""
     print_section("模块 4: 脉冲模式组合枚举与聚类")
 
     print("\n[脉冲模式熵与聚类]")
@@ -138,7 +120,6 @@ def run_spike_pattern():
 
 
 def run_signal_reconstruction():
-    """模块 5: 信号重建与稳定性"""
     print_section("模块 5: Hermite 插值重建与数值稳定性")
 
     print("\n[Hermite 插值重建]")
@@ -151,16 +132,15 @@ def run_signal_reconstruction():
     print(f"  复平面网格: [{X.min():.1f}, {X.max():.1f}] x [{Y.min():.1f}, {Y.max():.1f}]")
     print(f"  稳定性区域采样点: {len(boundary)}")
     stab = StabilityAnalyzer()
-    lambda_max = 50.0  # ms^{-1}, HH 方程典型特征值量级
+    lambda_max = 50.0
     dt_max = stab.max_stable_timestep(lambda_max)
     print(f"  HH 特征值上界 |lambda| ≈ {lambda_max}")
     print(f"  RK4 最大稳定步长: dt <= {dt_max:.4f} ms")
-    # 验证当前步长
+
     print(f"  当前使用 dt=0.01 ms，稳定性裕度: {dt_max/0.01:.1f}x")
 
 
 def run_cortical_grid():
-    """模块 6: 皮层网格拓扑"""
     print_section("模块 6: 皮层编码网格与距离统计")
 
     print("\n[皮层连接矩阵与感受野]")
@@ -179,7 +159,6 @@ def run_cortical_grid():
 
 
 def run_stochastic_weights():
-    """模块 7: 突触权重随机模型"""
     print_section("模块 7: 对数正态突触权重与随机演化")
 
     print("\n[对数正态权重分布]")
@@ -204,7 +183,6 @@ def run_stochastic_weights():
 
 
 def run_brain_field():
-    """模块 8: 脑流场与体积积分"""
     print_section("模块 8: 脑 Navier-Stokes 流场与体积积分")
 
     print("\n[三维 Navier-Stokes 精确解 (Ethier)]")
@@ -228,36 +206,35 @@ def run_brain_field():
 
 
 def run_integrated_summary():
-    """综合汇总：展示各模块间的科学关联"""
     print_section("综合评估: 多物理场耦合 SNN 系统性能")
 
-    # 快速小规模端到端验证
+
     print("\n[端到端编码-传输-解码验证]")
 
-    # 1. 生成测试信号
+
     t_grid = np.linspace(0, 50, 500)
     signal_true = 3.0 * np.sin(2.0 * np.pi * 0.03 * t_grid)
 
-    # TODO (Hole 3): 脉冲神经元编码
-    # 需要使用 HHNeuron 对信号进行脉冲编码，生成 spike_times。
-    # 注意: 本循环依赖 spike_neuron.py 中 HHNeuron.step() 的正确实现，
-    #       而 step() 又依赖 _dVdt (Hole 1)。
-    #       同时，下游的 optimal_synaptic_weights 和 SignalReconstructor 均依赖 spike_times。
+
+
+
+
+
     raise NotImplementedError("Hole 3: 请补全端到端脉冲编码循环")
 
-    # 3. 突触编码
+
     weights, encoded, mi = optimal_synaptic_weights(
         spike_times, signal_true, t_grid, tau_s=2.5, E_budget=5.0
     )
 
-    # 4. 信号重建
+
     if len(spike_times) >= 4:
         recon = SignalReconstructor(spike_times)
         metrics = recon.reconstruction_quality(t_grid, signal_true)
     else:
         metrics = {'MSE': float('nan'), 'SNR_dB': float('nan'), 'Correlation': float('nan')}
 
-    # 5. 皮层网格容量估算
+
     grid = CorticalGrid(nx=4, ny=4)
     poly_counts = connected_spike_patterns_2d(4, 4, max_order=5)
     capacity_per_neuron = np.log2(poly_counts[-1][1]) if poly_counts else 0.0
@@ -276,7 +253,6 @@ def run_integrated_summary():
 
 
 def main():
-    """统一入口函数，零参数运行。"""
     np.random.seed(42)
 
     print("\n" + "=" * 70)

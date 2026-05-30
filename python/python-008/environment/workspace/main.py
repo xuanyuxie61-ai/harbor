@@ -1,26 +1,8 @@
-"""
-GRB Afterglow Radiation Mechanism Synthesis
-===========================================
-Unified zero-parameter entry point for the gamma-ray burst
-radiation-mechanism simulation pipeline.
-
-This script orchestrates:
-  1. Jet hydrodynamics (continuity equation, blast-wave diffusion)
-  2. Magnetic field geometry (spiral + reconnection automaton)
-  3. Particle acceleration (stochastic Runge-Kutta Fokker-Planck)
-  4. Radiative transfer (FEM + opacity interpolation)
-  5. SED computation (triangle Monte Carlo integration)
-  6. Spectral moments (Hankel SPD matrix)
-  7. Photon cascade (discrete subset-sum IC cascade)
-  8. Matrix export (Matrix Market format)
-
-All 15 seed projects are integrated into the above pipeline.
-"""
 
 import numpy as np
 import os
 
-# Set random seed for reproducibility
+
 np.random.seed(42)
 
 
@@ -30,9 +12,9 @@ def run_simulation():
     print("Domain: Astrophysics — Gamma-Ray Burst Radiation Mechanisms")
     print("=" * 70)
 
-    # ================================================================
-    # 1. Jet Hydrodynamics (seed 211_continuity_exact)
-    # ================================================================
+
+
+
     print("\n[1] Computing relativistic jet hydrodynamic profiles...")
     from grb_jet_hydro import compute_jet_profiles, lorentz_factor
 
@@ -45,22 +27,22 @@ def run_simulation():
     print(f"    Mean density         ρ = {rho_mean:.3e} g/cm³")
     print(f"    Max continuity residual = {res_max:.3e}")
 
-    # ================================================================
-    # 2. Blast Wave Diffusion (seed 901_porous_medium_exact)
-    # ================================================================
+
+
+
     print("\n[2] Evaluating Barenblatt blast-wave energy density...")
     from blast_wave_diffusion import blast_wave_energy_density_profile
 
     r_bw = np.linspace(1e10, 5e12, 50)
-    t_bw = 10.0  # seconds
+    t_bw = 10.0
     eps_bw = blast_wave_energy_density_profile(r_bw, t_bw, E_iso=1e53,
                                                n_ism=1.0, gamma_ad=4.0 / 3.0)
     print(f"    Blast wave energy density at r=1e12 cm, t=10 s: {eps_bw[10]:.3e} erg/cm³")
     print(f"    Peak energy density: {np.max(eps_bw):.3e} erg/cm³")
 
-    # ================================================================
-    # 3. Magnetic Spiral (seed 1371_ulam_spiral)
-    # ================================================================
+
+
+
     print("\n[3] Constructing helical magnetic field geometry...")
     from magnetic_spiral import magnetic_pitch_angle_grid, magnetization_parameter
 
@@ -70,9 +52,9 @@ def run_simulation():
     print(f"    Pitch angle at r=1e12 cm: {np.degrees(psi_mag[10]):.2f}°")
     print(f"    Magnetization parameter σ: {np.mean(sigma):.3e}")
 
-    # ================================================================
-    # 4. Reconnection Automaton (seed 671_life)
-    # ================================================================
+
+
+
     print("\n[4] Evolving magnetic reconnection automaton...")
     from reconnection_automaton import evolve_reconnection
 
@@ -82,9 +64,9 @@ def run_simulation():
     print(f"    Final active sites: {hist[-1]}")
     print(f"    Mean dissipated power: {np.mean(power):.3e} erg/s")
 
-    # ================================================================
-    # 5. Particle Acceleration (seed 1171_stochastic_rk)
-    # ================================================================
+
+
+
     print("\n[5] Stochastic Runge-Kutta particle acceleration...")
     from particle_acceleration import accelerate_electrons
 
@@ -96,9 +78,9 @@ def run_simulation():
     print(f"    Mean final γ: {np.mean(gamma_final):.3f}")
     print(f"    Max final γ: {np.max(gamma_final):.3e}")
 
-    # ================================================================
-    # 6. Opacity Interpolation (seed 927_pwl_interp_2d)
-    # ================================================================
+
+
+
     print("\n[6] Building opacity table and interpolating...")
     from opacity_interpolator import build_opacity_table, interpolate_opacity
 
@@ -108,9 +90,9 @@ def run_simulation():
     kappa_q = interpolate_opacity(rho_q, T_q, log_rho, log_T, kappa_table)
     print(f"    Opacities at query points: {kappa_q}")
 
-    # ================================================================
-    # 7. Radiation Diffusion FEM (seed 377_fem_neumann)
-    # ================================================================
+
+
+
     print("\n[7] Solving 1D radiation diffusion equation via FEM...")
     from radiation_diffusion_fem import solve_radiation_diffusion
 
@@ -120,19 +102,19 @@ def run_simulation():
     print(f"    FEM solution shape: {u_fem.shape}")
     print(f"    Max radiation energy density at t=2: {np.max(u_fem[-1]):.3e}")
 
-    # ================================================================
-    # 8. FEM Matrix Assembly (seed 1401_wathen_matrix)
-    # ================================================================
+
+
+
     print("\n[8] Assembling Wathen FEM matrix and solving...")
     from fem_matrix_assembly import solve_wathen_system
 
-    # TODO: Call solve_wathen_system with appropriate grid dimensions
-    # and unpack the returned solution, matrix, and RHS vector.
+
+
     pass
 
-    # ================================================================
-    # 9. Photon Transfer Matrix (seed 1405_web_matrix)
-    # ================================================================
+
+
+
     print("\n[9] Computing photon transfer steady state...")
     from photon_transfer_matrix import build_compton_transfer_matrix, compute_photon_stats
 
@@ -142,9 +124,9 @@ def run_simulation():
     print(f"    Compton-y parameter: {stats['y_param']:.3e}")
     print(f"    Power iterations: {stats['iterations']}")
 
-    # ================================================================
-    # 10. Spectral Moments (seed 506_hankel_spd)
-    # ================================================================
+
+
+
     print("\n[10] Computing spectral moments via Hankel SPD matrix...")
     from spectral_moments import (synthetic_grb_moments, build_hankel_from_moments,
                                   compute_spectral_moments_from_hankel,
@@ -157,18 +139,18 @@ def run_simulation():
     print(f"    Mean frequency: {stats_h['mean_frequency']:.3e} Hz")
     print(f"    Spectral width: {stats_h['spectral_width']:.3e} Hz")
 
-    # TODO: Perform Cholesky factorization of the Hankel SPD matrix.
-    # Construct diagonal (lii) and subdiagonal (liim1) entries,
-    # call hankel_spd_cholesky_lower, and reconstruct H = L·Lᵀ.
+
+
+
     pass
 
-    # ================================================================
-    # 11. SED Triangle Integration (seed 1308_triangle_integrands)
-    # ================================================================
+
+
+
     print("\n[11] Monte Carlo SED integration over (γ, θ) triangle...")
     from sed_triangle_integrator import monte_carlo_sed
 
-    # Triangle in (γ, θ) space
+
     vertices = np.array([
         [1e4, 0.1],
         [1e6, 0.1],
@@ -178,9 +160,9 @@ def run_simulation():
                                         nu_obs=1e15, B=100.0, N_gamma=1e20)
     print(f"    SED flux at ν=10¹⁵ Hz: {flux_sed:.3e} ± {err_sed:.3e}")
 
-    # ================================================================
-    # 12. Spectrum Interpolation (seed 590_interp)
-    # ================================================================
+
+
+
     print("\n[12] Interpolating spectral energy distribution...")
     from spectrum_interpolator import interpolate_spectrum
 
@@ -193,9 +175,9 @@ def run_simulation():
     print(f"    Linear interpolation: mean νF_ν = {np.mean(flux_lin):.3e}")
     print(f"    Lagrange interpolation: mean νF_ν = {np.mean(flux_lag):.3e}")
 
-    # ================================================================
-    # 13. Discrete IC Cascade (seed 1178_subset_sum)
-    # ================================================================
+
+
+
     print("\n[13] Computing discrete inverse-Compton cascade energies...")
     from discrete_cascade import discrete_ic_cascade, cascade_compactness
 
@@ -209,9 +191,9 @@ def run_simulation():
     ell = cascade_compactness(L=1e52, R=1e13)
     print(f"    Compactness parameter ℓ = {ell:.3e}")
 
-    # ================================================================
-    # 14. Anisotropic Tensor (seed 719_matlab_compiler)
-    # ================================================================
+
+
+
     print("\n[14] Constructing anisotropic diffusion tensors...")
     from anisotropic_tensor import magic_anisotropic_field
 
@@ -220,20 +202,20 @@ def run_simulation():
     D_trace = np.trace(D_tensors[4])
     print(f"    Diffusion tensor at mid-radius: trace = {D_trace:.3e}")
 
-    # ================================================================
-    # 15. Matrix I/O (seed 782_msm_to_mm)
-    # ================================================================
+
+
+
     print("\n[15] Exporting matrices to Matrix Market format...")
     from matrix_io import export_grb_matrix
 
     files_written = export_grb_matrix(A_wathen, filename_prefix='grb_matrix')
     for f in files_written:
         print(f"    Written: {f} ({os.path.getsize(f)} bytes)")
-        os.remove(f)  # Clean up temporary files
+        os.remove(f)
 
-    # ================================================================
-    # Summary
-    # ================================================================
+
+
+
     print("\n" + "=" * 70)
     print("SIMULATION COMPLETE")
     print("=" * 70)

@@ -1,42 +1,18 @@
-"""
-io_utils.py
-Scientific data I/O utilities for molecular dynamics trajectories.
-
-Derived from: 1197_tec_io (TECPLOT parser) + 771_mm_to_msm (Matrix Market reader)
-
-Handles parsing of molecular trajectory data formats, including coordinate
-frames, potential maps, and sparse interaction matrices in Matrix Market format.
-"""
 
 import numpy as np
 from io import StringIO
 
 
 def parse_tec_header(lines):
-    """
-    Parse TECPLOT-style variable declaration line.
-
-    TECPLOT format: VARIABLES = "X", "Y", "Z", "U", ...
-
-    Parameters
-    ----------
-    lines : list of str
-        Header lines from a TECPLOT file.
-
-    Returns
-    -------
-    variables : list of str
-        Extracted variable names.
-    """
     variables = []
     for line in lines:
         line_stripped = line.strip()
         if line_stripped.upper().startswith("VARIABLES"):
-            # Extract quoted strings
+
             parts = line_stripped.split("=")
             if len(parts) >= 2:
                 var_part = parts[1]
-                # Split by comma, then strip quotes
+
                 raw_vars = var_part.split(",")
                 for v in raw_vars:
                     v = v.strip().strip('"').strip("'")
@@ -46,21 +22,11 @@ def parse_tec_header(lines):
 
 
 def parse_zone_line(line):
-    """
-    Parse TECPLOT ZONE line to extract dimensions.
-
-    ZONE T="...", I=nx, J=ny, K=nz, F=POINT
-
-    Returns
-    -------
-    dims : dict
-        Dictionary with keys 'I', 'J', 'K', 'F', 'T'.
-    """
     dims = {"I": 1, "J": 1, "K": 1, "F": "POINT", "T": ""}
     line = line.strip()
     if not line.upper().startswith("ZONE"):
         return dims
-    # Simple parser for key=value pairs
+
     tokens = line[4:].split(",")
     for tok in tokens:
         tok = tok.strip()
@@ -79,29 +45,9 @@ def parse_zone_line(line):
 
 
 def read_matrix_market(filename_or_string):
-    """
-    Read a Matrix Market format file into a dense or sparse numpy array.
-
-    Matrix Market format supports:
-      - coordinate (sparse) and array (dense) representations
-      - real, double, integer, complex, pattern fields
-      - general, symmetric, skew-symmetric, hermitian symmetry
-
-    Parameters
-    ----------
-    filename_or_string : str
-        Path to file or string content.
-
-    Returns
-    -------
-    A : ndarray or scipy.sparse matrix
-        The matrix read from file.
-    meta : dict
-        Metadata: rows, cols, entries, rep, field, symm.
-    """
     from scipy import sparse
 
-    # Determine if input is a file path or string content
+
     if "\n" in filename_or_string or len(filename_or_string) > 500:
         f = StringIO(filename_or_string)
     else:
@@ -110,7 +56,7 @@ def read_matrix_market(filename_or_string):
                 content = fh.read()
             f = StringIO(content)
         except FileNotFoundError:
-            # Return a synthetic sparse matrix for demo/robustness
+
             return _synthetic_sparse_matrix(), {
                 "rows": 100,
                 "cols": 100,
@@ -120,7 +66,7 @@ def read_matrix_market(filename_or_string):
                 "symm": "general",
             }
 
-    # Read header
+
     header = f.readline()
     if not header:
         raise ValueError("Empty Matrix Market file.")
@@ -133,7 +79,7 @@ def read_matrix_market(filename_or_string):
     field = parts[3].lower()
     symm = parts[4].lower()
 
-    # Skip comments
+
     line = f.readline()
     while line and line.strip().startswith("%"):
         line = f.readline()
@@ -141,7 +87,7 @@ def read_matrix_market(filename_or_string):
     if not line:
         raise ValueError("No size information found.")
 
-    # Read size info
+
     while line.strip() == "" or line.strip().startswith("%"):
         line = f.readline()
 
@@ -153,7 +99,7 @@ def read_matrix_market(filename_or_string):
         cols = int(size_info[1])
         entries = int(size_info[2])
 
-        # Read data
+
         data = []
         for _ in range(entries):
             data_line = f.readline()
@@ -192,7 +138,7 @@ def read_matrix_market(filename_or_string):
             A = sparse.coo_matrix((vals_arr, (row_idx, col_idx)), shape=(rows, cols))
             A = A.tocsr()
 
-        # Handle symmetry
+
         if symm == "symmetric":
             A = A + A.T - sparse.diags(A.diagonal())
         elif symm == "skew-symmetric":
@@ -209,20 +155,20 @@ def read_matrix_market(filename_or_string):
         cols = int(size_info[1])
         entries = rows * cols
 
-        # Read all numbers
+
         numbers = []
         for line in f:
             if line.strip() == "" or line.strip().startswith("%"):
                 continue
             for tok in line.strip().split():
                 if field == "complex":
-                    # Dense complex: read pairs
+
                     pass
                 else:
                     numbers.append(float(tok))
 
         if len(numbers) < rows * cols:
-            # Pad with zeros for robustness
+
             numbers.extend([0.0] * (rows * cols - len(numbers)))
 
         A = np.array(numbers[: rows * cols]).reshape((rows, cols), order="F")
@@ -246,7 +192,6 @@ def read_matrix_market(filename_or_string):
 
 
 def _synthetic_sparse_matrix():
-    """Generate a synthetic sparse matrix for fallback robustness."""
     from scipy import sparse
     n = 100
     row = np.random.randint(0, n, size=500)
@@ -256,20 +201,6 @@ def _synthetic_sparse_matrix():
 
 
 def write_matrix_market(A, filename, field="real", symm="general"):
-    """
-    Write a numpy/scipy matrix to Matrix Market coordinate format.
-
-    Parameters
-    ----------
-    A : ndarray or scipy.sparse matrix
-        Matrix to write.
-    filename : str
-        Output file path.
-    field : str
-        'real', 'integer', 'complex', 'pattern'.
-    symm : str
-        'general', 'symmetric', 'skew-symmetric', 'hermitian'.
-    """
     from scipy import sparse
 
     if sparse.issparse(A):
@@ -302,21 +233,6 @@ def write_matrix_market(A, filename, field="real", symm="general"):
 
 
 def serialize_molecular_geometry(nodes, elements, values, xml_filename):
-    """
-    Serialize molecular geometry (nodes, tetrahedral elements, scalar values)
-    to a simplified XML format derived from tet_mesh_to_xml.
-
-    Parameters
-    ----------
-    nodes : ndarray, shape (N, 3)
-        Node coordinates.
-    elements : ndarray, shape (M, 4) or (M, 10)
-        Tetrahedral element node indices (0-based).
-    values : ndarray, shape (N,) or (N, D)
-        Scalar or vector values at nodes.
-    xml_filename : str
-        Output XML file path.
-    """
     node_num = nodes.shape[0]
     element_num = elements.shape[0]
     element_order = elements.shape[1]
@@ -351,10 +267,6 @@ def serialize_molecular_geometry(nodes, elements, values, xml_filename):
 
 
 def read_molecular_trajectory_frame(data_string):
-    """
-    Parse a molecular trajectory frame from a whitespace-delimited string.
-    Returns atom indices, coordinates, and velocities.
-    """
     try:
         arr = np.loadtxt(StringIO(data_string))
     except Exception:

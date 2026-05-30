@@ -1,16 +1,9 @@
-"""
-utils.py - 通用工具模块
-
-本模块提供稀疏矩阵操作、数据校验与文件 I/O 工具，
-源自原项目 380_fem_to_tec 与 508_hb_to_mm 的矩阵/文件处理思想。
-"""
 
 import numpy as np
 from typing import Tuple, Optional
 
 
 def validate_array_1d(arr: np.ndarray, name: str = "array") -> np.ndarray:
-    """校验一维数组，处理边界情况并返回展平后的数组。"""
     if arr is None:
         raise ValueError(f"{name} cannot be None")
     arr = np.asarray(arr)
@@ -20,7 +13,6 @@ def validate_array_1d(arr: np.ndarray, name: str = "array") -> np.ndarray:
 
 
 def validate_array_2d(arr: np.ndarray, name: str = "array") -> np.ndarray:
-    """校验二维数组。"""
     if arr is None:
         raise ValueError(f"{name} cannot be None")
     arr = np.asarray(arr)
@@ -32,21 +24,12 @@ def validate_array_2d(arr: np.ndarray, name: str = "array") -> np.ndarray:
 
 
 def safe_inverse(x: np.ndarray, eps: float = 1e-14) -> np.ndarray:
-    """安全求逆，避免除零。"""
     x = np.asarray(x, dtype=float)
     x = np.where(np.abs(x) < eps, np.sign(x + eps) * eps, x)
     return 1.0 / x
 
 
 def build_sparse_hamiltonian_indices(n: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    构造一维有限差分稀疏 Hamiltonian 的三元组 (row, col, data)。
-    
-    用于模拟量子点中电子/空穴的离散化动能项：
-        H_{i,i}   =  2 / dx^2
-        H_{i,i+1} = -1 / dx^2
-        H_{i,i-1} = -1 / dx^2
-    """
     if n < 2:
         raise ValueError("Matrix dimension must be >= 2")
     rows = []
@@ -68,7 +51,6 @@ def build_sparse_hamiltonian_indices(n: int) -> Tuple[np.ndarray, np.ndarray, np
 
 
 def spmatvec(rows: np.ndarray, cols: np.ndarray, data: np.ndarray, vec: np.ndarray) -> np.ndarray:
-    """稀疏矩阵-向量乘法 (COO 格式)。"""
     vec = validate_array_1d(vec, "vec")
     n = vec.size
     out = np.zeros(n, dtype=float)
@@ -79,11 +61,10 @@ def spmatvec(rows: np.ndarray, cols: np.ndarray, data: np.ndarray, vec: np.ndarr
 
 
 def estimate_condition_number_dense(A: np.ndarray) -> float:
-    """估算稠密矩阵的条件数（简化版，基于特征值）。"""
     A = validate_array_2d(A, "A")
     if A.shape[0] != A.shape[1]:
         raise ValueError("Matrix must be square")
-    # 使用幂法估算最大与最小特征值绝对值之比
+
     eigvals = np.linalg.eigvalsh(A)
     abs_eig = np.abs(eigvals)
     min_eig = np.min(abs_eig)
@@ -94,13 +75,11 @@ def estimate_condition_number_dense(A: np.ndarray) -> float:
 
 
 def fio_write_matrix(filename: str, A: np.ndarray, fmt: str = "%.16e") -> None:
-    """将矩阵写入文本文件（源自 fem_to_tec 的数据导出思想）。"""
     A = validate_array_2d(A, "A")
     np.savetxt(filename, A, fmt=fmt)
 
 
 def fio_read_matrix(filename: str) -> Optional[np.ndarray]:
-    """从文本文件读取矩阵。"""
     try:
         return np.loadtxt(filename)
     except Exception as e:
@@ -109,12 +88,6 @@ def fio_read_matrix(filename: str) -> Optional[np.ndarray]:
 
 
 def tridiagonal_solve(a: np.ndarray, b: np.ndarray, c: np.ndarray, d: np.ndarray) -> np.ndarray:
-    """
-    求解三对角线性方程组 T x = d，
-    其中 T 的下对角为 a，主对角为 b，上对角为 c。
-    
-    这是有限差分离散化后求波函数的关键步骤。
-    """
     n = d.size
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)

@@ -1,22 +1,9 @@
-"""
-稀疏矩阵工具模块
-融合来源: 1158_st_to_mm (稀疏矩阵格式转换) + 1088_slap_io (SLAP Triad格式I/O)
-
-功能:
-- COO/Triad格式稀疏矩阵的构建、读写与格式转换
-- 为有限元组装提供稀疏矩阵存储后端
-- 索引边界检查与数值鲁棒性处理
-"""
 
 import numpy as np
 from typing import Tuple, Optional
 
 
 class SparseMatrixCOO:
-    """
-    Coordinate (COO) / Triad 格式稀疏矩阵。
-    融合 ST 与 SLAP Triad 格式的核心思想，支持零基/一基索引转换。
-    """
 
     def __init__(self, nrow: int, ncol: int, row: np.ndarray = None,
                  col: np.ndarray = None, data: np.ndarray = None):
@@ -43,7 +30,6 @@ class SparseMatrixCOO:
         return len(self.data)
 
     def rebase(self, base_from: int, base_to: int):
-        """索引重基，融合 st_to_mm 中 st_rebase 思想。"""
         if self.nnz() == 0:
             return
         self.row = self.row - base_from + base_to
@@ -51,19 +37,17 @@ class SparseMatrixCOO:
         self._validate()
 
     def to_dense(self) -> np.ndarray:
-        """转换为稠密矩阵（仅用于小维度调试）。"""
         A = np.zeros((self.nrow, self.ncol), dtype=float)
         for i, j, v in zip(self.row, self.col, self.data):
             A[i, j] += v
         return A
 
     def to_csr(self) -> 'SparseMatrixCSR':
-        """COO -> CSR 格式转换。"""
         nnz = self.nnz()
         if nnz == 0:
             return SparseMatrixCSR(self.nrow, self.ncol, np.zeros(self.nrow + 1, dtype=int),
                                    np.array([], dtype=int), np.array([], dtype=float))
-        # 按行、列排序
+
         order = np.lexsort((self.col, self.row))
         row_s = self.row[order]
         col_s = self.col[order]
@@ -76,7 +60,6 @@ class SparseMatrixCOO:
         return SparseMatrixCSR(self.nrow, self.ncol, indptr, col_s, data_s)
 
     def add_entry(self, i: int, j: int, v: float):
-        """添加一个非零元，允许重复（求和由 to_dense 处理）。"""
         if not (0 <= i < self.nrow and 0 <= j < self.ncol):
             raise IndexError(f"索引 ({i},{j}) 越界，矩阵大小 ({self.nrow},{self.ncol})")
         if not np.isfinite(v):
@@ -86,7 +69,6 @@ class SparseMatrixCOO:
         self.data = np.append(self.data, v)
 
     def symmetric_expand(self):
-        """对于对称存储的下三角，扩展为全矩阵。"""
         if self.nnz() == 0:
             return
         extra_row = self.col[self.row != self.col]
@@ -98,11 +80,6 @@ class SparseMatrixCOO:
 
     @staticmethod
     def read_from_triad_file(filename: str) -> 'SparseMatrixCOO':
-        """
-        从类 SLAP Triad 文本文件读取稀疏矩阵。
-        文件格式: 每行 "i j value"，0基索引。
-        第一行可选: nrow ncol nnz
-        """
         try:
             with open(filename, 'r') as f:
                 lines = f.readlines()
@@ -112,7 +89,7 @@ class SparseMatrixCOO:
         if not lines:
             raise ValueError("空文件")
 
-        # 尝试解析首行是否为维度信息
+
         first = lines[0].strip().split()
         if len(first) == 3:
             try:
@@ -148,7 +125,6 @@ class SparseMatrixCOO:
         return SparseMatrixCOO(nrow, ncol, row, col, data)
 
     def write_to_triad_file(self, filename: str):
-        """写入类 SLAP Triad 格式文件。"""
         with open(filename, 'w') as f:
             f.write(f"{self.nrow} {self.ncol} {self.nnz()}\n")
             for i, j, v in zip(self.row, self.col, self.data):
@@ -156,7 +132,6 @@ class SparseMatrixCOO:
 
 
 class SparseMatrixCSR:
-    """Compressed Sparse Row (CSR) 格式，用于快速矩阵-向量乘法。"""
 
     def __init__(self, nrow: int, ncol: int, indptr: np.ndarray,
                  indices: np.ndarray, data: np.ndarray):
@@ -167,7 +142,6 @@ class SparseMatrixCSR:
         self.data = data
 
     def dot(self, x: np.ndarray) -> np.ndarray:
-        """CSR 矩阵-向量乘法 y = A @ x。"""
         if x.shape[0] != self.ncol:
             raise ValueError("维度不匹配")
         y = np.zeros(self.nrow, dtype=float)
@@ -185,12 +159,8 @@ class SparseMatrixCSR:
 
 
 def coo_to_dense_solve(coo: SparseMatrixCOO, b: np.ndarray) -> np.ndarray:
-    """
-    将 COO 矩阵转为稠密后用 NumPy 求解线性方程组 Ax = b。
-    适用于中小规模有限元系统（演示/验证用途）。
-    """
     A_dense = coo.to_dense()
-    # 边界鲁棒性: 若矩阵奇异，加微小正则化
+
     cond = np.linalg.cond(A_dense)
     if cond > 1e12:
         A_dense += np.eye(A_dense.shape[0]) * 1e-12

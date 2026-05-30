@@ -1,21 +1,8 @@
-"""
-Condition number estimation and matrix analysis for parity check matrices.
-
-Incorporates:
-- 207_condition: Hager's condition estimator, LINPACK-style estimator,
-  test matrices (Kahan, CONEX, COMBIN)
-"""
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 
 
 class ConditionEstimator:
-    """
-    Estimate the L1 condition number κ_1(A) = ||A||_1 · ||A^{-1}||_1
-    for parity check matrices over the reals.
-
-    Uses Hager's algorithm (1984) and LINPACK-style estimators.
-    """
 
     def __init__(self, A: np.ndarray):
         self.A = A.copy().astype(float)
@@ -26,7 +13,7 @@ class ConditionEstimator:
         if self.is_square:
             try:
                 self.lu, self.piv = lu_factor(self.A)
-                # Check for singularity
+
                 if np.any(np.abs(np.diag(self.lu)) < 1e-14):
                     self.is_square = False
                     self.lu = None
@@ -37,25 +24,18 @@ class ConditionEstimator:
                 self.piv = None
 
     def _solve(self, b: np.ndarray) -> np.ndarray:
-        """Solve Ax = b."""
         if self.is_square and self.lu is not None:
             return lu_solve((self.lu, self.piv), b)
         return np.linalg.lstsq(self.A, b, rcond=None)[0]
 
     def _solve_transpose(self, b: np.ndarray) -> np.ndarray:
-        """Solve A^T x = b."""
         if self.is_square and self.lu is not None:
             return lu_solve((self.lu, self.piv), b, trans=1)
         return np.linalg.lstsq(self.A.T, b, rcond=None)[0]
 
     def hager_estimator(self, max_iter: int = 5) -> float:
-        """
-        Hager's L1 norm estimator for ||A^{-1}||_1.
-        For non-square matrices, uses the square normal matrix (A^T A)^{-1} A^T
-        or A (A A^T)^{-1} and applies Hager to the smaller square system.
-        """
         if not self.is_square:
-            # Use SVD-based L2 condition as proxy for L1
+
             return self.exact_condition_number()
         n = self.n
         x = np.ones(n) / n
@@ -82,15 +62,11 @@ class ConditionEstimator:
                 x = x / norm_x
             else:
                 x = np.ones(len(z)) / len(z)
-        norm_A = np.max(np.sum(np.abs(self.A), axis=0))  # L1 norm
+        norm_A = np.max(np.sum(np.abs(self.A), axis=0))
         norm_Ainv = est
         return norm_A * norm_Ainv
 
     def linpack_estimator(self) -> float:
-        """
-        LINPACK-style L1 condition estimator for square matrices.
-        For rectangular matrices, falls back to SVD-based estimate.
-        """
         if not self.is_square or self.lu is None:
             s = np.linalg.svd(self.A, compute_uv=False)
             if s[-1] > 0:
@@ -115,7 +91,6 @@ class ConditionEstimator:
         return norm_A * est
 
     def exact_condition_number(self) -> float:
-        """Exact L2 condition number via SVD (for rectangular, uses largest/smallest nonzero singular value)."""
         try:
             s = np.linalg.svd(self.A, compute_uv=False)
             s_nonzero = s[s > 1e-14]
@@ -127,20 +102,9 @@ class ConditionEstimator:
 
 
 class TestMatrixSuite:
-    """
-    Test matrices for validating condition estimators.
-    From 207_condition (Kahan, CONEX, COMBIN matrices).
-    """
 
     @staticmethod
     def kahan_matrix(n: int, theta: float = None) -> np.ndarray:
-        """
-        Kahan matrix: highly ill-conditioned upper triangular matrix.
-            A_{ij} = 0           for i > j
-            A_{ii} = s^{i-1}
-            A_{ij} = -c * s^{i-1} for j > i
-        where s = sin(θ), c = cos(θ).
-        """
         if theta is None:
             theta = 1.2
         s = np.sin(theta)
@@ -154,7 +118,6 @@ class TestMatrixSuite:
 
     @staticmethod
     def conex1_matrix(n: int) -> np.ndarray:
-        """CONEX1 matrix: ill-conditioned test matrix."""
         A = np.eye(n)
         A[0, :] = 1.0
         A[:, 0] = 1.0
@@ -163,10 +126,6 @@ class TestMatrixSuite:
 
     @staticmethod
     def combin_matrix(n: int) -> np.ndarray:
-        """
-        COMBIN matrix: combination matrix with known inverse.
-        A_{ij} = C(min(i,j), 2) for i,j >= 2, with modifications.
-        """
         A = np.zeros((n, n))
         for i in range(n):
             for j in range(n):
@@ -179,10 +138,9 @@ class TestMatrixSuite:
 
     @staticmethod
     def ill_conditioned_parity_check(n: int, m: int) -> np.ndarray:
-        """Generate an ill-conditioned parity check matrix for testing."""
-        # Random sparse matrix with near-linear dependencies
+
         A = np.random.randint(0, 2, size=(m, n)).astype(float)
-        # Add near-duplicate rows
+
         for i in range(1, m):
             if i % 2 == 1:
                 A[i, :] = A[i - 1, :] + 1e-10 * np.random.randn(n)
@@ -190,16 +148,12 @@ class TestMatrixSuite:
 
 
 class ParityCheckConditionAnalyzer:
-    """
-    Analyze the conditioning of parity check matrices for quantum codes.
-    """
 
     def __init__(self, H: np.ndarray):
         self.H = H.copy().astype(float)
         self.m, self.n = H.shape
 
     def analyze(self) -> dict:
-        """Comprehensive conditioning analysis."""
         est = ConditionEstimator(self.H)
         results = {
             "hager_kappa": est.hager_estimator(),
@@ -215,10 +169,6 @@ class ParityCheckConditionAnalyzer:
         return results
 
     def check_stability(self) -> dict:
-        """
-        Check numerical stability of syndrome computation under perturbations.
-        Perturb error vector by ε and observe syndrome change.
-        """
         eps = 1e-8
         e = np.random.randint(0, 2, self.n).astype(float)
         s = (self.H @ e) % 2

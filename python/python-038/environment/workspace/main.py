@@ -1,39 +1,10 @@
-"""
-===============================================================================
-PROJECT 38: Jet Clustering and Parton Shower Simulation
-          粒子物理：喷注聚类与部分子 shower 全蒙特卡洛模拟
-===============================================================================
-
-博士级合成项目，融合15个种子项目的核心算法：
-  130_bvp_shooting   → DGLAP打靶法边界条件求解
-  614_kdv_etdrk4     → 谱方法DGLAP演化
-  536_hilbert_curve_3d → 3D Hilbert空间索引加速聚类
-  1228_test_values   → 特殊函数精度验证
-  934_pyramid_jaskowiec_rule → 高维动量空间求积
-  106_boundary_word_drafter  → 喷注形状边界词编码
-  148_cellular_automaton     → 元胞自动机强子化
-  623_knapsack_brute         → 最优子喷注组合（背包枚举）
-  944_quad_serial            → 复合数值积分
-  881_polpak                 → QCD正交多项式与特殊函数
-  853_pce_legendre           → 喷注观测量PCE不确定性量化
-  253_cvt_circle_nonuniform  → 非均匀相空间CVT自适应采样
-  1086_sir_ode               → 部分子多重数ODE演化
-  134_california_migration   → 离散马尔可夫链shower
-  962_r83                    → 三对角扩散方程求解
-
-运行方式：
-    python main.py
-
-无需任何命令行参数。
-===============================================================================
-"""
 
 import numpy as np
 import time
 
-# ---------------------------------------------------------------------------
-# Import all synthesis modules
-# ---------------------------------------------------------------------------
+
+
+
 from special_functions_qcd import (
     alpha_s_1loop, alpha_s_2loop, CF, CA, N_F,
     p_qq_lo, p_gq_lo, p_gg_lo, sudakov_quark,
@@ -88,14 +59,13 @@ def print_subheader(title):
 
 
 def run_full_simulation():
-    """Execute the complete jet clustering and parton shower pipeline."""
     
     t_start = time.time()
     rng = np.random.default_rng(2024)
     
-    # =====================================================================
-    # STEP 0: Validation of core mathematical libraries
-    # =====================================================================
+
+
+
     print_header("STEP 0: Core Library Validation")
     
     err_sf = validate_special_functions()
@@ -126,14 +96,14 @@ def run_full_simulation():
     test_pce()
     print("  PCE uncertainty tests: PASSED")
     
-    # =====================================================================
-    # STEP 1: DGLAP PDF Evolution
-    # =====================================================================
+
+
+
     print_header("STEP 1: DGLAP Parton Distribution Evolution")
     
     x_grid = np.logspace(-3, -0.05, 40)
-    Q20 = 1.69  # GeV^2 (≈ m_c^2)
-    Q2_final = 10000.0  # GeV^2 (LHC scale)
+    Q20 = 1.69
+    Q2_final = 10000.0
     
     q_pdf, g_pdf, pdf_info = pdf_shooting_solve(
         x_grid, Q20=Q20, Q2_final=Q2_final, target_momentum=0.95, nf=5
@@ -148,20 +118,20 @@ def run_full_simulation():
     for x_test in [1e-3, 1e-2, 0.1, 0.5]:
         print(f"  x = {x_test:.0e}:  x·q(x) = {q_pdf(x_test):.4f},  x·g(x) = {g_pdf(x_test):.4f}")
     
-    # Spectral evolution demo
+
     g0_func = lambda x: np.maximum(2.0 * x**(-0.3) * (1.0 - x)**5, 1e-15)
     g_evolved = dglap_spectral_evolve_gluon(g0_func, x_grid, Q20, Q2_final, nf=5)
     print_subheader("Spectral ETDRK4 Gluon Evolution")
     print(f"  Initial gluon integral:  {np.trapezoid(g0_func(x_grid), x_grid):.4f}")
     print(f"  Evolved gluon integral:  {np.trapezoid(g_evolved, x_grid):.4f}")
     
-    # =====================================================================
-    # STEP 2: Hard Process Generation
-    # =====================================================================
+
+
+
     print_header("STEP 2: Hard Scattering Process Generation")
     
-    E_cm = 14000.0  # LHC pp center-of-mass energy
-    pt_hard = 80.0  # Hard scattering p_T scale
+    E_cm = 14000.0
+    pt_hard = 80.0
     
     hard_partons = generate_hard_process(E_cm=E_cm, pt_hard=pt_hard, seed=42)
     print_subheader("Initial Hard Partons")
@@ -169,13 +139,13 @@ def run_full_simulation():
         print(f"  PID={p.pid}, flavor={p.flavor}, "
               f"pT={p.pt:.2f} GeV, η={p.eta:.3f}, φ={p.phi:.3f}, E={p.p[3]:.2f} GeV")
     
-    # =====================================================================
-    # STEP 3: Parton Shower
-    # =====================================================================
+
+
+
     print_header("STEP 3: Angular-Ordered Parton Shower (Markov Chain MC)")
     
-    Q_cut = 1.0   # Shower cutoff in GeV
-    z_cut = 0.05  # Minimum energy fraction
+    Q_cut = 1.0
+    z_cut = 0.05
     
     shower_partons, shower_history = run_parton_shower(
         hard_partons, Q_cut=Q_cut, z_cut=z_cut,
@@ -194,19 +164,18 @@ def run_full_simulation():
     print(f"  Total parton p_x:    {total_px:.3f} GeV")
     print(f"  Total parton p_y:    {total_py:.3f} GeV")
     
-    # ODE multiplicity model
+
     sol_mult = shower_multiplicity_ode((0.0, np.log(100.0)), len(hard_partons),
                                        alpha=0.4, beta=0.02)
     print_subheader("ODE Multiplicity Prediction")
     print(f"  Predicted final multiplicity: {sol_mult.y[0, -1]:.1f}")
     
-    # =====================================================================
-    # STEP 4: CVT Adaptive Sampling of Momentum Space
-    # =====================================================================
+
+
+
     print_header("STEP 4: CVT Adaptive Sampling of Parton Phase Space")
     
     def parton_density(x, y):
-        """Non-uniform density peaked at origin (beam axis)."""
         return np.exp(-2.0 * (x**2 + y**2)) + 0.05
     
     cvt_gens, cvt_info = cvt_lloyd_2d(
@@ -218,9 +187,9 @@ def run_full_simulation():
     print(f"  Lloyd iterations: {cvt_info['iterations']}")
     print(f"  Final displacement: {cvt_info['final_displacement']:.2e}")
     
-    # =====================================================================
-    # STEP 5: Hadronization
-    # =====================================================================
+
+
+
     print_header("STEP 5: Cellular Automaton Hadronization")
     
     hadrons, clusters = run_cellular_automaton_hadronization(
@@ -236,16 +205,16 @@ def run_full_simulation():
     print(f"  Total hadron energy: {total_E_hadrons:.2f} GeV")
     print(f"  Energy conservation: {(total_E_hadrons/total_E_partons - 1)*100:.2f}%")
     
-    # Boundary word encoding for leading jet
+
     if len(hadrons) > 5:
         word, c_eta, c_phi = boundary_word_from_jet(hadrons[:20])
         print_subheader("Leading Jet Boundary Word")
         print(f"  Centroid (η, φ) = ({c_eta:.3f}, {c_phi:.3f})")
         print(f"  Boundary word length: {len(word)}")
     
-    # =====================================================================
-    # STEP 6: Jet Reconstruction
-    # =====================================================================
+
+
+
     print_header("STEP 6: Jet Reconstruction (Anti-kT Algorithm)")
     
     pseudo_jets = [PseudoJet(h.p[0], h.p[1], h.p[2], h.p[3], index=i)
@@ -272,16 +241,16 @@ def run_full_simulation():
         print(f"    Mass = {lead.mass:.3f} GeV")
         print(f"    E   = {lead.E:.2f} GeV")
         
-        # Optimal subjet combination (knapsack)
+
         best_mass, best_subset = knapsack_optimal_subjets(lead, n_subjets_target=2)
         print_subheader("Knapsack Subjet Reconstruction")
         print(f"    Target Z-boson mass: 91.1876 GeV")
         print(f"    Best reconstructed mass: {best_mass:.3f} GeV")
         print(f"    Number of constituents in optimal subset: {len(best_subset)}")
     
-    # =====================================================================
-    # STEP 7: Jet Shape Variables
-    # =====================================================================
+
+
+
     print_header("STEP 7: Jet Shape and Event Shape Analysis")
     
     if len(pseudo_jets) > 0:
@@ -296,20 +265,19 @@ def run_full_simulation():
         print(f"  Jet Broadening B = {broadening:.4f}")
         print(f"  Eigenvalues: {spher['eigenvalues']}")
     
-    # =====================================================================
-    # STEP 8: Uncertainty Quantification via PCE
-    # =====================================================================
+
+
+
     print_header("STEP 8: Polynomial Chaos Expansion Uncertainty Quantification")
     
-    # PCE for jet mass as function of alpha_s
+
     def shower_for_alpha(alpha_s_val):
-        """Wrapper: run mini-shower and return leading jet mass."""
-        # Simplified: vary alpha_s affects emission rate -> effective multiplicity
-        # We approximate by scaling the number of hadrons
+
+
         n_had_eff = int(len(hadrons) * (0.5 + 0.5 * alpha_s_val / 0.12))
         if n_had_eff < 5:
             return 0.0
-        # Approximate jet mass from energy and multiplicity
+
         E_avg = total_E_hadrons / max(len(hadrons), 1)
         m_eff = E_avg * np.sqrt(n_had_eff) * 0.05
         return float(m_eff)
@@ -323,7 +291,7 @@ def run_full_simulation():
     print(f"  Std deviation:     {pce_mass.std():.3f} GeV")
     print(f"  Variance:          {pce_mass.variance():.4f} GeV^2")
     
-    # PCE for PDF uncertainty
+
     def pdf_model(x, lam):
         return max(0.5 * x**(-lam) * (1.0 - x)**4, 1e-15)
     
@@ -332,12 +300,12 @@ def run_full_simulation():
     print(f"  Mean x·q(x):       {pce_pdf.mean():.4f}")
     print(f"  Std deviation:     {pce_pdf.std():.4f}")
     
-    # Global sensitivity analysis
+
     def jet_mass_model(params):
         alpha = params.get('alpha_s', 0.12)
         qcut = params.get('Q_cut', 1.0)
         zcut = params.get('z_cut', 0.05)
-        # Simple parametric model
+
         return 5.0 + 30.0 * alpha / 0.12 + 2.0 * (qcut - 1.0) + 1.0 * (zcut - 0.05) / 0.01
     
     gs_results = global_sensitivity_analysis(
@@ -352,23 +320,21 @@ def run_full_simulation():
     for name, idx in gs_results['sobol_indices'].items():
         print(f"  Sensitivity index [{name}]: {idx:.4f}")
     
-    # =====================================================================
-    # STEP 9: High-Dimensional Integration (Jet Momentum Moments)
-    # =====================================================================
+
+
+
     print_header("STEP 9: High-Dimensional Momentum Space Integrals")
     
-    # Pyramid integral: jet energy deposition profile
+
     def energy_profile(x, y, z):
-        """Model energy density in a 3D pyramid (approximating calorimeter tower)."""
         r2 = x**2 + y**2
         return np.exp(-3.0 * r2) * z * (1.0 - z)
     
     E_pyramid = integrate_pyramid(energy_profile, precision=3)
     print(f"  Pyramid energy integral: {E_pyramid:.6f}")
     
-    # Monte Carlo: 4D phase-space volume element
+
     def phase_space_element(p):
-        """p = [E, px, py, pz]"""
         E, px, py, pz = p
         if E < 0:
             return 0.0
@@ -382,27 +348,27 @@ def run_full_simulation():
     )
     print(f"  4D phase-space MC integral: {ps_integral:.3f} ± {ps_error:.3f}")
     
-    # Adaptive 1D: integral of splitting function
+
     def splitting_integral(z):
         return (p_qq_lo(z) + p_gq_lo(z)) / (z * (1.0 - z))
     
     split_int = integrate_adaptive_1d(splitting_integral, 1e-4, 1.0 - 1e-4, tol=1e-4)
     print(f"  Splitting function integral: {split_int:.3f}")
     
-    # =====================================================================
-    # STEP 10: Tridiagonal Diffusion (Jet Quenching in QGP)
-    # =====================================================================
+
+
+
     print_header("STEP 10: Jet Quenching Diffusion in QGP Medium")
     
-    # Model energy loss as 1D diffusion along the jet axis
+
     nx_diff = 128
     x_diff = np.linspace(0.0, 5.0, nx_diff)
     dx_diff = x_diff[1] - x_diff[0]
     
-    # Initial Gaussian energy profile
+
     u0 = np.exp(-2.0 * (x_diff - 2.5)**2)
-    D_medium = 0.5   # Diffusion coefficient in GeV^2/fm
-    dt_diff = 0.01   # fm/c
+    D_medium = 0.5
+    dt_diff = 0.01
     n_steps_diff = 100
     
     u_final = solve_diffusion_1d(u0, D_medium, dt_diff, dx_diff, n_steps_diff, solver='cyclic')
@@ -413,9 +379,9 @@ def run_full_simulation():
     print(f"  Final energy profile integral:   {E_final:.4f}")
     print(f"  Energy loss fraction:            {(1.0 - E_final/E_initial)*100:.2f}%")
     
-    # =====================================================================
-    # STEP 11: Hilbert Spatial Index Demonstration
-    # =====================================================================
+
+
+
     print_header("STEP 11: Hilbert Curve Spatial Index for Momentum Space")
     
     if len(hadrons) > 10:
@@ -433,9 +399,9 @@ def run_full_simulation():
         print(f"  Total hadrons indexed: {len(hadrons)}")
         print(f"  Candidates within R={radius} of origin: {len(candidates)}")
     
-    # =====================================================================
-    # Summary
-    # =====================================================================
+
+
+
     print_header("SIMULATION COMPLETE")
     t_elapsed = time.time() - t_start
     print(f"  Total execution time: {t_elapsed:.2f} seconds")

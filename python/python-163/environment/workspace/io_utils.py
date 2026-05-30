@@ -1,37 +1,15 @@
-"""
-io_utils.py
-===========
-Data input/output utilities for the geothermal THM simulation,
-including file reading, writing, and tabular data management.
-
-Incorporates algorithms from:
-  - 718_matlab_commandline: file-based table generation and output
-"""
 
 import numpy as np
 import os
 
 
 class SimulationIO:
-    """Handle reading and writing of simulation data."""
 
     def __init__(self, output_dir="./thm_output"):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
     def write_field(self, filename, field, header=""):
-        """
-        Write a 3D field to a text file.
-
-        Parameters
-        ----------
-        filename : str
-            Output filename (relative to output_dir).
-        field : np.ndarray
-            3D array.
-        header : str
-            Header comment.
-        """
         filepath = os.path.join(self.output_dir, filename)
         with open(filepath, 'w') as f:
             if header:
@@ -40,18 +18,6 @@ class SimulationIO:
             np.savetxt(f, field.reshape(-1, field.shape[-1]) if field.ndim >= 2 else field.reshape(1, -1))
 
     def write_table(self, filename, columns, headers):
-        """
-        Write a formatted table to a text file.
-
-        Parameters
-        ----------
-        filename : str
-            Output filename.
-        columns : list of np.ndarray
-            Column data.
-        headers : list of str
-            Column headers.
-        """
         if len(columns) != len(headers):
             raise ValueError("columns and headers must have the same length.")
         n_rows = len(columns[0])
@@ -69,9 +35,6 @@ class SimulationIO:
                 f.write(row + "\n")
 
     def write_summary(self, filename, summary_dict):
-        """
-        Write a summary dictionary to file.
-        """
         filepath = os.path.join(self.output_dir, filename)
         with open(filepath, 'w') as f:
             for key, value in summary_dict.items():
@@ -83,10 +46,6 @@ class SimulationIO:
                     f.write(f"{key:30s}: {value}\n")
 
     def read_matrix_file(self, filepath):
-        """
-        Read a space-delimited matrix from a text file,
-        skipping comment lines starting with '#'.
-        """
         rows = []
         with open(filepath, 'r') as f:
             for line in f:
@@ -107,9 +66,6 @@ class SimulationIO:
 
 
 def generate_parameter_table(output_path="parameter_table.txt"):
-    """
-    Generate a formatted table of standard physical parameters.
-    """
     params = {
         "Temperature_Initial_K": 423.15,
         "Temperature_Injection_K": 323.15,

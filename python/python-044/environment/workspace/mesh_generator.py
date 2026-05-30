@@ -1,41 +1,8 @@
-"""
-mesh_generator.py
-=================
-Mesh generation and management for 2D poroelastic domains.
-
-Incorporates:
-  - Fibonacci spiral source placement (from fibonacci_spiral)
-  - Triangle geometry utilities (from triangle library)
-  - CVT-based adaptive mesh refinement ideas (from cvt_1d_lumping)
-  - Chebyshev zero node initialization
-"""
 
 import numpy as np
 
 
 def fibonacci_spiral_points(n, radius=1.0, center=(0.0, 0.0)):
-    """
-    Generate n points arranged on a Fibonacci (golden-ratio) spiral.
-
-    The golden ratio phi = (1 + sqrt(5)) / 2.
-    Points are placed with constant angular increment:
-        da = 2*pi * (phi - 1) / phi
-    and radial increment dr.
-
-    Parameters
-    ----------
-    n : int
-        Number of points.
-    radius : float
-        Maximum radius.
-    center : tuple
-        (cx, cy) center coordinates.
-
-    Returns
-    -------
-    pts : ndarray, shape (n, 2)
-        Spiral points.
-    """
     if n < 1:
         return np.zeros((0, 2))
     phi_ratio = (1.0 + np.sqrt(5.0)) / 2.0
@@ -54,24 +21,16 @@ def fibonacci_spiral_points(n, radius=1.0, center=(0.0, 0.0)):
 
 
 def chebyshev_zero_nodes(n, a=-1.0, b=1.0):
-    """
-    Chebyshev zero nodes of the first kind on interval [a, b].
-
-    x_k = cos( (2k - 1) * pi / (2n) ), k = 1,...,n
-    """
     if n < 1:
         return np.array([])
     k = np.arange(1, n + 1)
     nodes = np.cos(np.pi * (2.0 * k - 1.0) / (2.0 * n))
-    # Map from [-1, 1] to [a, b]
+
     nodes = ((1.0 - nodes) * a + (1.0 + nodes) * b) / 2.0
     return nodes
 
 
 def r8vec_linspace2(n, a, b):
-    """
-    Create n linearly spaced interior points on (a, b).
-    """
     if n < 1:
         return np.array([])
     x = np.zeros(n)
@@ -81,14 +40,6 @@ def r8vec_linspace2(n, a, b):
 
 
 def triangle_area(p):
-    """
-    Signed area of a 2D triangle.
-
-    p : ndarray, shape (3, 2)
-        Triangle vertices.
-
-    area = 0.5 * (x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2))
-    """
     area = 0.5 * (
         p[0, 0] * (p[1, 1] - p[2, 1])
         + p[1, 0] * (p[2, 1] - p[0, 1])
@@ -98,16 +49,10 @@ def triangle_area(p):
 
 
 def triangle_centroid(p):
-    """
-    Centroid of a triangle.
-    """
     return np.mean(p, axis=0)
 
 
 def triangle_diameter(p):
-    """
-    Diameter of a triangle (longest edge).
-    """
     d = 0.0
     for i in range(3):
         for j in range(i + 1, 3):
@@ -118,10 +63,6 @@ def triangle_diameter(p):
 
 
 def triangle_quality(p):
-    """
-    Triangle quality measure (ratio of inscribed to circumscribed circle radii).
-    Quality = 2 * r_in / r_circ, ranges from 0 (degenerate) to 1 (equilateral).
-    """
     a = np.linalg.norm(p[1] - p[0])
     b = np.linalg.norm(p[2] - p[1])
     c = np.linalg.norm(p[0] - p[2])
@@ -137,18 +78,6 @@ def triangle_quality(p):
 
 
 def generate_structured_triangle_mesh(xmin, xmax, ymin, ymax, nx, ny):
-    """
-    Generate a structured triangular mesh on a rectangle.
-
-    Each rectangular cell is split into 2 triangles.
-    Total nodes: nx * ny
-    Total elements: 2 * (nx-1) * (ny-1)
-
-    Returns
-    -------
-    nodes : ndarray, shape (n_nodes, 2)
-    elements : ndarray, shape (n_elements, 3), 0-based indices
-    """
     if nx < 2 or ny < 2:
         raise ValueError("nx and ny must be at least 2.")
 
@@ -171,10 +100,10 @@ def generate_structured_triangle_mesh(xmin, xmax, ymin, ymax, nx, ny):
             n1 = j * nx + (i + 1)
             n2 = (j + 1) * nx + i
             n3 = (j + 1) * nx + (i + 1)
-            # Lower triangle
+
             elements[e, :] = [n0, n1, n2]
             e += 1
-            # Upper triangle
+
             elements[e, :] = [n1, n3, n2]
             e += 1
 
@@ -182,19 +111,8 @@ def generate_structured_triangle_mesh(xmin, xmax, ymin, ymax, nx, ny):
 
 
 def generate_quadratic_nodes(nodes, elements):
-    """
-    Convert linear triangular mesh to quadratic by adding edge midpoints.
-
-    Linear mesh: 3 nodes per element.
-    Quadratic mesh: 6 nodes per element (3 vertices + 3 edge midpoints).
-
-    Returns
-    -------
-    nodes6 : ndarray, shape (n_nodes6, 2)
-    elements6 : ndarray, shape (n_elements, 6), 0-based
-    """
     n_elements = elements.shape[0]
-    # Build edge-to-midpoint map
+
     edge_map = {}
     midpoints = []
 
@@ -227,12 +145,6 @@ def generate_quadratic_nodes(nodes, elements):
 
 
 def mesh_quality_metrics(nodes, elements):
-    """
-    Compute mesh quality statistics.
-
-    Returns dict with area_min, area_max, quality_min, quality_max, quality_mean,
-    and diameter_max.
-    """
     n_elements = elements.shape[0]
     areas = np.zeros(n_elements)
     qualities = np.zeros(n_elements)
@@ -258,37 +170,10 @@ def mesh_quality_metrics(nodes, elements):
 
 
 def cvt_lloyd_1d(n, it_num, s_num, density_func, init=2):
-    """
-    1D CVT (Centroidal Voronoi Tessellation) with density-weighted lumping.
-
-    Implements Lloyd's algorithm on [-1, 1] with a given density function.
-
-    Parameters
-    ----------
-    n : int
-        Number of generators.
-    it_num : int
-        Number of iterations.
-    s_num : int
-        Number of sample points.
-    density_func : callable
-        Function mapping array of points to densities.
-    init : int
-        1=random, 2=Chebyshev, 3=uniform.
-
-    Returns
-    -------
-    g : ndarray
-        Final generator locations.
-    energy : ndarray
-        Energy history.
-    motion : ndarray
-        Generator motion history.
-    """
     if n < 2:
         raise ValueError("n must be at least 2.")
 
-    # Chebyshev zero nodes for reference
+
     gc = chebyshev_zero_nodes(n, -1.0, 1.0)
 
     if init == 1:
@@ -300,22 +185,22 @@ def cvt_lloyd_1d(n, it_num, s_num, density_func, init=2):
 
     s = np.linspace(-1.0 + 1e-12, 1.0 - 1e-12, s_num)
     mu = density_func(s)
-    mu = np.maximum(mu, 1e-14)  # avoid zero density
-    r = mu ** 3  # density cubed for CVT asymptotics
+    mu = np.maximum(mu, 1e-14)
+    r = mu ** 3
 
     energy = np.zeros(it_num)
     motion = np.zeros(it_num)
     g_new = np.zeros(n)
 
     for it in range(it_num):
-        # Voronoi boundaries
+
         gb = np.zeros(n + 1)
         gb[0] = -1.0
         for j in range(1, n):
             gb[j] = 0.5 * (g[j - 1] + g[j])
         gb[n] = 1.0
 
-        # Find bracket indices for boundaries in sample array
+
         left = np.searchsorted(s, gb, side="right") - 1
         left = np.clip(left, 0, s_num - 1)
 
@@ -345,14 +230,6 @@ def cvt_lloyd_1d(n, it_num, s_num, density_func, init=2):
 
 
 def identify_boundary_nodes(nodes, xmin, xmax, ymin, ymax, tol=1e-9):
-    """
-    Identify boundary nodes on a rectangular domain.
-
-    Returns
-    -------
-    bc_dict : dict
-        Keys: 'left', 'right', 'bottom', 'top', 'all'
-    """
     bc_dict = {
         "left": np.where(np.abs(nodes[:, 0] - xmin) < tol)[0],
         "right": np.where(np.abs(nodes[:, 0] - xmax) < tol)[0],

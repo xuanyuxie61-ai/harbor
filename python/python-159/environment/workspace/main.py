@@ -1,34 +1,11 @@
-"""
-main.py - 火箭发动机燃烧不稳定性的多物理场耦合分析系统
-========================================================
-统一入口文件，零参数可运行。
-
-项目概述:
-=========
-本系统围绕"液体火箭发动机燃烧室热声不稳定性"这一前沿燃烧科学问题，
-集成了15个种子项目的核心算法，构建了从燃烧室几何建模、喷注器布局优化、
-喷雾动力学、两相流动、燃烧波传播、声场模态分析、火焰响应函数到
-热声耦合振荡器预测的完整分析链条。
-
-执行流程:
-    1. 燃烧室几何建模 (Joukowsky变换 + CORDIC + ICE网格)
-    2. 喷注器面板优化布局 (背包问题 + 拼板密铺)
-    3. 喷雾液滴分布优化 (CVT + 蒸发模拟)
-    4. 气液两相流动分析 (Stokes流)
-    5. 一维燃烧波求解 (Jacobi迭代 + Newton插值)
-    6. 声场模态分析 (FEM + Bessel函数)
-    7. 火焰传递函数 (Chebyshev插值 + Lebesgue稳定性)
-    8. 热声耦合振荡器预测 (非线性ODE)
-    9. 综合稳定性评估与报告输出
-"""
 
 import numpy as np
 import sys
 import time
 
-# ============================================================
-# 导入各模块
-# ============================================================
+
+
+
 from utils import (
     cordic_cos_sin, cordic_arctan2,
     circle_monomial_integral, gamma_function_half_integer,
@@ -46,14 +23,12 @@ from thermoacoustic_oscillator import ThermoacousticOscillator, MultiModeThermoa
 
 
 def print_section(title: str):
-    """打印分隔的章节标题。"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_geometry_modeling():
-    """步骤1: 燃烧室几何建模。"""
     print_section("STEP 1: 燃烧室几何建模")
     
     geo = CombustionChamberGeometry(
@@ -68,19 +43,19 @@ def run_geometry_modeling():
     print(f"  面积扩张比: {geo.epsilon:.2f}")
     print(f"  声学等效长度: {geo.acoustic_length():.4f} m")
     
-    # 纵向模态频率
+
     freqs = geo.longitudinal_mode_frequencies(n_modes=5, sound_speed=1200.0)
     print(f"  纵向声学模态频率: {np.round(freqs, 1)} Hz")
     
-    # 生成网格
+
     grid = geo.generate_axisymmetric_grid(n_z=60, n_r=20)
     print(f"  计算网格: {grid['n_vertices']} 顶点, {grid['n_elements']} 单元")
     
-    # Joukowsky喷管型线
+
     contour = geo.apply_joukowsky_nozzle_contour(center_offset=-0.05, circle_radius=0.12)
     print(f"  Joukowsky喷管型线: {contour.shape[0]} 点")
     
-    # CORDIC验证
+
     c, s = cordic_cos_sin(np.deg2rad(15.0), n_iter=50)
     print(f"  CORDIC验证: cos(15°)={c:.12f}, sin(15°)={s:.12f}")
     
@@ -88,7 +63,6 @@ def run_geometry_modeling():
 
 
 def run_injector_optimization():
-    """步骤2: 喷注器面板优化布局。"""
     print_section("STEP 2: 喷注器面板优化布局")
     
     opt = InjectorLayoutOptimizer(
@@ -98,21 +72,21 @@ def run_injector_optimization():
         target_total_flow=120.0
     )
     
-    # 生成候选位置
+
     n_cand = opt.generate_candidate_positions_triangular(n_layers=6)
     print(f"  候选位置数: {n_cand}")
     
-    # 贪心启发式求解
+
     result = opt.solve_greedy_heuristic()
     print(f"  选中单元数: {result['n_selected']}")
     print(f"  总流量: {result['total_weight']:.2f} kg/s")
     print(f"  布局均匀性指数: {result['uniformity_index']:.4f} (越小越均匀)")
     
-    # 氧燃比分布
+
     mr = opt.compute_mixture_ratio_distribution(result['selected_indices'])
     print(f"  氧燃比分布: mean={mr['mean']:.3f}, std={mr['std']:.4f}")
     
-    # 背包问题求解 (如果候选数可控)
+
     if n_cand <= 25:
         result_bf = opt.solve_brute_force_knapsack(time_limit_seconds=5.0)
         print(f"  暴力求解结果: {result_bf['n_selected']} 单元, "
@@ -122,7 +96,6 @@ def run_injector_optimization():
 
 
 def run_spray_dynamics():
-    """步骤3: 喷雾液滴分布优化与蒸发。"""
     print_section("STEP 3: 喷雾液滴分布优化 (CVT)")
     
     spray = SprayDistributionCVT(
@@ -132,17 +105,17 @@ def run_spray_dynamics():
         gas_pressure=7.0e6
     )
     
-    # CVT优化
+
     result = spray.optimize_distribution(n_iterations=40, n_samples=5000)
     print(f"  CVT收敛迭代: {result['iterations']}")
     print(f"  最终能量泛函: {result['final_energy']:.6e}")
     print(f"  液滴Sauter平均直径: {result['mean_diameter']*1e6:.2f} μm")
     
-    # 蒸发寿命模拟
+
     lifetime = spray.simulate_droplet_lifetime(dt=2e-5, n_steps=800)
     print(f"  蒸发完成比例: {lifetime['evaporation_fraction']:.3f}")
     
-    # 喷雾统计
+
     stats = spray.compute_spray_statistics()
     print(f"  平均轴向位置: {stats['mean_axial_position']:.4f} m")
     print(f"  平均径向位置: {stats['mean_radial_position']:.4f} m")
@@ -151,10 +124,9 @@ def run_spray_dynamics():
 
 
 def run_two_phase_flow(geo):
-    """步骤4: 气液两相流动分析。"""
     print_section("STEP 4: 气液两相流动分析 (Stokes流)")
     
-    # 单液滴Stokes分析
+
     stokes = StokesDropletFlow(
         droplet_radius=40e-6,
         free_stream_velocity=30.0,
@@ -168,7 +140,7 @@ def run_two_phase_flow(geo):
     print(f"  Nusselt数: {stokes.compute_nusselt_number():.3f}")
     print(f"  Sherwood数: {stokes.compute_sherwood_number():.3f}")
     
-    # 1D两相流求解
+
     flow = TwoPhaseFlowSolver(geo, n_z=150)
     result = flow.solve_steady_1d()
     print(f"  蒸发特征长度: {result['evaporation_length']:.4f} m")
@@ -179,10 +151,9 @@ def run_two_phase_flow(geo):
 
 
 def run_combustion_wave():
-    """步骤5: 一维燃烧波传播。"""
     print_section("STEP 5: 一维燃烧波 (反应-扩散方程)")
     
-    # Newton插值测试
+
     x_data = np.array([1.0, 3.0, 5.0, 7.0, 10.0, 15.0, 20.0]) * 1e6
     rate_model = CombustionRateModel(a_coeff=1.5e-5, n_coeff=0.5)
     y_data = np.array([rate_model.regression_rate(x) for x in x_data])
@@ -196,7 +167,7 @@ def run_combustion_wave():
         print(f"    P={p/1e6:.1f} MPa: 精确={exact*1e3:.4f} mm/s, "
               f"插值={approx*1e3:.4f} mm/s, 误差={abs(exact-approx)/exact*100:.4f}%")
     
-    # 反应扩散求解
+
     rd = ReactionDiffusionSolver(
         domain_length=0.015,
         n_points=151,
@@ -217,7 +188,6 @@ def run_combustion_wave():
 
 
 def run_acoustic_modes(geo):
-    """步骤6: 声场模态分析。"""
     print_section("STEP 6: 声场模态分析 (FEM)")
     
     analyzer = AcousticModeAnalyzer(
@@ -226,34 +196,34 @@ def run_acoustic_modes(geo):
         sound_speed=1200.0
     )
     
-    # 纵向模态
+
     L_modes = analyzer.longitudinal_modes()
     print("  纵向声学模态:")
     for m in L_modes['modes']:
         print(f"    L{m['n']}: f = {m['frequency']:.1f} Hz")
     
-    # 径向/切向模态
+
     R_modes = analyzer.radial_modes()
     print("  径向/切向模态 (前6个):")
     for m in R_modes['modes'][:6]:
         print(f"    {m['type']}{m['m']}{m['n']}: f = {m['frequency']:.1f} Hz")
     
-    # 正交性验证
+
     ortho = analyzer.compute_orthogonality_integrals("L")
     diag = np.diag(ortho)
     offdiag_max = np.max(np.abs(ortho - np.diag(diag)))
     print(f"  模态正交性验证: 最大非对角元 = {offdiag_max:.6e}")
     
-    # 圆积分验证
+
     I22 = circle_monomial_integral(2, 2)
     print(f"  圆积分验证 x²y²: {I22:.10f} (理论=π/4≈0.785398)")
     
-    # FEM本征值验证
+
     fem = FEMHelmholtzSolver(length=geo.L_c, n_elements=100)
     fem_result = fem.solve_eigenvalue(n_modes=5)
     print(f"  FEM本征频率: {np.round(fem_result['frequencies'], 1)} Hz")
     
-    # Rayleigh准则测试
+
     z = np.linspace(0, geo.L_c, 100)
     p_mode = np.cos(np.pi * z / (2 * geo.L_c))
     q_osc = np.exp(-10 * (z - geo.L_c * 0.3) ** 2)
@@ -264,10 +234,9 @@ def run_acoustic_modes(geo):
 
 
 def run_flame_response():
-    """步骤7: 火焰传递函数与插值稳定性。"""
     print_section("STEP 7: 火焰传递函数 (FTF)")
     
-    # Chebyshev插值
+
     coeffs_2d = np.array([
         [1.0, 0.3, -0.1],
         [0.2, -0.05, 0.02],
@@ -277,7 +246,7 @@ def run_flame_response():
     cheb_val = cheb.evaluate(np.array([0.5, 0.5]))
     print(f"  2D Chebyshev插值 (0.5,0.5): {cheb_val:.6f}")
     
-    # Lebesgue常数比较
+
     n_test = 12
     eq_nodes = np.linspace(-1, 1, n_test)
     leb_eq = LebesgueStabilityAnalyzer(eq_nodes)
@@ -291,7 +260,7 @@ def run_flame_response():
     print(f"  Lebesgue常数 (Chebyshev节点, n={n_test}): {lambda_cheb:.2f}")
     print(f"  插值稳定性提升: {lambda_eq/lambda_cheb:.1f}x")
     
-    # 火焰传递函数
+
     ftf = FlameTransferFunction(
         interaction_index=1.2,
         time_delay_ms=2.0,
@@ -318,26 +287,25 @@ def run_flame_response():
 
 
 def run_thermoacoustic_oscillator(analyzer):
-    """步骤8: 热声耦合振荡器预测。"""
     print_section("STEP 8: 热声耦合振荡器")
     
-    # TODO(Hole_3): 正确建立热声耦合振荡器参数桥梁
-    # 需要从 analyzer (AcousticModeAnalyzer) 中提取声学模态信息,
-    # 并选择合适的阻尼系数、火焰增益系数和非线性饱和系数,
-    # 使得振荡器能够正确反映燃烧室的热声不稳定性特征。
-    # 关键约束:
-    #   1. 单模态振荡器的 natural_frequency_hz 必须来自 acoustic_modes 分析结果
-    #   2. acoustic_damping 和 flame_gain_coefficient 的选取必须满足物理一致性
-    #      (即 alpha_eff = alpha_acoustic - gamma*n 的符号决定稳定性)
-    #   3. 多模态系统的频率和阻尼数组必须与单模态参数物理兼容
-    # 提示: 参考声学模态分析器的 longitudinal_modes() 返回结构
+
+
+
+
+
+
+
+
+
+
     
-    # 单模态振荡器 (当前参数不完整, 需要修复)
+
     osc = ThermoacousticOscillator(
-        natural_frequency_hz=0.0,  # TODO: 从 analyzer 获取基频
-        acoustic_damping=0.0,      # TODO: 选择物理合理的阻尼系数
-        flame_gain_coefficient=0.0,# TODO: 选择物理合理的火焰增益
-        nonlinear_saturation=0.0,  # TODO: 选择合理的非线性饱和系数
+        natural_frequency_hz=0.0,
+        acoustic_damping=0.0,
+        flame_gain_coefficient=0.0,
+        nonlinear_saturation=0.0,
         initial_pressure_disturbance_pa=200.0
     )
     
@@ -355,9 +323,9 @@ def run_thermoacoustic_oscillator(analyzer):
     print(f"    估计频率: {metrics['estimated_frequency_hz']:.1f} Hz")
     print(f"    线性增长率: {metrics['growth_rate_1_per_s']:.2f} 1/s")
     
-    # 多模态系统 (当前参数不完整, 需要修复)
-    freqs = np.array([0.0, 0.0, 0.0])  # TODO: 从 analyzer 获取前3阶频率
-    damping = np.array([0.0, 0.0, 0.0])  # TODO: 设置与各阶模态兼容的阻尼
+
+    freqs = np.array([0.0, 0.0, 0.0])
+    damping = np.array([0.0, 0.0, 0.0])
     multi = MultiModeThermoacousticSystem(freqs, damping)
     multi_result = multi.integrate(t_span=(0, 0.03), n_steps=15000)
     
@@ -369,18 +337,17 @@ def run_thermoacoustic_oscillator(analyzer):
 
 
 def run_comprehensive_assessment(geo, osc, analyzer, ftf):
-    """步骤9: 综合稳定性评估。"""
     print_section("STEP 9: 综合稳定性评估")
     
-    # 比冲估算
+
     I_sp = specific_impulse_ideal(7e6, geo.epsilon)
     print(f"  理想比冲估算: {I_sp:.2f} s")
     
-    # 燃烧温度
+
     T_c = combustion_temperature(7e6, 2.56)
     print(f"  绝热燃烧温度: {T_c:.1f} K")
     
-    # 稳定性判据汇总
+
     print("  稳定性判据汇总:")
     print(f"    1. 纵向基频: {analyzer.longitudinal_modes()['modes'][0]['frequency']:.1f} Hz")
     print(f"    2. 有效阻尼: {osc.alpha_eff:.2f} 1/s")
@@ -399,7 +366,7 @@ def run_comprehensive_assessment(geo, osc, analyzer, ftf):
     else:
         print(f"    4. 系统稳定，无自激振荡风险")
     
-    # Nyquist稳定性
+
     stability = ftf.compute_nyquist_stability_margin()
     gm_db = stability['gain_margin_db']
     if gm_db != np.inf and gm_db < 6.0:
@@ -411,7 +378,6 @@ def run_comprehensive_assessment(geo, osc, analyzer, ftf):
 
 
 def main():
-    """主程序入口。"""
     print("\n" + "#" * 70)
     print("#  火箭发动机燃烧不稳定性的多物理场耦合分析系统")
     print("#  Rocket Engine Combustion Instability Analysis System")
@@ -422,7 +388,7 @@ def main():
     start_time = time.time()
     
     try:
-        # 执行各分析步骤
+
         geo = run_geometry_modeling()
         opt, opt_result = run_injector_optimization()
         spray = run_spray_dynamics()

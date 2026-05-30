@@ -1,43 +1,16 @@
-"""
-optimization_design.py
-复合材料层合板铺层顺序的全局优化与动态规划。
-原项目映射：
-  - 471_glomin 的全局优化算法（带Lipschitz约束的Brent方法）
-  - 156_change_dynamic 的动态规划思想用于最优铺层组合搜索
-科学背景：
-  层合板铺层设计优化问题：
-    min_{θ_k} f(θ_1, ..., θ_n) = -F_{buckling} / F_{ref} + w_d * D_max
-    subject to:
-      -90° ≤ θ_k ≤ 90°
-      |θ_k - θ_{k+1}| ≤ Δθ_max  (制造约束)
-      平衡约束：对于每 +θ 层，存在 -θ 层
-  其中 F_{buckling} 为屈曲载荷，D_max 为最大损伤变量，w_d 为权重。
-  对于离散铺层角度（如每15°），可用动态规划求解最优序列。
-"""
 
 import numpy as np
 
 
 class LaminateOptimization:
-    """层合板铺层顺序优化器。"""
 
     def __init__(self, material, n_plies, target_load, thickness_per_ply=0.125):
-        """
-        material: CompositeMaterial
-        n_plies: 铺层数
-        target_load: 目标载荷 (N/m)
-        thickness_per_ply: 单层厚度 (mm)
-        """
         self.material = material
         self.n_plies = n_plies
         self.target_load = target_load
         self.thickness_per_ply = thickness_per_ply
 
     def objective_function(self, angles_deg):
-        """
-        目标函数：最小化 -(屈曲载荷/目标载荷) + 损伤惩罚。
-        返回标量目标值。
-        """
         from stiffness_assembly import LaminateStiffness
         from eigen_buckling import BucklingAnalysis
 
@@ -49,17 +22,17 @@ class LaminateOptimization:
         except Exception:
             return 1e6
 
-        # 屈曲载荷因子
+
         buckling_factor = N_cr / (self.target_load + 1e-6)
 
-        # 损伤惩罚（简化为角度不连续性惩罚）
+
         angle_penalty = 0.0
         for i in range(len(angles_deg) - 1):
             delta = abs(angles_deg[i] - angles_deg[i + 1])
             if delta > 60.0:
                 angle_penalty += (delta - 60.0) * 0.01
 
-        # 平衡性惩罚（非对称铺层）
+
         balance_penalty = 0.0
         if len(angles_deg) % 2 == 0:
             mid = len(angles_deg) // 2
@@ -71,11 +44,6 @@ class LaminateOptimization:
         return obj
 
     def glomin_1d(self, f, a, b, c, m, e, t, max_calls=500):
-        """
-        一维全局最小化（从 471_glomin 迁移的Brent算法核心思想）。
-        在区间[a,b]上寻找f(x)的全局最小值。
-        假设 |f''(x)| ≤ M。
-        """
         calls = 0
         a0 = float(b)
         x = a0
@@ -204,39 +172,32 @@ class LaminateOptimization:
         return x, y, calls
 
     def optimize_single_angle(self):
-        """优化单一铺层角度（所有层同向）。"""
         def f(theta):
             angles = [theta] * self.n_plies
             return self.objective_function(angles)
 
-        # 全局搜索角度 [0, 90] 度，限制调用次数
+
         best_theta, best_obj, calls = self.glomin_1d(
             f, 0.0, 90.0, 45.0, 0.1, 1e-6, 1e-4, max_calls=30)
         return best_theta, best_obj, calls
 
     def dynamic_programming_stack(self, angle_set=None):
-        """
-        动态规划求解最优离散铺层序列（从 change_dynamic 迁移）。
-        状态：dp[i][θ] = 前i层以角度θ结尾的最小目标值
-        转移：dp[i][θ] = min_{θ'} {dp[i-1][θ'] + cost(θ', θ)}
-        angle_set: 可选角度集合（默认每15度）
-        """
         if angle_set is None:
             angle_set = list(range(-90, 91, 15))
 
         n_angles = len(angle_set)
         INF = 1e12
 
-        # dp[j] = 当前层以 angle_set[j] 结尾的最优值
+
         dp = [INF] * n_angles
         parent = [-1] * n_angles
 
-        # 初始化第一层
+
         for j in range(n_angles):
             angles = [angle_set[j]]
             dp[j] = self.objective_function(angles)
 
-        # 逐层动态规划
+
         for layer in range(1, self.n_plies):
             new_dp = [INF] * n_angles
             new_parent = [-1] * n_angles
@@ -246,10 +207,10 @@ class LaminateOptimization:
                 best_prev = -1
                 for k in range(n_angles):
                     theta_prev = angle_set[k]
-                    # 制造约束：相邻层角度变化不超过60度
+
                     if abs(theta_curr - theta_prev) > 60.0:
                         continue
-                    # 快速评估：只构造前layer层
+
                     trial_angles = [angle_set[k]] * layer + [theta_curr]
                     val = dp[k] + self.objective_function(trial_angles)
                     if val < best_val:
@@ -260,7 +221,7 @@ class LaminateOptimization:
             dp = new_dp
             parent = new_parent
 
-        # 回溯最优解
+
         best_j = int(np.argmin(dp))
         optimal_angles = []
         j = best_j
@@ -273,10 +234,5 @@ class LaminateOptimization:
 
 
 def compute_ply_combinations(n_plies, angle_candidates):
-    """
-    动态规划计算所有可行的铺层组合数（从 change_dynamic 的计数思想迁移）。
-    类比 change_dynamic 的硬币问题：角度为"硬币面值"，n_plies为"目标金额"。
-    这里统计满足平衡约束的铺层序列数。
-    """
-    # 简化为统计所有可能的序列数
+
     return len(angle_candidates) ** n_plies

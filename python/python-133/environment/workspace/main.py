@@ -1,29 +1,12 @@
 #!/usr/bin/env python3
-"""
-main.py
-========
-聚合反应动力学与分子量分布多尺度耦合模拟系统
-
-统一入口，零参数运行。
-本程序执行以下完整流程：
-  1. 自由基聚合反应动力学 ODE 求解（矩方法）
-  2. 一维 DG 反应-扩散方程求解（反应器轴向温度/浓度分布）
-  3. 分子量分布计算与截断对数正态建模
-  4. 聚合物链构象蒙特卡洛采样与混合效率估计
-  5. 参数不确定性量化（稀疏网格 Gauss-Hermite）
-  6. 分子量分布 Vandermonde 插值重构
-  7. 二维非线性反应-扩散 Newton-Krylov 求解（凝胶效应）
-  8. CVT 反应器最优空间离散化
-  9. 求积规则精确性验证
-"""
 
 import sys
 import numpy as np
 import time
 
-# ---------------------------------------------------------------------------
-# 导入各模块
-# ---------------------------------------------------------------------------
+
+
+
 from polymerization_kinetics import (
     PolymerizationParameters,
     integrate_polymerization,
@@ -88,9 +71,9 @@ def main() -> int:
     print("#  Chemical Engineering: Polymerization Kinetics & MWD")
     print("#" * 70)
 
-    # =====================================================================
-    # 模块 1: 聚合反应动力学 ODE 求解 (种子 090, 1037)
-    # =====================================================================
+
+
+
     print_header("模块 1: 自由基聚合反应动力学矩方程")
 
     params = PolymerizationParameters(
@@ -108,13 +91,13 @@ def main() -> int:
         tstop=3600.0,
     )
 
-    # TODO(Hole 3): 调用聚合动力学求解器并计算工程指标
-    # 1. 使用 integrate_polymerization 对动力学方程组进行时间积分，获得 t_vec 与 y_mat
-    # 2. 调用 compute_conversion_and_pdi 由状态矩阵计算转化率、聚合度、PDI 与分子量
+
+
+
     t_vec, y_mat = None, None
     results = {}
 
-    # 输出关键结果（取最终时刻）
+
     idx_final = -1
     print_result("单体转化率 X", results['conversion'][idx_final], "")
     print_result("数均聚合度 DP_n", results['DP_n'][idx_final], "")
@@ -123,13 +106,13 @@ def main() -> int:
     print_result("数均分子量 M_n", results['Mn'][idx_final], "g/mol")
     print_result("重均分子量 M_w", results['Mw'][idx_final], "g/mol")
 
-    # 解析解对比
+
     M_approx = exact_solution_batch(np.array([params.tstop]), params)
     print_result("解析近似 M(t_stop)", M_approx[0], "mol/L")
 
-    # =====================================================================
-    # 模块 2: 一维 DG 反应-扩散求解器 (种子 273, 359)
-    # =====================================================================
+
+
+
     print_header("模块 2: 一维 DG 反应-扩散-对流方程")
 
     dg_solver = DG1DReactionDiffusion(
@@ -137,11 +120,11 @@ def main() -> int:
         v=0.0, D_diff=1.0e-3
     )
 
-    # 初始浓度分布：正弦型，满足边界 u=0
+
     u0 = params.M0 * np.sin(np.pi * dg_solver.x)
 
     def source_func(x_arr, t):
-        # 温和的反应源项
+
         return 0.1 * np.ones_like(x_arr)
 
     x_dg, u_dg = dg_solver.solve(u0, final_time=10.0, source_func=source_func)
@@ -151,17 +134,17 @@ def main() -> int:
     print_result("最大浓度", float(np.max(u_dg)), "mol/L")
     print_result("最小浓度", float(np.min(u_dg)), "mol/L")
 
-    # =====================================================================
-    # 模块 3: 分子量分布建模 (种子 1360, 886)
-    # =====================================================================
+
+
+
     print_header("模块 3: 分子量分布与截断对数正态模型")
 
     n_grid = np.arange(1, 2001, dtype=float)
     p_growth = 0.995
-    # TODO(Hole 4): 调用分子量分布建模函数并计算 PDI
-    # 1. 使用 flory_schulz_distribution 计算链长分布 PMF
-    # 2. 使用 flory_schulz_moments 计算分布的前 4 阶矩
-    # 3. 调用 compute_pdi_from_moments 由矩计算 DP_n、DP_w、PDI
+
+
+
+
     pmf_fs = None
     moments_fs = None
     DP_n_fs, DP_w_fs, PDI_fs = None, None, None
@@ -170,13 +153,13 @@ def main() -> int:
     print_result("Flory-Schulz DP_w", DP_w_fs, "")
     print_result("Flory-Schulz PDI", PDI_fs, "")
 
-    # 截断对数正态分布
+
     mw_grid = np.logspace(1.0, 6.0, 500)
     pdf_ln = lognormal_mwd_pdf(mw_grid, mu_log=8.0, sigma_log=1.5, a=100.0, b=1.0e6)
     print_result("截断对数正态积分", float(np.trapezoid(pdf_ln, mw_grid)), "")
 
-    # 多边形矩（模拟反应器截面）
-    # 单位正方形
+
+
     x_poly = np.array([0.0, 1.0, 1.0, 0.0])
     y_poly = np.array([0.0, 0.0, 1.0, 1.0])
     nu_00 = polygon_moment(4, x_poly, y_poly, 0, 0)
@@ -184,54 +167,54 @@ def main() -> int:
     print_result("多边形零阶矩 ν_00", nu_00, "m²")
     print_result("多边形一阶矩 ν_11", nu_11, "m⁴")
 
-    # 流场展宽修正
+
     moments_broad = local_mwd_broadening(moments_fs, velocity_gradient=5.0,
                                          diffusion_coeff=1.0e-5, reaction_rate=0.1)
     print_result("展宽修正后 μ_1", moments_broad[1], "")
 
-    # =====================================================================
-    # 模块 4: 蒙特卡洛链采样与混合效率 (种子 331, 298)
-    # =====================================================================
+
+
+
     print_header("模块 4: 聚合物链构象蒙特卡洛与混合效率")
 
-    # 椭球采样模拟受限链构象空间
+
     A_ellipsoid = np.array([[4.0, 1.0], [1.0, 2.0]])
     ellipsoid_samples = ellipse_sample(500, A_ellipsoid, r=1.0)
     print_result("椭球采样均值 x", float(np.mean(ellipsoid_samples[0, :])), "")
     print_result("椭球采样均值 y", float(np.mean(ellipsoid_samples[1, :])), "")
 
-    # 粗粒化链采样
+
     chain_samples = coarse_grained_chain_mc(n_segments=100, n_samples=200,
                                             kuhn_length=0.5)
     rg_mean = np.mean(np.linalg.norm(chain_samples, axis=1))
     print_result("平均末端距", rg_mean, "nm")
 
-    # 混合效率
+
     avg_area, efficiency, theoretical = mixing_efficiency_estimate(n_trials=5000)
     print_result("圆盘随机三角形平均面积", avg_area, "")
     print_result("混合效率 η_mix", efficiency, "")
     print_result("理论值", theoretical, "")
 
-    # 临界孔径
+
     dc = critical_pore_size(chain_samples, porosity=0.4)
     print_result("临界孔隙尺寸", dc, "nm")
 
-    # =====================================================================
-    # 模块 5: 不确定性量化 (种子 1105)
-    # =====================================================================
+
+
+
     print_header("模块 5: 稀疏网格 Gauss-Hermite 不确定性量化")
 
     def polymer_model(xi):
-        # 3 维参数不确定性：log(kp), log(kt), f
+
         kp_eff = 2500.0 * np.exp(0.1 * xi[0])
         kt_eff = 1.0e7 * np.exp(0.15 * xi[1])
         f_eff = 0.55 + 0.05 * xi[2]
         f_eff = np.clip(f_eff, 0.1, 1.0)
-        # 简化 PDI 估计：PDI ≈ 1 + p, p ≈ kp[M] / (kp[M] + kt*λ0)
+
         lam0_ss = np.sqrt(2.0 * f_eff * params.kd * params.I0 / kt_eff)
         p = kp_eff * params.M0 / (kp_eff * params.M0 + kt_eff * lam0_ss + 1.0e-12)
         p = min(p, 0.9999)
-        return (1.0 + p) / (1.0 - p)  # DP_w approximation
+        return (1.0 + p) / (1.0 - p)
 
     uq_results = propagate_uncertainty(
         polymer_model, dim_num=3, level_max=3,
@@ -245,19 +228,19 @@ def main() -> int:
     print_result("PDI 偏度", uq_results['skewness'], "")
     print_result("PDI 峰度", uq_results['kurtosis'], "")
 
-    # Sobol 敏感度
+
     sobol_idx = sensitivity_index_sobol(
         uq_results['values'], uq_results['weights'],
         uq_results['points'], dim_num=3
     )
     print(f"  Sobol 敏感度 S1 (kp, kt, f)   : {sobol_idx}")
 
-    # =====================================================================
-    # 模块 6: Vandermonde 分布重构 (种子 1384)
-    # =====================================================================
+
+
+
     print_header("模块 6: 分子量分布 Vandermonde 插值重构")
 
-    # 构造离散 MWD 数据点
+
     mw_data = np.array([1e2, 5e2, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6])
     wf_data = lognormal_mwd_pdf(mw_data, mu_log=8.0, sigma_log=1.2,
                                 a=50.0, b=2.0e6)
@@ -267,19 +250,19 @@ def main() -> int:
     print_result("重构分布峰值", float(np.max(w_interp)), "")
     print_result("重构分布峰值位置", float(M_interp[np.argmax(w_interp)]), "g/mol")
 
-    # 由系数计算矩
+
     moments_recon = monomial_moments_from_coeffs(coeffs, scale=1.0, max_moment=2)
     print_result("重构 μ_0", moments_recon[0], "")
     print_result("重构 μ_1", moments_recon[1], "g/mol")
 
-    # =====================================================================
-    # 模块 7: 非线性反应-扩散求解 (种子 871, 034)
-    # =====================================================================
+
+
+
     print_header("模块 7: 凝胶效应非线性反应-扩散 Newton-Krylov 求解")
 
     n2d = 21
     u0_2d = np.zeros(n2d * n2d)
-    # 初始猜测：中心高转化率
+
     for i in range(n2d):
         for j in range(n2d):
             k = i * n2d + j
@@ -305,16 +288,16 @@ def main() -> int:
     print_result("最大转化率", float(np.max(u_sol)), "")
     print_result("平均转化率", float(np.mean(u_sol)), "")
 
-    # 正交性检验
+
     test_mat = np.random.randn(5, 5)
     q, _ = np.linalg.qr(test_mat)
     det_val, ifault = detq_orthogonal(q)
     print_result("QR 正交行列式", det_val, "")
     print(f"  正交性检验 ifault                : {ifault}")
 
-    # =====================================================================
-    # 模块 8: CVT 反应器离散化 (种子 247)
-    # =====================================================================
+
+
+
     print_header("模块 8: CVT 反应器最优空间离散化")
 
     g, energy, motion = optimal_reactor_nodes(n_nodes=16, n_iter=20, n_samples=60)
@@ -324,12 +307,12 @@ def main() -> int:
     print(f"  生成元质心范围 x                 : [{g[:,0].min():.4f}, {g[:,0].max():.4f}]")
     print(f"  生成元质心范围 y                 : [{g[:,1].min():.4f}, {g[:,1].max():.4f}]")
 
-    # =====================================================================
-    # 模块 9: 求积规则验证 (种子 930, 776)
-    # =====================================================================
+
+
+
     print_header("模块 9: 稀疏网格求积规则精确性验证")
 
-    # 构造一维 5 点 Gauss-Hermite 规则进行验证
+
     from numpy.polynomial.hermite import hermgauss
     x_gh, w_gh = hermgauss(5)
     grid_pt = x_gh.reshape(1, -1)
@@ -342,15 +325,15 @@ def main() -> int:
         if info['max_error'] > 1.0e-12:
             print(f"  阶数 {deg:2d} 最大误差                : {info['max_error']:.6e}")
 
-    # 收敛阶估计（模拟不同阶数）
+
     errors_demo = [1.0e-2, 1.0e-4, 1.0e-6]
     npts_demo = [10, 50, 250]
     p_est = convergence_order_estimate(errors_demo, npts_demo)
     print_result("演示收敛阶估计", p_est, "")
 
-    # =====================================================================
-    # 总时间统计
-    # =====================================================================
+
+
+
     elapsed = time.time() - start_time
     print("\n" + "#" * 70)
     print(f"#  模拟完成，总耗时: {elapsed:.3f} s")

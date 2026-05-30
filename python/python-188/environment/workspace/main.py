@@ -1,20 +1,8 @@
-"""
-基于多尺度物理-化学动力学约束的语义嵌入空间分析与优化系统
-=====================================================================
-
-统一入口文件。零参数可运行，执行完整的语义嵌入分析流程。
-
-本系统融合15个种子项目的核心算法，围绕"数据科学：自然语言处理语义嵌入"
-领域，构建了一个前沿博士级科学计算平台。
-
-运行方式:
-    python main.py
-"""
 
 import sys
 import numpy as np
 
-# 导入所有模块
+
 from embedding_bases import SemanticEmbeddingBases
 from fem_projection import FEM2DSemanticProjection
 from heat_diffusion import SemanticHeatDiffusion
@@ -31,14 +19,12 @@ from robust_utils import RobustNumericUtils
 
 
 def section(title: str):
-    """打印章节标题"""
     print("\n" + "=" * 70)
     print(f"  {title}")
     print("=" * 70)
 
 
 def run_embedding_bases_analysis():
-    """运行语义嵌入正交基分析"""
     section("1. 语义嵌入正交基分析 (Helmholtz/Bessel)")
 
     bases = SemanticEmbeddingBases(radius=1.0, max_mode_m=4, max_mode_n=3)
@@ -50,7 +36,7 @@ def run_embedding_bases_analysis():
     r_flat = R.flatten()
     theta_flat = T.flatten()
 
-    # 构造高斯型语义密度场
+
     semantic_field = np.exp(-((r_flat - 0.5) ** 2 + (np.sin(theta_flat)) ** 2) / 0.1)
     coeffs = bases.project_semantic_vector(semantic_field, r_flat, theta_flat)
     reconstructed = bases.reconstruct_semantic_field(coeffs, r_flat, theta_flat)
@@ -67,7 +53,6 @@ def run_embedding_bases_analysis():
 
 
 def run_fem_projection():
-    """运行有限元语义密度投影"""
     section("2. 语义密度有限元L2投影")
 
     fem = FEM2DSemanticProjection(xl=0.0, xr=1.0, yb=0.0, yt=1.0, nx=9, ny=9)
@@ -90,36 +75,33 @@ def run_fem_projection():
 
 
 def run_heat_diffusion():
-    """运行语义热扩散模拟"""
     section("3. 语义信息稳态热扩散")
 
-    # TODO [Hole 3a]: 调用热扩散求解器并验证守恒律
-    # 1. 创建 SemanticHeatDiffusion 实例
-    # 2. 定义 conductivity(x) 和 source(x) 函数
-    # 3. 调用 diffusion.solve() 获取稳态解 U
-    # 4. 调用 diffusion.compute_flux() 计算热流
-    # 5. 验证能量守恒: 积分(source) ≈ flux[-1] - flux[0]
-    # 6. 打印结果并返回字典
+
+
+
+
+
+
+
     raise NotImplementedError("Hole 3a: 热扩散模块调用尚未实现")
 
 
 def run_reaction_dynamics():
-    """运行语义反应动力学"""
     section("4. 语义双向反应动力学")
 
-    # TODO [Hole 3b]: 调用反应动力学求解器并验证精确解
-    # 1. 创建 SemanticReactionDynamics 实例
-    # 2. 数值求解 reaction.solve_numerical()
-    # 3. 获取精确解 reaction.exact_solution() 并与数值解对比
-    # 4. 验证守恒量 w1+w2 = w10+w20
-    # 5. 计算并打印稳态和弛豫时间
-    # 6. 构造多概念反应网络并求解
-    # 7. 返回结果字典
+
+
+
+
+
+
+
+
     raise NotImplementedError("Hole 3b: 反应动力学模块调用尚未实现")
 
 
 def run_period_analysis():
-    """运行周期分析"""
     section("5. 语义系统非线性振荡器周期分析")
 
     print("Van der Pol 振荡器:")
@@ -141,7 +123,6 @@ def run_period_analysis():
 
 
 def run_space_quantization():
-    """运行CVT空间量化"""
     section("6. 语义空间CVT量化")
 
     cvt = SemanticSpaceQuantization(n_generators=10, max_iter=200, tol=1e-12)
@@ -158,7 +139,7 @@ def run_space_quantization():
     print(f"均匀量化误差: {error_uniform:.6e}")
     print(f"改进比例: {(error_uniform - error_cvt) / error_uniform * 100:.2f}%")
 
-    # 二维CVT
+
     cvt2 = SemanticSpaceQuantization(n_generators=6, max_iter=200, tol=1e-12)
     res2d = cvt2.quantize_2d(n_generators_x=5, n_generators_y=5, init_mode='random', seed=42)
     print(f"\n二维CVT生成元数: {len(res2d['generators_2d'])}")
@@ -167,7 +148,6 @@ def run_space_quantization():
 
 
 def run_path_optimizer():
-    """运行TSP路径优化"""
     section("7. 语义嵌入TSP路径优化")
 
     n = 10
@@ -188,19 +168,18 @@ def run_path_optimizer():
 
 
 def run_subset_selector():
-    """运行特征子集选择"""
     section("8. 语义特征子集选择")
 
     selector = SemanticSubsetSelector(max_brute_force_n=20)
 
-    # 小规模精确解
+
     weights = np.array([1, 2, 4, 8, 16, 32])
     target = 22.0
     result = selector.brute_force_search(weights, target)
     print(f"子集和问题: weights={weights}, target={target}")
     print(f"选择: {result['choose']}, 子集和={result['subset_sum']}, 精确={result['found_exact']}")
 
-    # 语义嵌入特征选择
+
     rng = np.random.default_rng(42)
     embedding = rng.standard_normal(16) * np.exp(-np.arange(16) / 5.0)
     result2 = selector.feature_selection_for_embedding(embedding, target_info_ratio=0.8)
@@ -217,7 +196,6 @@ def run_subset_selector():
 
 
 def run_fractal_analysis():
-    """运行分形分析"""
     section("9. 语义嵌入分形与混沌分析")
 
     mbd = MandelbrotSemanticBoundary(escape_radius=2.0)
@@ -227,14 +205,14 @@ def run_fractal_analysis():
     print(f"属于Mandelbrot集的点数: {np.sum(result >= 30)}")
     print(f"逃逸点比例: {np.sum(result < 30) / result.size * 100:.2f}%")
 
-    # 分形维数
+
     D = mbd.estimate_fractal_dimension(
         x_min=-1.0, x_max=0.5, y_min=-1.0, y_max=1.0,
         resolutions=[32, 64, 128]
     )
     print(f"估计分形维数: {D:.4f}")
 
-    # IFS
+
     ifs = IFSSemanticTransformer(seed=42)
     rng = np.random.default_rng(42)
     embedding = rng.standard_normal(10)
@@ -249,7 +227,6 @@ def run_fractal_analysis():
 
 
 def run_structured_decomposition():
-    """运行结构化分解"""
     section("10. 语义嵌入维度结构化分解")
 
     decomp = SemanticStructuredDecomposition()
@@ -273,7 +250,6 @@ def run_structured_decomposition():
 
 
 def run_sampling_init():
-    """运行采样初始化"""
     section("11. 语义空间拉丁超立方采样")
 
     sampler = SemanticSpaceSampler(seed=42)
@@ -289,7 +265,7 @@ def run_sampling_init():
     print(f"随机采样差异度: {random_disc:.6f}")
     print(f"LHS 改进: {(random_disc - lhs_disc) / random_disc * 100:.2f}%")
 
-    # 超球面方向
+
     directions = sampler.uniform_direction_sampling(100, 8)
     norms = np.linalg.norm(directions, axis=1)
     print(f"方向向量范数均值: {norms.mean():.6f} (应为1.0)")
@@ -298,7 +274,6 @@ def run_sampling_init():
 
 
 def run_numerical_verification():
-    """运行数值精度验证"""
     section("12. Steinerberger数值精度验证")
 
     verifier = SteinerbergerVerifier()
@@ -309,7 +284,7 @@ def run_numerical_verification():
               f"Simpson误差={r['simpson_error']:.2e}, "
               f"Quad误差={r['quad_error']:.2e}")
 
-    # 语义嵌入积分测试
+
     rng = np.random.default_rng(42)
     embedding = rng.standard_normal(8)
 
@@ -327,12 +302,11 @@ def run_numerical_verification():
 
 
 def run_robust_utils():
-    """运行鲁棒性工具验证"""
     section("13. 数值鲁棒性工具验证")
 
     utils = RobustNumericUtils()
 
-    # 边界测试
+
     print(f"safe_divide(1.0, 0.0) = {utils.safe_divide(1.0, 0.0)}")
     print(f"safe_log(0.0) = {utils.safe_log(0.0)}")
     print(f"safe_sqrt(-1.0) = {utils.safe_sqrt(-1.0)}")
@@ -345,7 +319,7 @@ def run_robust_utils():
     print(f"  sim([1,0,1], [1,0,1]) = {utils.semantic_similarity_safe(e1, e1):.6f}")
     print(f"  sim([0,0,0], [1,0,1]) = {utils.semantic_similarity_safe(e3, e1):.6f}")
 
-    # 病态矩阵
+
     A = np.array([[1.0, 1.0], [1.0, 1.0000001]])
     b = np.array([2.0, 2.0])
     x = utils.solve_linear_system_safe(A, b)
@@ -357,15 +331,14 @@ def run_robust_utils():
 
 
 def run_integrated_analysis():
-    """运行综合集成分析"""
     section("14. 综合集成分析")
 
-    # 1. 生成语义嵌入空间的采样点
+
     sampler = SemanticSpaceSampler(seed=42)
     samples = sampler.latin_hypercube_sampling(n_samples=20, n_dims=3)
     directions = sampler.uniform_direction_sampling(20, 3)
 
-    # 2. 构建距离矩阵并优化路径
+
     rng = np.random.default_rng(42)
     embeddings = rng.standard_normal((10, 8))
     from path_optimizer import generate_semantic_distance_matrix
@@ -373,24 +346,24 @@ def run_integrated_analysis():
     optimizer = SemanticPathOptimizer(D, seed=42)
     path_result = optimizer.multi_start_optimize(num_starts=3, max_variations=2000)
 
-    # 3. 对路径上的嵌入进行CVT量化
+
     cvt = SemanticSpaceQuantization(n_generators=5, max_iter=100, tol=1e-10)
     cvt_result = cvt.quantize(init_mode='uniform', seed=42)
 
-    # 4. 特征选择
+
     selector = SemanticSubsetSelector(max_brute_force_n=16)
     embedding = rng.standard_normal(16) * np.exp(-np.arange(16) / 4.0)
     subset_result = selector.feature_selection_for_embedding(embedding, target_info_ratio=0.75)
 
-    # 5. 结构化分解
+
     decomp = SemanticStructuredDecomposition()
     tensor_result = decomp.hierarchical_decomposition(embedding[:128], target_shape=(4, 4, 8))
 
-    # 6. 数值验证
+
     verifier = SteinerbergerVerifier()
     int_result = verifier.verify_integration(n_values=[10, 20])
 
-    # 7. 鲁棒性验证
+
     utils = RobustNumericUtils()
     sim_mat = utils.batch_semantic_similarity(embeddings)
 
@@ -413,11 +386,6 @@ def run_integrated_analysis():
 
 
 def main():
-    """
-    主入口函数。
-    
-    依次执行所有模块的分析与验证。
-    """
     print("=" * 70)
     print("  基于多尺度物理-化学动力学约束的语义嵌入空间分析与优化系统")
     print("  Physics-Informed Semantic Embedding Space Analysis & Optimization")

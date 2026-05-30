@@ -1,42 +1,3 @@
-"""
-sparse_fem_topology.py
-
-Finite Element Mesh Topology, Sparse Pattern Analysis, and Stiffness Matrix Assembly.
-
-Scientific Background:
-----------------------
-1. Triangular Mesh Representation:
-   A 3D surface mesh consists of:
-   - Nodes: N points in R^3, coordinates X in R^{3 x N}
-   - Elements: M triangles, each defined by 3 node indices
-   
-   For FEM stiffness matrix assembly, we need:
-   - Node-to-element connectivity
-   - Element stiffness matrices K_e in R^{3 x 3}
-   - Global assembly: K = sum_e P_e^T K_e P_e
-
-2. Triangle Geometry:
-   For a triangle with vertices v1, v2, v3 in R^2:
-   - Area: A = 0.5 * |det([v2-v1, v3-v1])|
-   - Barycentric coordinates gradient:
-       grad_lambda = [v2_y - v3_y, v3_y - v1_y, v1_y - v2_y;
-                      v3_x - v2_x, v1_x - v3_x, v2_x - v1_x] / (2*A)
-   - Element stiffness (Laplacian):
-       K_e(i,j) = A * (grad_lambda_i . grad_lambda_j)
-
-3. Sparse Matrix Patterns from Triangular Coverings:
-   The trinity puzzle forms a linear system A*x = b over a triangulated region.
-   This maps directly to sparse matrix pattern analysis:
-   - Each triangle is a row
-   - Each tile configuration is a column
-   - Nonzeros indicate coverage
-
-4. Sparse Storage (CSR format):
-   For a sparse matrix with nnz nonzeros:
-   - data: array of nnz values
-   - indices: column indices of nnz elements
-   - indptr: row pointers, length n_rows + 1
-"""
 
 import numpy as np
 from typing import Tuple, List, Dict
@@ -44,18 +5,8 @@ import math
 
 
 class TriangularMesh:
-    """
-    3D triangular surface mesh.
-    
-    Maps from tri_surface_display and fem_to_medit seed projects.
-    """
     
     def __init__(self, nodes: np.ndarray = None, elements: np.ndarray = None):
-        """
-        Args:
-            nodes: array of shape (n_nodes, 3) or (3, n_nodes)
-            elements: array of shape (n_elements, 3) or (3, n_elements)
-        """
         if nodes is not None:
             nodes = np.asarray(nodes, dtype=np.float64)
             if nodes.shape[0] == 3 and nodes.shape[1] != 3:
@@ -75,7 +26,6 @@ class TriangularMesh:
         self._validate()
     
     def _validate(self):
-        """Validate mesh topology."""
         if self.nodes.size == 0 or self.elements.size == 0:
             return
         
@@ -93,12 +43,6 @@ class TriangularMesh:
             )
     
     def node_degrees(self) -> np.ndarray:
-        """
-        Compute node degrees (number of incident triangles per node).
-        
-        Returns:
-            degrees: array of shape (n_nodes,)
-        """
         n_nodes = self.nodes.shape[0]
         degrees = np.zeros(n_nodes, dtype=np.int64)
         for tri in self.elements:
@@ -107,14 +51,6 @@ class TriangularMesh:
         return degrees
     
     def triangle_areas(self) -> np.ndarray:
-        """
-        Compute triangle areas using cross product formula:
-        
-            A = 0.5 * ||(v2 - v1) x (v3 - v1)||_2
-        
-        Returns:
-            areas: array of shape (n_elements,)
-        """
         if self.elements.shape[0] == 0:
             return np.array([])
         
@@ -127,11 +63,6 @@ class TriangularMesh:
         return areas
     
     def build_sparse_pattern(self) -> Dict:
-        """
-        Build sparse adjacency pattern from mesh topology.
-        
-        Returns CSR-like structure representing node connectivity.
-        """
         n_nodes = self.nodes.shape[0]
         adj = [set() for _ in range(n_nodes)]
         
@@ -157,15 +88,6 @@ class TriangularMesh:
         }
     
     def assemble_stiffness_matrix_2d(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Assemble FEM stiffness matrix for 2D Laplacian on projected mesh.
-        
-        Projects nodes to XY plane and computes element stiffness:
-            K_e(i,j) = A * (grad_lambda_i . grad_lambda_j)
-        
-        Returns:
-            data, row_ind, col_ind for COO format
-        """
         if self.elements.shape[0] == 0:
             return np.array([]), np.array([]), np.array([])
         
@@ -174,9 +96,9 @@ class TriangularMesh:
         col_list = []
         
         for tri in self.elements:
-            v = self.nodes[tri, :2]  # Project to XY
+            v = self.nodes[tri, :2]
             
-            # Area
+
             area = 0.5 * abs(
                 v[0, 0] * (v[1, 1] - v[2, 1]) +
                 v[1, 0] * (v[2, 1] - v[0, 1]) +
@@ -186,7 +108,7 @@ class TriangularMesh:
             if area < 1e-14:
                 continue
             
-            # Barycentric gradients
+
             grad = np.zeros((3, 2))
             grad[0, 0] = v[1, 1] - v[2, 1]
             grad[0, 1] = v[2, 0] - v[1, 0]
@@ -196,7 +118,7 @@ class TriangularMesh:
             grad[2, 1] = v[1, 0] - v[0, 0]
             grad /= (2.0 * area)
             
-            # Element stiffness
+
             for i in range(3):
                 for j in range(3):
                     val = area * np.dot(grad[i], grad[j])
@@ -215,32 +137,10 @@ def trinity_tile_cover_pattern(
     region_triangles: int,
     tile_types: int = 4
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Construct a sparse constraint pattern inspired by the trinity puzzle.
-    
-    In the trinity puzzle, we have:
-    - Region R with M triangles
-    - T tile types
-    - Each tile placement covers a subset of triangles
-    
-    The linear system has:
-    - A1: M rows (one per triangle, coverage constraint)
-    - A2: T rows (one per tile type, usage constraint)
-    
-    This maps to a sparse binary matrix pattern.
-    
-    Args:
-        region_triangles: number of triangles in region
-        tile_types: number of tile types
-    
-    Returns:
-        A1_pattern: M x V binary pattern (coverage)
-        A2_pattern: T x V binary pattern (tile usage)
-    """
     if region_triangles < 1 or tile_types < 1:
         raise ValueError("region_triangles and tile_types must be >= 1")
     
-    # Simulate: each tile type has ~3 configurations, each covers ~3 triangles
+
     configs_per_tile = 3
     total_vars = tile_types * configs_per_tile
     
@@ -251,9 +151,9 @@ def trinity_tile_cover_pattern(
     for t in range(tile_types):
         for c in range(configs_per_tile):
             var_idx = t * configs_per_tile + c
-            # Tile usage constraint
+
             A2[t, var_idx] = 1
-            # Coverage: random subset of triangles
+
             n_cover = min(3, region_triangles)
             cover_idx = np.random.choice(region_triangles, size=n_cover, replace=False)
             A1[cover_idx, var_idx] = 1
@@ -268,19 +168,6 @@ def sparse_matrix_vector_product(
     x: np.ndarray,
     n_rows: int
 ) -> np.ndarray:
-    """
-    Sparse matrix-vector product in COO format: y = A * x.
-    
-        y_i = sum_{j: A_{ij} != 0} A_{ij} * x_j
-    
-    Args:
-        data, row_ind, col_ind: COO arrays
-        x: vector
-        n_rows: number of rows
-    
-    Returns:
-        y: result vector
-    """
     y = np.zeros(n_rows, dtype=np.float64)
     for val, i, j in zip(data, row_ind, col_ind):
         if 0 <= i < n_rows and 0 <= j < len(x):
@@ -289,9 +176,6 @@ def sparse_matrix_vector_product(
 
 
 def sparsity_ratio(data: np.ndarray, n_rows: int, n_cols: int) -> float:
-    """
-    Compute sparsity ratio: 1 - nnz / (n_rows * n_cols).
-    """
     if n_rows == 0 or n_cols == 0:
         return 0.0
     nnz = len(data)
@@ -299,7 +183,7 @@ def sparsity_ratio(data: np.ndarray, n_rows: int, n_cols: int) -> float:
 
 
 if __name__ == "__main__":
-    # Create a simple mesh
+
     nodes = np.array([
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],

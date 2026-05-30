@@ -1,30 +1,9 @@
-"""
-sparse_matrix.py
-稀疏矩阵存储与高效矩阵运算模块。
-
-融合种子项目:
-  - 975_r8ccs: 稀疏矩阵 CCS (Compressed Column Storage) 格式
-  - 739_matrix_chain_brute: 矩阵链乘法最优顺序（用于多格林函数张量积的乘法优化）
-
-在 InSAR 形变反演中的应用:
-  1. 大规模有限元刚度矩阵 K (N×N, N~10^4-10^5) 的稀疏存储；
-  2. 格林函数矩阵 G (M×N, M 为 InSAR 像素数) 与滑动向量 m 的高效乘法；
-  3. 矩阵链乘法优化：在计算 G^T W G + λ L^T L 时，确定最优括号化顺序以降低浮点运算量。
-"""
 
 import numpy as np
 from utils import check_finite
 
 
 class CCSMatrix:
-    """
-    双精度稀疏矩阵的 CCS (Compressed Column Storage) 格式实现。
-
-    数据结构:
-        colptr: shape (n+1,), 第 j 列的起始索引
-        rowind: shape (nnz,), 非零元素的行索引（每列内升序）
-        data:   shape (nnz,), 非零元素的值
-    """
 
     def __init__(self, m, n, colptr, rowind, data):
         self.m = m
@@ -39,10 +18,6 @@ class CCSMatrix:
             raise ValueError("CCSMatrix: colptr[-1] must equal nnz")
 
     def multiply_vector(self, x):
-        """
-        计算 y = A @ x。
-        算法复杂度: O(nnz)。
-        """
         x = np.asarray(x, dtype=float)
         if x.shape[0] != self.n:
             raise ValueError("CCSMatrix.multiply_vector: dimension mismatch")
@@ -54,9 +29,6 @@ class CCSMatrix:
         return y
 
     def transpose_multiply_vector(self, x):
-        """
-        计算 y = A^T @ x。
-        """
         x = np.asarray(x, dtype=float)
         if x.shape[0] != self.m:
             raise ValueError("CCSMatrix.transpose_multiply_vector: dimension mismatch")
@@ -70,9 +42,6 @@ class CCSMatrix:
         return y
 
     def to_dense(self):
-        """
-        转为稠密矩阵（仅用于小规模调试）。
-        """
         A = np.zeros((self.m, self.n), dtype=float)
         for j in range(self.n):
             for k in range(self.colptr[j], self.colptr[j + 1]):
@@ -82,9 +51,6 @@ class CCSMatrix:
 
     @staticmethod
     def from_dense(A, tol=1e-14):
-        """
-        从稠密矩阵构造 CCS 格式。
-        """
         A = np.asarray(A, dtype=float)
         m, n = A.shape
         colptr = [0]
@@ -102,27 +68,10 @@ class CCSMatrix:
 
 
 def matrix_chain_optimal_order(dims):
-    """
-    矩阵链乘法最优括号化顺序（动态规划）。
-
-    问题描述:
-        给定矩阵链 A_1 × A_2 × ... × A_k，其中 A_i 的维度为 dims[i-1] × dims[i]，
-        寻找使标量乘法次数最少的括号化顺序。
-
-    动态规划递推:
-        C[i, j] = min_{i <= k < j} { C[i, k] + C[k+1, j] + dims[i-1]*dims[k]*dims[j] }
-
-    参数:
-        dims: list of int, 长度为 k+1
-
-    返回:
-        min_cost: 最小标量乘法次数
-        split:    分割点矩阵，用于重构最优顺序
-    """
     n = len(dims) - 1
     if n <= 0:
         raise ValueError("matrix_chain_optimal_order: need at least one matrix")
-    # 使用动态规划
+
     INF = float('inf')
     C = [[0] * n for _ in range(n)]
     split = [[-1] * n for _ in range(n)]
@@ -139,9 +88,6 @@ def matrix_chain_optimal_order(dims):
 
 
 def build_parenthesization(split, i, j):
-    """
-    根据 split 矩阵重构最优括号化字符串表示。
-    """
     if i == j:
         return f"A{i}"
     k = split[i][j]
@@ -151,10 +97,6 @@ def build_parenthesization(split, i, j):
 
 
 class SparseLinearOperator:
-    """
-    基于 CCS 格式的线性算子包装，支持矩阵-向量乘法接口，
-    用于共轭梯度法等迭代求解器。
-    """
 
     def __init__(self, A_ccs):
         self.A = A_ccs
@@ -168,31 +110,24 @@ class SparseLinearOperator:
 
 
 def sparse_matrix_multiply_chain(matrices, order=None):
-    """
-    按指定顺序（或最优顺序）依次计算稀疏/稠密矩阵链乘积。
-
-    参数:
-        matrices: list of ndarray or CCSMatrix
-        order:    list of int，指定乘法顺序的索引序列；若为 None 则按给定顺序相乘
-    """
     if len(matrices) == 0:
         raise ValueError("sparse_matrix_multiply_chain: empty matrix list")
     if len(matrices) == 1:
         return matrices[0]
 
-    # 若所有矩阵都是稠密的，则尝试使用最优顺序
+
     all_dense = all(isinstance(M, np.ndarray) for M in matrices)
     if all_dense and order is None and len(matrices) > 2:
         dims = [M.shape[0] for M in matrices] + [matrices[-1].shape[1]]
         _, split = matrix_chain_optimal_order(dims)
-        # 简化：仅打印建议顺序，实际仍按顺序相乘（因为重构最优乘法树较复杂）
+
         pass
 
     result = matrices[0]
     for idx in range(1, len(matrices)):
         B = matrices[idx]
         if isinstance(result, CCSMatrix) and isinstance(B, CCSMatrix):
-            # CCS × CCS → 稠密（简化处理）
+
             result = result.to_dense() @ B.to_dense()
         elif isinstance(result, CCSMatrix):
             result = result.to_dense() @ B

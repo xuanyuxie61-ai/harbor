@@ -1,19 +1,3 @@
-"""
-main.py
-=======
-核壳模型与集体运动耦合计算系统 —— 统一入口
-
-本项目围绕"核物理：原子核壳模型与集体运动"展开，
-将 15 个种子项目的核心算法融合为一套完整的博士级科学计算流程。
-
-运行方式：
-    python main.py
-
-无需任何命令行参数，程序自动执行从核势构建、单粒子能级求解、
-壳模型哈密顿量对角化、集体运动 ODE 演化、核密度扩散、
-矩阵元与自能计算、几何采样与统计、能级密度分析到全局能量优化的
-完整计算链，并输出所有关键物理量的数值结果。
-"""
 
 import numpy as np
 from math import pi
@@ -21,7 +5,7 @@ import sys
 import os
 import time
 
-# 将当前目录加入路径，确保模块可导入
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from special_functions import (
@@ -86,27 +70,27 @@ def print_subsection(title):
 def main():
     start_time = time.time()
 
-    # ================================================================
-    # 全局物理参数设定（以 A ~ 100 的稀土核为例）
-    # ================================================================
+
+
+
     A = 100
     Z = 42
     R0 = 1.2
     R = R0 * (A ** (1.0 / 3.0))
-    V0 = -50.0      # MeV
-    a_ws = 0.65     # fm
-    Vso0 = 12.0     # MeV
+    V0 = -50.0
+    a_ws = 0.65
+    Vso0 = 12.0
     beta2 = 0.25
-    gamma = 0.3     # rad (~17°)
+    gamma = 0.3
 
     print_section("核壳模型与集体运动耦合计算系统")
     print(f"目标核素: A = {A}, Z = {Z}")
     print(f"形变参数: β₂ = {beta2:.3f}, γ = {gamma:.3f} rad")
     print(f"Woods-Saxon 参数: V₀ = {V0:.1f} MeV, R = {R:.3f} fm, a = {a_ws:.2f} fm")
 
-    # ================================================================
-    # 1. 特殊函数与球贝塞尔函数计算 (seed: 1084_sine_integral)
-    # ================================================================
+
+
+
     print_section("1. 特殊函数计算 —— 核格林函数与形状因子")
     print_subsection("球贝塞尔函数 j_l(kR)")
     k_values = np.linspace(0.1, 5.0, 10)
@@ -132,9 +116,9 @@ def main():
         ff = nuclear_form_factor(q_test, A, Z, R0)
         print(f"  q = {q_test:.1f} fm⁻¹: |F(q)|² = {ff:.6e}")
 
-    # ================================================================
-    # 2. 核网格生成与 CVT 采样 (seeds: 008_annulus_grid, 250_cvt_3d_sampling)
-    # ================================================================
+
+
+
     print_section("2. 核体积网格与 CVT 最优采样")
     print_subsection("变形核表面网格")
     surface_grid, surface_areas = deformed_nuclear_surface_grid(
@@ -157,9 +141,9 @@ def main():
     print(f"  CVT 求积点数: {len(cvt_points)}")
     print(f"  最终 CVT 能量: {cvt_energy[-1]:.6f}")
 
-    # ================================================================
-    # 3. 变形 Woods-Saxon 势与二维插值 (seeds: 139_cauchy_principal_value, 1212_test_interp_2d)
-    # ================================================================
+
+
+
     print_section("3. 变形 Woods-Saxon 势场与二维插值")
     print_subsection("单粒子势计算")
     params = {
@@ -173,15 +157,15 @@ def main():
 
     print_subsection("势能量曲面 (β₂, γ) 插值")
     beta_g, gamma_g, E_surf = build_potential_energy_surface(15, 12, V0, R, a_ws)
-    # 插值到一个新点
+
     beta_new = 0.15
     gamma_new = 0.4
     E_interp = bilinear_interpolate_2d(beta_new, gamma_new, beta_g, gamma_g, E_surf)
     print(f"  插值点 (β={beta_new:.2f}, γ={gamma_new:.2f}): E_interp = {E_interp:.3f} MeV")
 
-    # ================================================================
-    # 4. 径向哈密顿量构建与稀疏格式 (seed: 1155_st_to_crs)
-    # ================================================================
+
+
+
     print_section("4. 径向哈密顿量与稀疏矩阵")
     r_min = 0.05
     r_max = 15.0
@@ -195,14 +179,14 @@ def main():
     m, n, nz, row, col, val = st_to_crs(nst, ist, jst, Ast)
     print(f"  矩阵维度: {m} × {n}, CRS 非零元: {nz}")
 
-    # 稀疏矩阵-向量乘法测试
+
     x_test = np.random.randn(m)
     y_test = crs_matvec(row, col, val, x_test)
     print(f"  稀疏矩阵-向量乘法结果范数: {np.linalg.norm(y_test):.6e}")
 
-    # ================================================================
-    # 5. 径向薛定谔方程求解与 Brent 寻根 (seed: 1427_zero_brent)
-    # ================================================================
+
+
+
     print_section("5. 径向薛定谔方程束缚态求解")
     print_subsection("求解 l = 0, 1, 2 的束缚态")
     all_energies = {}
@@ -218,13 +202,13 @@ def main():
         for idx, E_bnd in enumerate(energies):
             print(f"    n = {idx + 1}, E = {E_bnd:.4f} MeV")
 
-    # ================================================================
-    # 6. 壳模型哈密顿量与 Lanczos 迭代 (seeds: 1155_st_to_crs)
-    # ================================================================
+
+
+
     print_section("6. 壳模型组态空间与 Lanczos 对角化")
     n_orbitals = 8
     n_particles = 6
-    # 从径向解中提取单粒子能级近似值
+
     sp_energies = np.array([-45.0, -38.0, -32.0, -28.0, -22.0, -18.0, -12.0, -8.0])
     row_sm, col_sm, val_sm, dim_sm = shell_model_hamiltonian_sparse(
         n_particles, n_orbitals, interaction_strength=2.0,
@@ -236,9 +220,9 @@ def main():
     eigenvalues = lanczos_iteration(row_sm, col_sm, val_sm, dim_sm, n_iter=20)
     print(f"  Lanczos 最低本征值: {eigenvalues[:5]}")
 
-    # ================================================================
-    # 7. 集体运动非线性 ODE 系统 (seed: 091_biochemical_nonlinear_ode)
-    # ================================================================
+
+
+
     print_section("7. Bohr-Mottelson 集体运动 ODE 演化")
     ham_coll = CollectiveHamiltonian(mass_number=A, beta_eq=beta2, gamma_eq=0.0)
     t_array, y_array, E_array = solve_collective_motion(
@@ -256,11 +240,11 @@ def main():
     I_inv = adiabatic_invariant(y_array, ham_coll, t_array[1] - t_array[0])
     print(f"  β 振动绝热不变量: {I_inv:.6f}")
 
-    # ================================================================
-    # 8. 核密度反应-扩散演化 (seed: 434_fisher_pde_ftcs)
-    # ================================================================
+
+
+
     print_section("8. 核密度反应-扩散 FTCS 演化")
-    # 初始密度：Fermi 分布
+
     rho0 = 0.16
     a_diff = 0.52
     rho_initial = rho0 / (1.0 + np.exp((r_grid - R) / a_diff))
@@ -279,25 +263,25 @@ def main():
     print(f"  最终表面厚度: {t_surf:.3f} fm")
     print(f"  FTCS 稳定性参数 s = DΔt/Δr² = {s_param:.4f}")
 
-    # 密度多极矩
+
     Q2 = density_moment(r_grid, rho_final, 2)
     Q4 = density_moment(r_grid, rho_final, 4)
     print(f"  四极矩 M₂: {Q2:.3f} fm²")
     print(f"  十六极矩 M₄: {Q4:.3f} fm⁴")
 
-    # ================================================================
-    # 9. Cauchy 主值积分与自能 (seed: 139_cauchy_principal_value)
-    # ================================================================
+
+
+
     print_section("9. Cauchy 主值积分与单粒子自能")
     print_subsection("测试主值积分")
-    # P ∫_{-1}^{1} cos(x) / x dx = 0 (奇函数)
+
     def test_func(x):
         return np.cos(x)
 
     cpv_result = cauchy_principal_value(test_func, -1.0, 1.0, 0.0, n=64)
     print(f"  P ∫_{{-1}}^1 cos(x)/x dx = {cpv_result:.6e} (理论值: 0)")
 
-    # P ∫_{0}^{2} exp(x) / (x - 1) dx
+
     def test_func2(x):
         return np.exp(x)
 
@@ -305,15 +289,15 @@ def main():
     print(f"  P ∫_0^2 exp(x)/(x-1) dx = {cpv_result2:.6f}")
 
     print_subsection("自能计算")
-    E_test = -30.0  # MeV
+    E_test = -30.0
     coupling_sq = np.array([0.5, 1.2, 0.8, 0.3, 2.0])
     E_levels = np.array([-40.0, -35.0, -25.0, -20.0, -15.0])
     sigma_E = self_energy_integral(coupling_sq, E_levels, E_test, n_quad=64)
     print(f"  E = {E_test:.1f} MeV 处自能: Σ(E) = {sigma_E:.4f} MeV")
 
-    # ================================================================
-    # 10. 电磁多极矩阵元与跃迁 (seeds: 1084_sine_integral)
-    # ================================================================
+
+
+
     print_section("10. 电磁多极跃迁矩阵元")
     if len(all_wavefunctions.get(0, [])) >= 2 and len(all_wavefunctions.get(2, [])) >= 1:
         u_1s = all_wavefunctions[0][0]
@@ -327,9 +311,9 @@ def main():
         print(f"  B(E2; W.u.) = {B_E2 / B_W:.4f}")
         print(f"  估算半寿命: {tau_half:.4e} s")
 
-    # ================================================================
-    # 11. 核几何采样与距离统计 (seeds: 884_polygon_distance, 889_polygon_sample, 442_fly_simulation)
-    # ================================================================
+
+
+
     print_section("11. 核几何 Monte Carlo 采样与距离统计")
     print_subsection("形变 Fermi 分布采样")
     mc_points = deformed_fermi_sample(500, A, beta2=beta2, gamma=gamma, seed=42)
@@ -359,13 +343,13 @@ def main():
     print(f"  总表面积: {S_total:.3f} fm²")
     print(f"  三角形面积方差: {S_var:.4f} fm⁴")
 
-    # ================================================================
-    # 12. 全局能量优化 (seeds: 471_glomin, 1427_zero_brent)
-    # ================================================================
+
+
+
     print_section("12. 核势能面全局优化")
 
     def nuclear_potential_1d(b):
-        # 简化的集体势能
+
         return (20.0 * (b - 0.2) ** 2
                 + 5.0 * b ** 4
                 - 2.0 * b ** 3)
@@ -377,7 +361,7 @@ def main():
     print(f"  glomin 全局最小: β = {b_opt:.5f}, V = {V_opt:.5f} MeV")
     print(f"  函数调用次数: {calls}")
 
-    # 二维势能面优化
+
     print_subsection("二维 (β, γ) 势能面优化")
     def V_2d(b, g):
         return (15.0 * (b - 0.22) ** 2
@@ -395,9 +379,9 @@ def main():
     I_perp, I_parallel = moment_of_inertia(beta_opt2, gamma_opt2, A)
     print(f"  转动惯量 I_perp = {I_perp:.3f} MeV⁻¹, I_parallel = {I_parallel:.3f} MeV⁻¹")
 
-    # ================================================================
-    # 13. 核能级密度分析 (seed: 698_log_normal)
-    # ================================================================
+
+
+
     print_section("13. 核能级密度与统计分布")
     print_subsection("Bethe 公式能级密度")
     E_grid_ld, rho_total, rho_pos, rho_neg = total_level_density_table(A, E_max=20.0, n_points=50)
@@ -413,7 +397,7 @@ def main():
     print(f"  采样间距标准差: {np.std(spacing_samples):.4f}")
 
     print_subsection("能谱展开与 Wigner-Dyson 统计")
-    # 模拟一组能级（壳模型 + 随机矩阵扰动）
+
     rng = np.random.default_rng(2024)
     base_levels = np.sort(np.cumsum(np.abs(rng.normal(1.0, 0.3, 200))))
     s_unfolded, N_smooth = unfolding_spectrum(base_levels)
@@ -425,14 +409,14 @@ def main():
         print(f"  GOE 理论方差: {4.0 / pi - 1.0:.4f}")
         print(f"  Poisson 理论方差: 1.0000")
 
-    # ================================================================
-    # 14. 谱学因子与重叠积分
-    # ================================================================
+
+
+
     print_section("14. 谱学因子与重叠积分")
     if len(all_wavefunctions.get(0, [])) >= 1:
         u_orb = all_wavefunctions[0][0]
-        u_res = all_wavefunctions[0][0] * 0.95  # 模拟轻微形变差异
-        # 重新归一化
+        u_res = all_wavefunctions[0][0] * 0.95
+
         norm_res = np.sqrt(np.trapezoid(u_res ** 2, r_grid))
         if norm_res > 0:
             u_res = u_res / norm_res
@@ -441,9 +425,9 @@ def main():
         overlap = overlap_integral(r_grid, u_orb, u_res)
         print(f"  波函数重叠积分: {overlap:.6f}")
 
-    # ================================================================
-    # 15. 结果汇总与文件输出 (seed: 718_matlab_commandline)
-    # ================================================================
+
+
+
     print_section("15. 计算结果汇总与文件输出")
     results = {
         'mass_number': A,

@@ -1,38 +1,10 @@
-"""
-main.py
-================================================================================
-分子动力学：离子通道选择性通透 —— 统一入口
-================================================================================
-
-本程序基于 15 个科研代码种子项目的核心算法，构建了一个面向
-钾离子通道(KcsA)选择性通透机制的多尺度计算框架。
-
-执行的完整计算流程：
-    1. 通道几何建模与自适应三角网格细化 (1351_triangulation_refine_local)
-    2. 介电剖面与非线性 Poisson 方程自洽求解 (612_julia_set)
-    3. 有限差分算子构建 (282_differ)
-    4. 特殊数学函数计算 (881_polpak)
-    5. Nernst-Planck 方程时间推进 (127_burgers_time_viscous)
-    6. 球面蒙特卡洛与稀疏网格积分 (1124_sphere_monte_carlo + 654_lattice_rule + 1103_sparse_grid_cc)
-    7. 布朗动力学轨迹模拟 (613_jumping_bean_simulation)
-    8. 跃迁网络分析 (286_digraph_arc)
-    9. 晶格占据模型 (1389_variomino)
-    10. SVD 降阶模型 (1184_svd_basis + 1187_svd_fingerprint)
-    11. 自由能与选择性计算 (toms515 + variomino)
-    12. 组合统计与系综平均 (1273_toms515)
-
-运行方式：
-    python main.py
-
-无需任何命令行参数，所有物理参数在内部设定。
-"""
 
 import numpy as np
 import time
 
-# ---------------------------------------------------------------------------
-# 导入所有自定义模块
-# ---------------------------------------------------------------------------
+
+
+
 from channel_geometry import build_channel_mesh_2d
 from potential_field import DielectricProfile, PotentialSolver
 from finite_difference import apply_laplacian_3d, build_laplacian_1d
@@ -70,9 +42,9 @@ def main():
     print("#  领域: KcsA 钾离子通道 K+/Na+ 选择性机制")
     print("#" * 80)
 
-    # ========================================================================
-    # 1. 通道几何与网格
-    # ========================================================================
+
+
+
     print_section("1. 通道几何建模与自适应网格细化")
     tri = build_channel_mesh_2d(nz=20, nr=10)
     print(f"    初始网格: {tri.nodes.shape[0]} 节点, {tri.elements.shape[0]} 单元")
@@ -82,12 +54,12 @@ def main():
     n_filter = np.sum(tri.in_selectivity_filter(centers))
     print(f"    位于选择性滤器区域的单元数: {n_filter}")
 
-    # ========================================================================
-    # 2. 介电剖面与 Poisson 方程
-    # ========================================================================
+
+
+
     print_section("2. 非线性介电响应与 Poisson 方程自洽求解")
     Nx, Ny, Nz = 12, 12, 30
-    dx = dy = dz = 0.1  # nm
+    dx = dy = dz = 0.1
     dielectric = DielectricProfile((Nx, Ny, Nz), dx, dy, dz,
                                     eps_water=78.5, eps_protein=4.0,
                                     transition_width=0.05)
@@ -101,9 +73,9 @@ def main():
     print(f"    电势范围: [{np.min(phi):.4f}, {np.max(phi):.4f}] V")
     print(f"    电势标准差: {np.std(phi):.4f} V")
 
-    # ========================================================================
-    # 3. 有限差分算子验证
-    # ========================================================================
+
+
+
     print_section("3. 高阶有限差分算子验证")
     test_field = np.random.rand(Nx, Ny, Nz)
     lap = apply_laplacian_3d(test_field, dx, dy, dz)
@@ -111,9 +83,9 @@ def main():
     L1d = build_laplacian_1d(20, 0.1)
     print(f"    1D Laplacian 矩阵条件数: {np.linalg.cond(L1d):.4e}")
 
-    # ========================================================================
-    # 4. 特殊函数验证
-    # ========================================================================
+
+
+
     print_section("4. 统计力学特殊函数验证")
     x_test = 1.0
     erf_val = erf_cody(x_test)
@@ -132,9 +104,9 @@ def main():
     print(f"    Debye-Hückel κ (I=0.15 M): {kappa:.4e} m^-1")
     print(f"    Debye 长度 λ_D = {1.0/kappa:.4e} m")
 
-    # ========================================================================
-    # 5. Nernst-Planck 方程求解
-    # ========================================================================
+
+
+
     print_section("5. Nernst-Planck 对流-扩散方程求解")
     np_solver = NernstPlanckSolver((Nx, Ny, Nz), dx*1e-9, dy*1e-9, dz*1e-9,
                                     D_k=1.96e-9, D_na=1.33e-9)
@@ -151,19 +123,19 @@ def main():
     print(f"    Na+ 通透系数 P_Na: {P_na:.4e} m/s")
     print(f"    初始通透选择性 P_K/P_Na: {selectivity:.2f}")
 
-    # ========================================================================
-    # 6. 球面蒙特卡洛与稀疏网格积分
-    # ========================================================================
+
+
+
     print_section("6. 球面积分与稀疏网格高维积分")
     pts = sphere01_sample(5000)
     print(f"    球面采样 5000 点: 均值半径 = {np.mean(np.sqrt(np.sum(pts**2, axis=0))):.6f}")
 
-    # 单项式积分验证: ∫ x^2 dΩ = 4π/3
+
     e = [2, 0, 0]
     exact = sphere01_monomial_integral(e)
     print(f"    单项式 x^2 球面积分精确值: {exact:.8f} (理论: {4*np.pi/3:.8f})")
 
-    # Fibonacci 格点积分
+
     def f_circle(x):
         r2 = (x[0] - 0.5)**2 + (x[1] - 0.5)**2
         return 1.0 if r2 <= 0.25 else 0.0
@@ -171,24 +143,24 @@ def main():
     fib_integ = fibonacci_lattice_2d(8, f_circle)
     print(f"    Fibonacci 格点积分 (单位圆面积): {fib_integ:.6f} (理论: π/4≈{np.pi/4:.6f})")
 
-    # 稀疏网格积分
+
     def f_gauss(x):
         return np.exp(-np.sum(x**2))
     sg_result = integrate_sparse_grid(f_gauss, 2, 3)
     print(f"    2D 稀疏网格积分 exp(-r^2): {sg_result:.6f}")
 
-    # ========================================================================
-    # 7. 布朗动力学模拟
-    # ========================================================================
+
+
+
     print_section("7. 离子布朗动力学轨迹模拟")
     engine = BrownianDynamicsEngine(temperature=300.0, dt=1e-15, friction=1e-11)
     grid_origin = np.array([-0.6, -0.6, 0.0])
     grid_spacing = np.array([0.1, 0.1, 0.15])
 
     particles = [
-        IonParticle([0.0, 0.0, 2.0], charge=+1.0, radius=0.138, mass_amu=39.0983),   # K+
-        IonParticle([0.0, 0.0, 2.2], charge=+1.0, radius=0.102, mass_amu=22.9898),   # Na+
-        IonParticle([0.05, 0.0, 1.8], charge=+1.0, radius=0.138, mass_amu=39.0983),  # K+
+        IonParticle([0.0, 0.0, 2.0], charge=+1.0, radius=0.138, mass_amu=39.0983),
+        IonParticle([0.0, 0.0, 2.2], charge=+1.0, radius=0.102, mass_amu=22.9898),
+        IonParticle([0.05, 0.0, 1.8], charge=+1.0, radius=0.138, mass_amu=39.0983),
     ]
 
     particles = engine.run(particles, phi, grid_origin, grid_spacing,
@@ -202,9 +174,9 @@ def main():
     print(f"    K+ 理论 D: 1.96e-9 m^2/s")
     print(f"    Na+ 理论 D: 1.33e-9 m^2/s")
 
-    # ========================================================================
-    # 8. 跃迁网络分析
-    # ========================================================================
+
+
+
     print_section("8. 离子跃迁网络 (Markov 状态模型)")
     net_k = build_kcsa_k_channel_network(k_on=1e8, k_off=1e7, k_hop=5e7)
     net_na = build_na_leaky_network(k_on=1e8, k_off=1e8, k_hop=1e6)
@@ -229,9 +201,9 @@ def main():
     print(f"    K+ 估算单通道电导: {G_k:.2f} pS")
     print(f"    Na+ 估算单通道电导: {G_na:.2f} pS")
 
-    # ========================================================================
-    # 9. 晶格占据模型
-    # ========================================================================
+
+
+
     print_section("9. 晶格占据与多体构型统计")
     channel_lattice = LatticeChannel(shape=(5,))
     n_ions = 2
@@ -248,15 +220,15 @@ def main():
     print(f"    K+ knock-on 势能: {V_K:.4e} J ({V_K/1.602e-19:.3f} eV)")
     print(f"    Na+ knock-on 势能: {V_Na:.4e} J ({V_Na/1.602e-19:.3f} eV)")
 
-    # ========================================================================
-    # 10. SVD 降阶模型
-    # ========================================================================
+
+
+
     print_section("10. SVD 降阶模型与主成分分析")
-    # 构造模拟的时空数据矩阵
+
     n_space = Nx * Ny * Nz
     n_time = 20
     data_matrix = np.random.randn(n_space, n_time)
-    # 添加结构：前几个模态主导
+
     for i in range(3):
         mode = np.sin(np.linspace(0, np.pi * (i + 1), n_space))
         data_matrix += (5 - i) * np.outer(mode, np.ones(n_time))
@@ -272,18 +244,18 @@ def main():
     cr = compression_ratio(n_space, n_time, rank=3)
     print(f"    秩-3 近似压缩比: {cr:.4f}")
 
-    # 轨迹 PCA
+
     pca_modes, pca_eigvals, pca_cumvar = analyze_trajectory_pca(trajectories, n_modes=3)
     print(f"    轨迹 PCA 前 3 特征值: {np.round(pca_eigvals, 6)}")
     print(f"    轨迹 PCA 累积方差: {np.round(pca_cumvar, 4)}")
 
-    # ========================================================================
-    # 11. 自由能与选择性
-    # ========================================================================
+
+
+
     print_section("11. 自由能面与通透选择性")
     fes = FreeEnergySurface(temperature=300.0)
 
-    # 从布朗动力学轨迹提取 PMF
+
     all_z = np.array([p.trajectory[-1][2] for p in particles])
     for p in particles:
         all_z = np.concatenate([all_z, np.array(p.trajectory)[:, 2]])
@@ -292,22 +264,22 @@ def main():
     barrier = fes.barrier_height(z_bins, pmf)
     print(f"    PMF 自由能垒估算: {barrier:.4e} J ({barrier/1.602e-19:.3f} eV)")
 
-    # Born 溶剂化能
+
     dG_K = sphere_solvation_free_energy(charge=1.0, radius=0.138e-9)
     dG_Na = sphere_solvation_free_energy(charge=1.0, radius=0.102e-9)
     print(f"    K+ Born 溶剂化自由能: {dG_K:.4e} J ({dG_K/1.602e-19:.3f} eV)")
     print(f"    Na+ Born 溶剂化自由能: {dG_Na:.4e} J ({dG_Na/1.602e-19:.3f} eV)")
 
-    # 选择性比值
-    dG_barrier_k = 8.0e-21  # 假设 K+ 能垒 ~0.05 eV
-    dG_barrier_na = 3.2e-20  # Na+ 能垒 ~0.2 eV
+
+    dG_barrier_k = 8.0e-21
+    dG_barrier_na = 3.2e-20
     sel_ratio = selective_permeability_ratio(dG_barrier_k, dG_barrier_na)
     print(f"    基于 Eyring 理论的 P_K/P_Na: {sel_ratio:.1f}")
     print(f"    实验参考值 (KcsA): ~1000-10000")
 
-    # ========================================================================
-    # 12. 组合统计验证
-    # ========================================================================
+
+
+
     print_section("12. 组合统计与构型枚举")
     c_5_2 = binomial_coefficient(5, 2)
     print(f"    C(5,2) = {c_5_2}")
@@ -319,9 +291,9 @@ def main():
                                        T=300.0)
     print(f"    5 位点 2 离子各点占据概率: {np.round(occ_probs, 4)}")
 
-    # ========================================================================
-    # 总结
-    # ========================================================================
+
+
+
     print_section("计算完成总结")
     elapsed = time.time() - start_time
     print(f"    总运行时间: {elapsed:.2f} 秒")

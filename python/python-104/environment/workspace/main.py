@@ -1,25 +1,9 @@
-"""
-main.py — 自适应光学波前校正系统的高保真数值模拟
-
-统一入口, 零参数可运行.
-
-执行流程:
-  1. 系统参数初始化
-  2. 生成大气湍流相位屏 (Kolmogorov + PME修正 + 光化学-热扰动)
-  3. Shack-Hartmann波前传感器采样与斜率提取
-  4. Zernike模态分解与zonal波前重构
-  5. 变形镜面形计算与快速倾斜镜动力学响应
-  6. 闭环PI控制迭代校正
-  7. 光学传递函数、Strehl比、焦散奇点分析
-  8. 控制参数扫描优化
-  9. 结果输出与日志记录
-"""
 
 import os
 import sys
 import numpy as np
 
-# 导入各模块
+
 import data_io
 import iterative_utils
 import zernike_modes
@@ -38,9 +22,9 @@ def main():
     print("Adaptive Optics Wavefront Correction System — High-Fidelity Simulation")
     print("=" * 70)
 
-    # ============================================================
-    # 1. 系统参数初始化
-    # ============================================================
+
+
+
     print("\n[1/9] Initializing system parameters...")
 
     params = {
@@ -74,9 +58,9 @@ def main():
     )
     print("  Parameters logged.")
 
-    # ============================================================
-    # 2. 生成大气湍流相位屏
-    # ============================================================
+
+
+
     print("\n[2/9] Generating atmospheric turbulent phase screen...")
 
     phase_turb, r0, mask = atmosphere_turbulence.generate_turbulent_phase_screen(
@@ -89,15 +73,15 @@ def main():
         seed=seed
     )
 
-    # 计算Fried参数理论值
-    Cn2_int = 1e-14 * D  # 简化的C_n^2积分
+
+    Cn2_int = 1e-14 * D
     r0_theory = atmosphere_turbulence.fried_parameter(wavelength, Cn2_int)
     print(f"  Fried parameter r0 = {r0:.4f} m (theory: {r0_theory:.4f} m)")
     print(f"  Phase RMS = {np.std(phase_turb[mask]):.4f} rad")
 
-    # ============================================================
-    # 3. Shack-Hartmann传感器采样
-    # ============================================================
+
+
+
     print("\n[3/9] Shack-Hartmann wavefront sensor sampling...")
 
     subaps = shack_hartmann_sensor.generate_subaperture_grid(
@@ -116,29 +100,29 @@ def main():
         os.path.join(output_dir, 'subaperture_slopes.txt'), sx, sy
     )
 
-    # ============================================================
-    # 4. Zernike模态分解与波前重构
-    # ============================================================
+
+
+
     print("\n[4/9] Zernike modal decomposition and wavefront reconstruction...")
 
-    # TODO: Hole 3 - 连接Zernike基计算、模态分解与波前重构
-    # 需要:
-    #   1. 调用 zernike_modes.compute_zernike_basis 生成Zernike基,
-    #      正确解包其返回值 (basis_flat, mask_z, x_vec, y_vec)
-    #   2. 使用 zernike_modes.zernike_decompose 分解湍流相位
-    #   3. 使用 wavefront_reconstruction.reconstruct_wavefront_modal 从斜率重构模态系数
-    #   4. 使用 zernike_modes.zernike_reconstruct 重构相位屏
-    #   5. 使用 wavefront_reconstruction.reconstruct_wavefront_zonal 进行zonal重构
-    #   6. 使用 zernike_modes.zernike_coefficient_simplex_search 进行单形搜索
-    #   7. 输出Zernike系数到文件
-    # 注意: x_vec 和 y_vec 后续会被FSM倾斜镜计算使用, 必须正确定义
-    # 注意: basis_flat 的格式必须与 zernike_modes.compute_zernike_basis 和
-    #       wavefront_reconstruction.reconstruct_wavefront_modal 的约定一致
+
+
+
+
+
+
+
+
+
+
+
+
+
     raise NotImplementedError("Hole 3: 请实现 main.py 中Zernike基与波前重构的连接代码.")
 
-    # ============================================================
-    # 5. 变形镜与快速倾斜镜响应
-    # ============================================================
+
+
+
     print("\n[5/9] Deformable mirror and fast steering mirror response...")
 
     dm = deformable_mirror.DeformableMirror(
@@ -149,13 +133,13 @@ def main():
         use_magic_square_layout=True
     )
 
-    # 计算DM电压 (简单映射: Zernike系数 -> 电压)
+
     R = dm.voltage_to_zernike_response(basis_flat, mask)
     voltages, _, _, _ = np.linalg.lstsq(R, coeffs_turb, rcond=None)
     voltages = np.clip(voltages, -1.0, 1.0)
     dm_surface = dm.compute_surface(voltages)
 
-    # FSM双轴动力学响应
+
     fsm = deformable_mirror.FastSteeringMirrorDynamics(
         g=9.81, m1=0.01, m2=0.01, l1=0.05, l2=0.05,
         damping1=0.8, damping2=0.8, coupling=0.05
@@ -175,9 +159,9 @@ def main():
     print(f"  Strehl ratio (before correction): {strehl_before:.4f}")
     print(f"  Strehl ratio (after correction):  {strehl_after:.4f}")
 
-    # ============================================================
-    # 6. 闭环PI控制迭代校正
-    # ============================================================
+
+
+
     print("\n[6/9] Closed-loop PI control iteration...")
 
     turb_cov = zernike_modes.kolmogorov_zernike_covariance(n_modes, D / r0)
@@ -199,15 +183,15 @@ def main():
     print(f"  Mean Strehl (closed-loop):  {mean_strehl:.4f}")
     print(f"  Final residual RMS: {res_hist[-1]:.4f}")
 
-    # HH控制电路响应验证
+
     hh = closed_loop_control.HHControlCircuit(C=1.0, dt=1e-5)
     for _ in range(1000):
         hh.step(75.0 if hh.V < -50 else 0.0)
     print(f"  HH circuit final V: {hh.V:.2f} mV")
 
-    # ============================================================
-    # 7. 光学传递函数与焦散分析
-    # ============================================================
+
+
+
     print("\n[7/9] Optical transfer function and caustic singularity analysis...")
 
     P = optical_transfer.compute_pupil_function(grid_size, mask, phase_corrected)
@@ -220,24 +204,24 @@ def main():
     ee50 = optical_transfer.compute_encircled_energy(psf, x_coords, radius=0.5e-6)
     print(f"  Encircled energy (0.5 um): {ee50:.4f}")
 
-    # 焦散奇点检测
+
     singularity, det_H = wavefront_propagation.detect_caustic_singularities(
         phase_turb, pixel_scale, mask
     )
     n_singularities = np.sum(singularity)
     print(f"  Caustic singularities detected: {n_singularities}")
 
-    # 焦散线密度 (几何模拟)
+
     caustic_lines = wavefront_propagation.caustic_line_density(n=50, m=7)
     print(f"  Caustic network lines: {len(caustic_lines)}")
 
-    # 四面体相位矩
+
     moments = optical_transfer.tetrahedral_phase_moments(phase_turb, mask, max_order=2)
     print(f"  Phase moments: M_00={moments.get((0,0),0):.4f}, M_10={moments.get((1,0),0):.4f}, M_01={moments.get((0,1),0):.4f}")
 
-    # ============================================================
-    # 8. 控制参数扫描优化
-    # ============================================================
+
+
+
     print("\n[8/9] Control parameter sweep optimization...")
 
     def simulation_wrapper(Kp, Ki, bw, dt, n_steps):
@@ -257,18 +241,18 @@ def main():
     print(f"  Optimal parameters: Kp={best_params[0]:.2f}, Ki={best_params[1]:.2f}, BW={best_params[2]:.1f} Hz")
     print(f"  Optimal mean Strehl: {best_strehl:.4f}")
 
-    # ============================================================
-    # 9. 自适应采样与CVT
-    # ============================================================
+
+
+
     print("\n[9/9] Adaptive sampling and CVT optimization...")
 
-    # CVT圆盘采样
+
     cvt_points = adaptive_sampling.cvt_disk_uniform(
         n_generators=32, radius=D / 2.0, n_iterations=20, seed=seed
     )
     print(f"  CVT generators: {len(cvt_points)}")
 
-    # 自适应相位采样
+
     adaptive_pts = adaptive_sampling.adaptive_phase_sampling(
         phase_turb, mask, n_target_points=40, n_iterations=15
     )
@@ -279,14 +263,14 @@ def main():
         adaptive_pts, iteration=15, residual=res_hist[-1]
     )
 
-    # Collatz迭代步长分析
+
     for res_val in [1.0, 0.1, 0.01, 0.001]:
         step = iterative_utils.collatz_step_size(res_val, base_step=0.5)
         print(f"  Collatz step (res={res_val}): {step:.6f}")
 
-    # ============================================================
-    # 结果汇总
-    # ============================================================
+
+
+
     print("\n" + "=" * 70)
     print("SIMULATION COMPLETE")
     print("=" * 70)

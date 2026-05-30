@@ -1,40 +1,9 @@
-"""
-parallel_dispatcher.py
-并行任务调度与分块计算模块
-
-融合以下种子项目的核心算法：
-  - 237_cuda_loop：CUDA并行循环的模拟与任务分配策略
-
-物理背景：
-  深部密度结构反演涉及大规模矩阵运算和大量正演积分计算，
-  需要通过并行化加速。本模块模拟CUDA风格的网格-线程块任务分配策略，
-  将大规模重力正演和反演计算分解为可并行执行的任务单元。
-  
-  任务索引映射（仿CUDA）：
-      global_id = threadIdx.x 
-                  + blockDim.x * threadIdx.y
-                  + blockDim.x * blockDim.y * blockIdx.x
-                  + blockDim.x * blockDim.y * blockDim.z * blockIdx.y * gridDim.x
-                  + ...
-"""
 
 import numpy as np
 import multiprocessing as mp
 
 
 def simulate_cuda_indexing(grid_dim, block_dim, n_tasks):
-    """
-    模拟CUDA线程索引到任务ID的映射。
-    
-    融合 237_cuda_loop 的核心算法。
-    
-    参数：
-        grid_dim: (gx, gy, gz) 网格维度
-        block_dim: (bx, by, bz) 线程块维度
-        n_tasks: 总任务数
-    返回：
-        task_map: list of (task_id, block_idx, thread_idx) 的列表
-    """
     gx, gy, gz = grid_dim
     bx, by, bz = block_dim
     
@@ -55,7 +24,7 @@ def simulate_cuda_indexing(grid_dim, block_dim, n_tasks):
                                           + bx * by * bz * gx * block_y
                                           + bx * by * bz * gx * gy * block_z)
                             
-                            # 每个线程负责多个任务（stride = total_threads）
+
                             assigned_tasks = []
                             t = global_idx
                             while t < n_tasks and len(assigned_tasks) < 100:
@@ -74,30 +43,17 @@ def simulate_cuda_indexing(grid_dim, block_dim, n_tasks):
 
 
 def parallel_forward_compute(obs_chunks, grid_params, density_model, n_workers=None):
-    """
-    并行化重力正演计算。
-    
-    将观测点分块，每块由一个工作进程计算正演重力异常。
-    
-    参数：
-        obs_chunks: list of (N_i, 3) 观测点分块
-        grid_params: dict 包含 grid_centers, grid_volumes, green_row 等
-        density_model: (N_param,) 密度模型
-        n_workers: 工作进程数（None表示使用CPU核心数）
-    返回：
-        dg_total: (N_total,) 总重力异常
-    """
     if n_workers is None:
         n_workers = max(1, mp.cpu_count() - 1)
     
     n_workers = min(n_workers, len(obs_chunks))
     
     if n_workers <= 1:
-        # 串行计算
+
         all_obs = np.vstack(obs_chunks)
         return _compute_chunk(all_obs, grid_params, density_model)
     
-    # 多进程并行
+
     with mp.Pool(n_workers) as pool:
         args = [(chunk, grid_params, density_model) for chunk in obs_chunks]
         results = pool.starmap(_compute_chunk, args)
@@ -107,19 +63,18 @@ def parallel_forward_compute(obs_chunks, grid_params, density_model, n_workers=N
 
 
 def _compute_chunk(obs_chunk, grid_params, density_model):
-    """计算单个观测点块的重力异常。"""
     from forward_model import composite_forward_model
     
-    # 构建简化的棱柱体列表
+
     prisms = []
     centers = grid_params.get('grid_centers', None)
     volumes = grid_params.get('grid_volumes', None)
     
     if centers is not None and volumes is not None:
-        # 将网格单元近似为等体积立方体
+
         for j in range(len(centers)):
             c = centers[j]
-            dv = volumes[j] ** (1.0 / 3.0)  # 等效边长
+            dv = volumes[j] ** (1.0 / 3.0)
             half = dv / 2.0
             bounds = (c[0] - half, c[0] + half,
                       c[1] - half, c[1] + half,
@@ -131,18 +86,13 @@ def _compute_chunk(obs_chunk, grid_params, density_model):
 
 
 def parallel_sensitivity_matrix(obs_points, grid_centers, grid_volumes, n_workers=None):
-    """
-    并行构造灵敏度矩阵。
-    
-    将观测点分块，每块计算对应的 G 矩阵行。
-    """
     if n_workers is None:
         n_workers = max(1, mp.cpu_count() - 1)
     
     obs_points = np.asarray(obs_points, dtype=float)
     N_obs = obs_points.shape[0]
     
-    # 分块
+
     chunk_size = max(1, N_obs // n_workers)
     chunks = []
     for i in range(0, N_obs, chunk_size):
@@ -165,11 +115,6 @@ def parallel_sensitivity_matrix(obs_points, grid_centers, grid_volumes, n_worker
 
 
 def task_scheduler_static(n_tasks, n_workers):
-    """
-    静态任务调度：将 n_tasks 均匀分配给 n_workers。
-    
-    返回每个worker的任务索引范围。
-    """
     chunk_size = n_tasks // n_workers
     remainder = n_tasks % n_workers
     
@@ -184,11 +129,6 @@ def task_scheduler_static(n_tasks, n_workers):
 
 
 def task_scheduler_dynamic(n_tasks, n_workers, chunk_size=1):
-    """
-    动态任务调度：将任务分成小块，由worker动态获取。
-    
-    返回所有task chunks的列表。
-    """
     chunks = []
     for i in range(0, n_tasks, chunk_size):
         chunks.append((i, min(i + chunk_size, n_tasks)))
@@ -196,11 +136,6 @@ def task_scheduler_dynamic(n_tasks, n_workers, chunk_size=1):
 
 
 def parallel_matrix_vector_product(G, v, n_workers=None):
-    """
-    并行矩阵-向量乘法 y = G @ v。
-    
-    按行分块并行计算。
-    """
     if n_workers is None:
         n_workers = max(1, mp.cpu_count() - 1)
     
@@ -225,11 +160,6 @@ def parallel_matrix_vector_product(G, v, n_workers=None):
 
 
 def parallel_ensemble_inversion(ensemble_G, ensemble_d, alpha, order=1, n_workers=None):
-    """
-    对多个数据子集进行并行反演（集成反演）。
-    
-    用于Bootstrap不确定性估计。
-    """
     if n_workers is None:
         n_workers = max(1, mp.cpu_count() - 1)
     

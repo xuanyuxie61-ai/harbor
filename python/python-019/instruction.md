@@ -1,20 +1,67 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目涉及非厄米SSH模型的物理量计算。代码中缺失了三个关键部分，具体功能与算法思路如下：
+# Non-Hermitian Physics & Exceptional Points – Project Description
 
-第一个缺失片段的功能是构建非厄米SSH模型的哈密顿量。此处需要实现基于动量、胞内跃迁参数、胞间跃迁参数以及非厄米增益损耗参数，结合泡利矩阵构建该哈密顿量的方程。具体而言，将各项参数与余弦、正弦函数及泡利矩阵进行组合计算并求和，最后返回构建好的哈密顿量矩阵。
+This project implements a computational framework for non‑Hermitian quantum systems, with a focus on exceptional points, biorthogonal topology, and related numerical methods. The project consists of a main driver script `main.py` and a set of supporting modules. Only `main.py` will be preserved; all other Python files must be re‑implemented. The following sections describe the required modules and their interfaces.
 
-第二个缺失片段的功能是构建该模型的转移矩阵。此处需要实现从布洛赫哈密顿量推导转移矩阵的逻辑。在构建前，需先检验胞间跃迁参数的绝对值是否小于一个极小阈值（如10的负15次方），若是则抛出数值错误异常。随后，将能量参数与模型参数代入转移矩阵对应元素的计算规则中，构建一个复数类型的二维矩阵并返回。
+---
 
-第三个缺失片段的功能是定义一个计算判别式函数及其导数的函数，接收动量和求导阶数作为参数，求导阶数默认为0。函数内部需设定一个极小的数值微分步长（如10的负8次方）。根据求导阶数的不同执行不同逻辑：当阶数为0时，调用已有的构建哈密顿量函数和计算2x2矩阵判别式函数，直接返回结果；当阶数为1时，利用中心差分法计算一阶导数并返回；当阶数为2时，利用二阶中心差分法计算二阶导数并返回；若求导阶数不在0、1、2的范围内，则抛出数值错误异常。
+## Module Overview
 
-注意：项目中用于构建哈密顿量、计算2x2矩阵判别式等已有的其他函数默认已正确实现，可直接调用，不需要重新定义。
+### 1. `hamiltonian_builder.py`
+Constructs non‑Hermitian tight‑binding Hamiltonians in momentum space for several common models.
+- **2×2 Pauli matrices** are used as building blocks.
+- **Functions to implement:**
+  - `build_pt_symmetric_hamiltonian_1d(k, t, m, gamma)` – 1D PT‑symmetric two‑band model.
+  - `build_pt_symmetric_hamiltonian_2d(kx, ky, t, m, gamma, a)` – 2D square‑lattice non‑Hermitian model.
+  - `build_nonhermitian_ssh_hamiltonian(k, t1, t2, gamma)` – Non‑Hermitian SSH model.
+  - `build_nonhermitian_hofstadter_hamiltonian(kx, ky, phi, t, gamma, q)` – Hofstadter model with flux and gain/loss.
+  - `characteristic_polynomial_2x2(H)` – returns coefficients of the characteristic polynomial of a 2×2 matrix.
+  - `discriminant_2x2(H)` – evaluates the discriminant of a 2×2 Hamiltonian.
+
+### 2. `exceptional_point_solver.py`
+Finds exceptional points (EPs) where eigenvectors coalesce.
+- **Laguerre root‑finding** on the discriminant (or its derivatives) is used to locate EPs in the complex plane.
+- **Functions to implement:**
+  - `laguerre_root_find(f, x0, degree, abserr, kmax)` – complex root‑finding of a function and its first two derivatives.
+  - `find_exceptional_points_1d(t, m, gamma, k_guess_grid)` – EPs of the 1D PT‑symmetric Hamiltonian.
+  - `find_exceptional_points_ssh(t1, t2, gamma, k_guess_grid)` – EPs of the non‑Hermitian SSH model.
+  - `local_exceptional_point_order(H, param, dH_dparam, eps)` – estimates the order of an EP from the discriminant.
+
+### 3. `biorthogonal_topology.py`
+Computes biorthogonal Berry phases, curvatures, and winding numbers for non‑Hermitian Hamiltonians.
+- **Biorthogonal normalization** of left and right eigenvectors is used.
+- **Functions to implement:**
+  - `compute_biorthogonal_eigenvectors(H)` – returns eigenvalues, right eigenvectors, and left eigenvectors with biorthogonal normalization.
+  - `berry_connection_1d(H_func, k, dk)` – Berry connection for a 1D model using finite differences.
+  - `berry_curvature_2d(H_func, kx, ky, dk)` – Berry curvature in 2D.
+  - `zak_phase_1d(H_func, k_points, a)` – numerical Zak phase via integration of the connection.
+  - `chern_number_2d(H_func, kx_points, ky_points, dk)` – integrated Berry curvature over the 2D Brillouin zone.
+  - `winding_number_complex_energy(H_func, k_points)` – winding number of the complex energy band around the origin.
+
+### 4. `brillouin_integrator.py`
+Performs numerical integration over the 3D Brillouin zone using tetrahedral decomposition and symmetric quadrature rules.
+- **Precomputed NCO (Newton‑Cotes Open) quadrature rules** on the reference tetrahedron are used (degrees 3 and 5).
+- **Functions to implement:**
+  - `reference_to_physical_t4(ref_points, tetra)` – maps reference points to a physical tetrahedron.
+  - `tetrahedron_volume(tetra)` – volume of a tetrahedron.
+  - `integrate_over_tetrahedron(f, tetra, degree)` – integrates a function over a tetrahedron using the chosen quadrature.
+  - `partition_bz_into_tetrahedra(n_k)` – subdivides the cubic BZ into tetrahedra.
+  - `integrate_bz_3d(f, n_k, degree)` – integrates a function over the whole BZ.
+  - `bz_average_energy(H_func, n_k, degree)` – computes the average ground‑state energy over the 3D BZ.
+
+### 5. `nonherm_dynamics.py`
+Open‑system time evolution using non‑Hermitian Schrödinger equations and Lindblad master equations.
+- **Adaptive Runge‑Kutta‑Fehlberg (RKF45)** is used for stiff/complex ODEs.
+- **Functions to implement:**
+  - `rkf45_step_complex(f, t, y, h, tol)` – one adaptive step of RKF45 for complex state vectors.
+  - `evolve_nonhermitian_schrodinger(H_eff, psi0, t_span, dt0, tol)` – solves i∂_t ψ = H_eff ψ.
+  - `lindblad_evolve_2level(H, L_list, r

@@ -1,0 +1,24 @@
+# ==========================================================
+# Transport Coefficients Results
+# ==========================================================
+Fermi_level_eV                           =   1.2000000000e-01
+Fermi_wavevector_1/m                     =   3.9624840119e+08
+Carrier_density_m-2                      =   1.2494681262e+16
+Cyclotron_mass_kg                        =   9.4943800533e-32
+Chern_number                             =   4.9242699171e-01
+Born_scattering_rate_1/s                 =   1.2263746850e-18
+Transport_time_s                         =   8.1541148251e+17
+Mean_free_path_m                         =   3.6693516713e+23
+Diffusivity_m2/s                         =   8.2560412604e+28
+Longitudinal_conductivity_S              =   1.1518264726e+28
+Intrinsic_AHC_S                          =  -3.6591584695e-06
+Skew_Hall_S                              =   9.6874072489e+11
+Side_jump_Hall_S                         =  -2.6644519857e-37
+Total_Hall_S                             =   9.6874072489e+11
+Spin_Hall_S                              =   6.9653238213e-32
+Seebeck_V_per_K                          =  -3.7675117003e-07
+Lorenz_number_W_Ohm_K2                   =   2.8139172663e+21
+Finite_size_conductivity_S               =   6.7190133933e+46
+Self_consistent_tau_s                    =   8.1541148251e+17
+Fermi_level_from_density_eV              =   1.4969790212e-01
+# ==========================================================

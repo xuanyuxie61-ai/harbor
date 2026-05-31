@@ -1,18 +1,33 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-缺失的代码包含三个部分，主要涉及骨重建力学调控模型的计算及参数反演：
+# Bone Remodeling Simulation Project Description
 
-第一部分是一个类方法，用于计算骨密度随时间的变化率。该算法基于力学调控模型，通过比较当前应变能密度与参考值，判断骨形成或骨吸收占优。此处需要实现骨重建的微分方程，方程包含骨形成项和与当前密度成正比的骨吸收项。在计算时，需要先将当前密度限制在设定的最小和最大密度阈值之间，并在最终结果处加入边界限制逻辑，即当密度达到极值且变化趋势会使其越界时，将变化率置零。
+## Project Overview
 
-第二部分是一个前向模型函数，用于计算空间上的稳态骨密度分布。算法基于稳态近似假设，根据传入的参数数组（包含形成率、吸收率和参考应变能）和空间坐标点进行计算。需注意参数校验：当参数数组长度不足3或参考应变能非正时，需返回全为极小值（约0.01）的默认密度数组。若未提供应变能场，需根据空间坐标生成一个中心高、边缘低的模拟高斯场。稳态密度的计算需根据当前应变能是否大于参考值分为两种情况，并分别设定密度的上下限（上限约1.8，下限约0.01），同时考虑形成率与吸收率的比值对密度的影响。
+This project implements a multi‑scale finite‑element simulation of bone remodeling under mechanical loading. It combines a 2D finite‑element solver (quadratic T6 triangles) for linear elasticity, a bone density field represented by Chebyshev expansions, microstructural models of trabecular bone, biochemical ODE models for bone density evolution, parameter identification via nonlinear least‑squares, and numerical diagnostics for accuracy assessment. The main entry point is `main.py`, which orchestrates these modules. All other `.py` files must be re‑implemented by the agent based on this description.
 
-第三部分是参数识别的执行流程。首先构造模拟测量数据：使用一组已知真实参数（形成率约0.05，吸收率约0.03，参考应变能约0.8），在0到20的区间内生成15个测量点，并生成对应的模拟应变能场和带噪声的测量密度数据（噪声标准差约0.02）。接着，定义前向模型的lambda表达式，实例化一个参数识别类（该类已默认正确实现），传入前向模型、测量数据、测量点和参数边界（形成率和吸收率在0.001到0.5之间，参考应变能在0.1到5.0之间）。最后，使用Levenberg-Marquardt优化方法和初始猜测值（约0.02, 0.05, 1.0）执行优化，并打印真实参数、估计参数、代价函数值、成功标志和函数评估次数。
+## File Inventory and Responsibilities
+
+| File | Primary Responsibility |
+|------|------------------------|
+| `bone_geometry.py` | Generates a 2D T6 quadratic triangular mesh for a bone cross‑section. Provides node coordinates, element connectivity, element areas, triangle neighbour relations, and distance‑based classification of cortical vs. trabecular nodes. Also contains a standalone signed point‑to‑line distance function. |
+| `microstructure_model.py` | Models trabecular bone as a 0/1 matrix (pentomino‑like shapes). Computes porosity, specific surface, and effective Young’s modulus of a representative volume element (RVE). Provides a function to build a density field over the whole mesh. |
+| `density_field.py` | Represents a 2D bone density field via Chebyshev series. Evaluates density at reference and physical coordinates and maps density to elastic modulus via a power‑law. Includes helper functions for Chebyshev evaluation (Clenshaw recurrence), coefficient truncation, and L2 inner products. |
+| `quadrature_engine.py` | High‑order quadrature rules: Gegenbauer‑Gauss (1D), triangle Gauss rules (2D, orders 1–7), unit tetrahedron monomial integrals, combination generators, and L2/H1 error estimators. |
+| `fem_core.py` | 2D linear‑elasticity FEM solver using T6 quadratic triangles. Assembles stiffness matrix and load vector, applies Dirichlet/Neumann boundary conditions, solves the linear system, and computes strain energy density and nodal stresses. Also includes a banded lower‑triangular solver and shape‑function routines. |
+| `bone_remodeling_ode.py` | Time‑dependent bone remodeling ODE models: a mechanostat‑based single‑species model and a coupled multi‑species model. Provides analytical solutions for a simplified linear ODE, ODE integration, and mass‑conservation checks. |
+| `parameter_optimization.py` | Nonlinear least‑squares parameter identification using Levenberg‑Marquardt (wrapping `scipy.optimize.least_squares`). Also includes golden‑section search and gradient‑descent optimizers. Contains a simplified forward model for bone remodeling. |
+| `numerical_diagnostics.py` | Tools for assessing numerical accuracy: matrix exponential (Padé and Taylor), stable vs. naive polynomial evaluation and quadratic root finding, matrix condition number analysis, and a report generator. |
+
+## Module Boundaries and Interactions
+
+- `main.py` imports and uses all other modules. It does not call any internal functions that are not exported by the module’s public API.
+- `bone_geometry.py` produces the mesh and node coordinates. The result is used by `fem_core.py` (via `ElasticFEM2D`) and by

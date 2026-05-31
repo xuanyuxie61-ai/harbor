@@ -1,18 +1,52 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目涉及量子多体系统与核物理的数值计算，主要包含三个缺失的功能模块：
+# Project Description: Drip-Line Nuclear Structure and Decay Dynamics Suite
 
-第一个模块用于求解径向薛定谔方程的本征值问题。算法思路上，首先需要计算包含向心势的有效势能，此处需要实现向心势的物理方程，并处理径向坐标接近零时的奇点问题：当径向坐标小于十万分之一时，需将其安全值替换为十万分之一。接着，利用有限差分法构建内部格点（总数为总格点数减2）的对称三对角哈密顿量矩阵。主对角线元素由动能系数的两倍加上对应位置的有效势构成，次对角线元素为动能系数的负数，其中动能系数由约化常数与步长平方的比值决定。最后，调用线性代数库构建密集矩阵并求解该矩阵的全部本征值和本征向量。
+This project provides a computational pipeline for studying the structure, reactions, and decay of neutron‑drip‑line nuclei. It combines mean‑field potential construction, radial Schrödinger‑equation solvers, self‑consistent pairing (HFB‑BCS), mass‑surface interpolation, stochastic Langevin dynamics, β‑decay statistics, reaction cross sections, three‑dimensional density meshes, and high‑dimensional quadrature. The main entry point (`main.py`) orchestrates all these calculations for a representative nucleus (e.g. ²⁸O) and prints results to stdout.
 
-第二个模块实现了 BCS 理论的自洽迭代求解过程。在设定的最大迭代次数内，首先调用已定义的占据数计算函数获取相关变量。然后，根据配对强度与占据数乘积的求和来更新配对间隙。为了满足目标粒子数约束，需要定义一个计算当前粒子数的内部函数，并通过割线法迭代调整化学势，使计算得到的粒子数逼近目标值。迭代中，粒子数收敛阈值设为千分之一，化学势的搜索范围被限制在最低能级减5到最高能级加5之间。最后，判断新旧配对间隙的差值是否小于收敛容差，且当前粒子数与目标值的偏差是否小于百分之一，若满足则判定收敛并退出循环，否则标记为未收敛。
+## File Inventory and Responsibilities
 
-第三个模块是 HFB-BCS 自洽配对计算的主流程。首先输出带有分割线的标题。接着，对排好序的单粒子能级进行中子配对计算，调用求解函数时传入中子数和大小为2.0的初始配对间隙，并打印中子的化学势、配对间隙、配对能、总能量以及迭代次数。随后，对质子进行类似计算，但需对能级进行截断处理（取前一半或至少4个能级），传入质子数和大小为1.5的初始配对间隙，并打印质子的化学势和配对间隙。项目中其他依赖的函数（如占据数计算函数、HFB-BCS求解函数等）均已正确实现，无需重新定义。
+* **`constants.py`**  
+  Physical constants (ħc, nucleon masses, …), conversion factors, liquid‑drop model coefficients, Woods–Saxon default parameters, pairing strength, and numerical defaults. Also provides two utility functions: `reduced_mass` and `hbar2_over_2m`.
+
+* **`nuclear_potential.py`**  
+  Construction of deformed optical potentials. Defines real spherical harmonics (Y₂₀, Y₃₀, Y₄₀), a deformed radius function, Woods–Saxon form factor and its derivative, spin‑orbit potential, and Coulomb potential. Provides functions to assemble the total neutron/proton potentials (`build_neutron_potential`, `build_proton_potential`) for a given deformation.
+
+* **`radial_solver.py`**  
+  Solves the radial Schrödinger equation for a given orbital angular momentum. Contains Gauss–Lobatto node/weight routines, Vandermonde‑based quadrature weights, a Lagrange differentiation matrix, and a stable finite‑difference (Numerov‑like) solver (`solve_radial_schroedinger`) that returns bound‑state energies and wave functions. Also includes helpers for radial matrix elements and kinetic‑energy matrix elements.
+
+* **`hfb_selfconsistent.py`**  
+  Hartree‑Fock‑Bogoliubov (HFB) solver using the BCS approximation. Implements BCS occupation amplitudes, a conjugate‑gradient linear solver for symmetric positive‑definite matrices, and a self‑consistent pairing loop (`solve_hfb_bcs`). Also provides functions to build the one‑body density matrix and the pairing tensor.
+
+* **`mass_surface.py`**  
+  Multidimensional interpolation of nuclear masses. Contains the liquid‑drop model binding energy, the atomic mass from LDM, a shell‑correction formula from single‑particle spectra, and a class `NuclearMassSurface` that performs radial‑basis‑function interpolation of mass residuals. Methods include point evaluation, separation energy, drip‑line location, and a curvature estimator. Also includes a Genz oscillatory test function.
+
+* **`decay_statistics.py`**  
+  Statistical modelling of decay chains. Computes the non‑central Beta CDF (via a series expansion) and approximate PDF. Provides a Monte‑Carlo discrete‑chain simulation using inverse‑CDF sampling. Also contains functions for β‑decay Q‑value, an approximate half‑life formula, and a Bayesian credible interval for neutron‑drip existence using the non‑central Beta distribution.
+
+* **`stochastic_dynamics.py`**  
+  Overdamped Langevin dynamics of nucleons. Implements a single Euler–Maruyama step, full trajectory generation, ensemble averaging with mean‑squared displacement (MSD) analysis, diffusion‑coefficient extraction, nuclear temperature from the Fermi‑gas model, and an evaporative decay rate (Weisskopf estimate).
+
+* **`reaction_phasespace.py`**  
+  Reaction cross sections and phase‑space integrals. Computes unit‑disk monomial integrals (exact formula), a Gaussian disk integral, a peripheral transfer probability and its total cross section, a Coulomb breakup cross section in the equivalent‑photon approximation, and a normalised angular‑momentum coupling weight.
+
+* **`density_mesh.py`**  
+  Generation and manipulation of 3‑D tetrahedral meshes for nuclear density distributions. Provides icosahedron vertices/faces, a recursive spherical triangulation, a tetrahedral spherical‑shell mesh builder, tetrahedron volume, mesh integration of a density function, a deformed Fermi density, RMS‑radius extraction, and an XML mesh writer.
+
+* **`quadrature_engine.py`**  
+  High‑dimensional integration tools. Stores hard‑coded Fekete quadrature rules on the reference triangle (degrees 1–7), functions to integrate over a physical triangle, sparse‑grid Clenshaw–Curtis quadrature (Smolyak construction) for hyper‑cubes, and a dedicated function to integrate a deformation probability density over a (β₂,β₃) rectangle.
+
+* **`main.py`**  
+  Main entry point. Sets up a target nucleus (Z, N, deformation parameters), and sequentially calls the other modules to:
+  1. Build neutron and proton mean‑field potentials.
+  2. Solve the radial Schrödinger equation for a few angular momenta.
+  3. Run self‑consistent HFB‑BCS for neutrons and protons.
+  4. Build a local mass surface from

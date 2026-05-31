@@ -1,24 +1,73 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目旨在通过风险平价模型进行资产配置，并利用耦合常微分方程系统模拟市场动态与传染效应。代码中涉及数值迭代、组合风险计算以及微分方程求解等关键环节。请根据以下提示，在项目中定位缺失代码并完成补全。
+# 项目描述：高维风险平价投资组合优化系统
 
-缺失片段1：
-此片段属于风险平价权重的核心迭代求解算法。算法通过循环迭代不断更新各资产的权重向量，直至收敛。在每次迭代中，对于每个资产，需要计算协方差矩阵（加入正则化后）中该资产与其他资产的交叉项之和。随后基于风险预算的比例，计算该资产的新权重值，在此过程中需要避免分母出现负数或过小的情况，当分母小于一个极小值阈值（如1e-15）时，需将其设为该阈值以防止数值溢出。更新完所有资产权重后，需要对权重向量进行归一化处理，若总和大于零则按比例缩放，否则赋予等权重。最后判断新旧权重向量的1-范数差值是否小于给定的收敛容差，若满足则提前跳出迭代。
+本项目是一个金融工程综合计算框架，目标是对投资组合进行高精度风险度量、网络风险传播分析、蒙特卡洛模拟、投资组合优化（含风险平价与最小方差）、以及耦合动力学模拟。主程序 `main.py` 调用了一系列专用模块，利用谱方法、随机微分方程、图论与优化技术，完成从数据生成到最终策略评估的全流程。
 
-缺失片段2：
-此片段用于调用风险平价权重计算函数，并详细输出无约束及带约束条件下的风险平价组合的各项指标。首先调用函数并设定最大迭代次数为2000、容差为1e-10，随后打印组合风险、分散化比率、迭代次数、各资产权重及风险贡献。接着，基于风险贡献向量计算Herfindahl风险集中度指标与有效赌注数，并打印其值与理想值的对比。最后，调用带预算约束的风险平价函数，设定各资产权重的下限全为0.05、上限全为0.30，并打印该约束组合的风险与各资产权重。
+## 被移除的文件清单及职责
 
-缺失片段3：
-此片段是耦合市场动力学常微分方程的右端函数实现。该函数需根据给定的状态向量和时间，计算状态向量的导数。状态向量按交替顺序存储了各资产的位置与速度。首先初始化导数向量，然后计算系统中的耦合项，该耦合项涉及网络耦合矩阵与各资产位置的矩阵乘法，并减去矩阵行和与位置向量的逐元素乘积。速度的导数等于当前速度，而加速度的导数则由回复力、耦合项和阻尼力共同决定，分母为资产质量，需确保质量不小于极小值1e-12以防止除零。最后按交替顺序将速度导数和加速度导数赋值给总的导数向量并返回。
+需要根据 `main.py` 中的使用方式实现以下七个 Python 模块，每个模块封装一组相关算法。
 
-缺失片段4：
-此片段主要用于执行传染效应模拟与确定性ODE验证。首先调用传染病模拟函数，设定资产数量为n，模拟时长为2.0年，时间步长为0.01，回复力系数为2.0，阻尼系数为0.5，噪声标准差为0.3，随后打印模拟时长及各资产的最大偏离幅度。接着进行双资产的确定性ODE验证：构建2资产的全耦合矩阵（非对角线元素为1.0，对角线为0.0），设定初始状态向量和零速度向量，调用梯形法ODE求解器，设定积分区间为0到10、步数为500，动力学函数需传入回复力系数1.0、耦合矩阵、阻尼0.3以及全1的质量向量。最后计算并打印动能（即速度分量的平方和的一半）从初始到终了的变化情况。
+### 1. `chebyshev_pricing.py` – Chebyshev 谱方法风险计算
+- **`chebyshev_grid(n)`**：生成 n+1 个 Chebyshev 节点 (cos 形式)，用于在 [-1,1] 上构建插值。
+- **`chebyshev_diff_matrix(n)`**：返回 Chebyshev 谱微分矩阵 D，使得 w = D·v 近似导数。
+- **`chebyshev_barycentric_interpolate(x_grid, v, x_query)`**：用重心 Lagrange 插值在 Chebyshev 节点上计算查询点的函数值。
+- **`spectral_var_cvar(returns, alpha, n_cheb)`**：核心风险度量函数。将收益率样本映射到标准区间，通过 Chebyshev 节点上的经验 CDF 插值及谱微分计算 PDF，然后解 CDF=α 的根得 VaR，再在尾部积分得到 CVaR。返回包含 VaR、CVaR、均值、标准差及谱节点信息的字典。
+- **`circle01_monomial_integral(e)`**：计算单位圆周上单项式解析积分，用于验证。
+
+### 2. `dynamics_model.py` – 耦合市场动力学与 SDE 求解
+- **`coupled_market_dynamics(y, t, k1, K2, gamma, m)`**：计算高维耦合弹簧系统的右端项。状态向量 y 为 [u₁,v₁,u₂,v₂,…]，结合个体均值回归、资产间耦合与阻尼，返回 dy/dt。
+- **`trapezoidal_sde_solver(f, g, tspan, y0, n_steps, rng)`**：梯形隐式格式求解 SDE，对漂移项采用 Crank‑Nicolson 方式隐式迭代，对扩散项采用显式 Euler‑Maruyama，每步使用不动点迭代解非线性方程。
+- **`trapezoidal_ode_solver(f, tspan, y0, n_steps)`**：确定性梯形法 ODE 求解器，类似但无随机项。
+- **`simulate_contagion(n_assets, T, dt, k1, gamma, sigma_noise, rng)`**：模拟资产传染场景，构建星形耦合矩阵，并在时间中点施加冲击，返回轨迹和最大偏离。
+
+### 3. `monte_carlo_simulator.py` – 蒙特卡洛与 Bootstrap
+- **`simulate_returns_mc(mu, sigma, corr, T, n_paths, rng)`**：使用几何布朗运动和相关结构生成多维收益率路径，通过 Cholesky 分解耦合噪声。
+- **`bootstrap_risk_analysis(returns, n_bootstrap, alpha, rng)`**：对等权重组合收益率进行 Bootstrap 重采样，计算 VaR、CVaR 的均值与置信区间。
+- **`tournament_risk_simulation(strengths, n_games, rng)`**：模拟锦标赛，按资产强度随机决定每轮获胜者，返回胜率作为相对表现概率。
+- **`high_dim_sphere_sampling(n_samples, dim, rng)`**：在高维单位球面上均匀采样（正态化方法）。
+
+### 4. `network_risk.py` – 资产网络与风险传播
+- **`build_asset_digraph(n, threshold, corr)`**：根据相关性阈值构建有向图邻接矩阵，孤立节点添加自环。
+- **`pagerank_systemic_risk(adj, damping, max_iter, tol)`**：基于行随机矩阵的幂迭代计算 PageRank 得分，衡量系统重要性。
+- **`delaunay_similarity_triangulation(positions)`**：对二维嵌入点进行 Delaunay 三角剖分，返回无向邻接矩阵。
+- **`stochastic_risk_diffusion(network_adj, initial_risk, omega, nx, ny)`**：在二维网格上用五点差分法求解稳态随机热方程，系数受随机参数 ω 控制，边界固定为 ω₂，源项来自 `initial_risk`。
+- **`network_risk_contribution(adj, asset_returns)`**：计算各资产的网络风险贡献度，基于波动率与加权 β 系数的乘积。
+
+### 5. `portfolio_optimizer.py` – 投资组合优化
+- **`markowitz_min_variance(Sigma, target_return, mu)`**：求解带非负约束的最小方差组合（可附加目标收益约束），使用 SLSQP 优化器。
+- **`risk_parity_weights(Sigma, risk_budget, max_iter, tol)`**：用循环坐标下降（CCD）迭代求解风险平价权重，使各资产风险贡献与预算成正比，返回权重、风险贡献、组合风险、分散化比率等。
+- **`herfindahl_risk_concentration(rc)`**：风险贡献的 Herfindahl 指数。
+- **`effective_number_of_bets(rc)`**：基于熵的有效赌注数。
+- **`risk_parity_with_budget_constraints(Sigma, lower, upper, risk_budget, max_iter)`**：带上下界约束的风险平价，通过投影梯度法优化凸目标。
+
+### 6. `simplex_search.py` – 单纯形格点搜索
+- **`simplex_lattice_points(n, t)`**：按逆字典序枚举 n 维标准单纯形上所有整数格点（总和为 t）。
+- **`simplex_volume(points)`**：计算单纯形体积。
+- **`covariance_simplex_volume(Sigma)`**：通过 Cholesky 分解计算协方差矩阵对应的广义体积（det(L)）。
+- **`tet_quality_indicator_from_cov(Sigma)`**：从协方差子矩阵计算条件数等质量指标。
+- **`lattice_portfolio_search(n_assets, t, Sigma, mu)`**：枚举所有格点权重并评估风险（及夏普比率），返回最优组合。
+- **`mesh_base_one(element_node, node_num)`**：索引基准修正（0‑based 转 1‑based 或识别）。
+
+### 7. `spherical_embedding.py` – 球面嵌入与分散度
+- **`sphere_distance1(lat1, lon1, lat2, lon2, r)`**：Haversine 大圆距离。
+- **`ll_to_xyz(r, ll)`** 与 **`xyz_to_ll(xyz, r)`**：经纬度 ↔ 笛卡尔坐标互换。
+- **`map_spherical_residual(ll_vec, r, city_num, distance)`**：球面嵌入的残差函数，固定前两个点的自由度，输出距离差异。
+- **`correlation_to_spherical_embedding(corr, r, random_seed)`**：通过非线性最小二乘将相关性矩阵映射为球面上点的三维笛卡尔坐标。
+- **`circle01_sample_random(n, rng)`**：在单位圆上均匀采样。
+- **`spherical_diversity_index(xyz)`**：基于球面点集重心范数计算分散度指标。
+- **`angular_distance_matrix(xyz)`**：点集间的角度距离矩阵。
+
+### 8. `utils.py` – 通用工具
+- **`caesar_perturb(data, k, axis)`**：循环移位并加高斯噪声的扰动。
+- **`matrix_interpolation_upsample(A, factor)`**：矩阵双线性上采样（factor=2）。
+- **`polygonal_convex_hull(points)`**：计算点集凸包的顶点、体积等信息。
+- **`distance_to_position_mds(distance, dim)`**：经典

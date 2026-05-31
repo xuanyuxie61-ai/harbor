@@ -1,18 +1,139 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目旨在求解Kuramoto-Sivashinsky (KS) 方程，包含基于谱方法的高精度时间推进算法以及基于物理信息的神经网络（PINN）求解方法。项目中有三处代码缺失，具体功能与算法思路如下：
+```markdown
+# Project python-147: PINN Solver for the Kuramoto–Sivashinsky Equation
 
-第一处缺失：实现基于指数时间差分Runge-Kutta 4阶格式（ETDRK4）的时间步进循环。该部分需要在给定的总步数内进行迭代。在每次迭代中，首先通过傅里叶正反变换计算非线性项。接着，执行ETDRK4算法的四个中间阶段，利用预先计算好的积分系数将当前状态与各阶段非线性项进行线性组合。最后，按设定的快照间隔判断是否需要保存，若需要，则将转换回物理空间的解和对应的模拟时间分别存入存储列表中，直到达到实际需要的快照数量。
+## 1. Project Overview
 
-第二处缺失：实现计算四阶偏导数的类方法。该方法基于五点差分格式计算数值导数。算法思路为：给定一个极小的差分步长（值设为2e-3），定义五个偏移量（依次为-2, -1, 0, 1, 2）及其对应的差分系数（依次为1.0, -4.0, 6.0, -4.0, 1.0）。对输入数据的指定变量索引列进行偏移拷贝，分别输入网络进行前向传播，将输出结果按照对应系数进行加权累加，最后除以步长的四次方完成归一化。
+This project builds a Physics‑Informed Neural Network (PINN) to solve the one‑dimensional Kuramoto–Sivashinsky (KS) partial differential equation on a periodic domain.  The main script (`main.py`) orchestrates a full scientific computing pipeline that includes:
 
-第三处缺失：实现计算KS方程PDE残差的函数。该函数接收神经网络和配点坐标作为输入，首先校验输入数据必须为二维数组且列数为2。接着，调用网络的正向传播获取状态变量预测值，并分别调用网络已有的求导方法计算关于时间的一阶导数、关于空间的一阶导数、关于空间的二阶导数以及关于空间的四阶导数。最后，按照KS方程的物理约束，将上述导数与状态变量进行代数组合计算PDE残差并返回。注意，此处仅实现KS方程的残差逻辑，其他依赖的底层导数计算方法默认已正确实现，无需重新定义。
+- Generating a reference solution using a spectral Exponential Time Differencing (ETDRK4) method.
+- Training a PINN with a composite physics‑informed loss.
+- Comparing the PINN against manufactured solutions and classical RBF interpolation.
+- Analysing chaotic initial conditions, quadrature rules, mesh utilities, and adaptive collocation point sampling.
+
+The remaining Python files implement the building blocks.  Your task is to recreate all missing source files (everything except `main.py`) to restore the full functionality.
+
+## 2. File‑by‑File Description
+
+### 2.1 `ks_pde_solver.py` – Reference Spectral Solver
+
+Provides a numerically accurate reference for the KS equation  
+\(u_t + u u_x + u_{xx} + u_{xxxx} = 0\) on the periodic domain \(x \in [0, 32\pi]\).
+
+**Core functions:**
+
+- `solve_ks_etdrk4(nx, tmax, dt, n_snapshots)`  
+  Runs an ETDRK4 time‑stepping scheme in Fourier space.  Returns spatial grid `x`, time snapshots `t`, solution matrix `u` (spatial × temporal), wavenumbers `k`, and the linear Fourier operator `L_op`.  The initial condition is a fixed trigonometric function.  ETDRK4 coefficients are pre‑computed via a roots‑of‑unity contour integral (Kassam–Trefethen approach).
+
+- `ks_reference_residual(u, x, t, k)`  
+  Computes the PDE residual \(u_t + u u_x + u_{xx} + u_{xxxx}\) for a given field using spectral differentiation (FFT).
+
+### 2.2 `pinn_network.py` – Neural Network Architecture
+
+Defines a custom fully‑connected feed‑forward network `PINNNetwork` that maps \((t, x)\) to \(u(t,x)\).
+
+**Key class and method responsibilities:**
+
+- `PINNNetwork(input_dim, hidden_dims, output_dim, activation, rbf_scale, seed)`  
+  Initialises weight matrices and biases using Xavier/Glorot scaling.  Supported activations: `'gaussian_rbf'`, `'squircle'`, and `'tanh'`; each has a corresponding derivative implementation.
+
+- `forward(X, store_cache)` / `predict(X)`  
+  Compute the network output; forward can optionally cache intermediate values.
+
+- `finite_difference_derivatives(X, var_idx)` – first‑order partial derivative w.r.t. a chosen input variable.
+
+- `second_derivative(X, var_idx)` / `fourth_derivative(X, var_idx)` – higher‑order derivatives via centred finite‑difference stencils.
+
+- `get_params_flat()` / `set_params_flat(params)` – flatten/unflatten all weights and biases for gradient‑based optimisation.
+
+- `parameter_count()` – returns total number of trainable parameters.
+
+### 2.3 `physics_loss.py` – Physics‑Informed Loss Functions
+
+Computes the loss terms that enforce the KS dynamics, initial conditions, and periodic boundary conditions.
+
+**Core functions:**
+
+- `compute_pde_residual(network, X_f)`  
+  Evaluates \(u_t + u u_x + u_{xx} + u_{xxxx}\) at a set of collocation points using the network’s finite‑difference derivatives.
+
+- `compute_ic_loss(network, X_ic, u_ic_target)`  
+  Mean squared error against a target initial condition.
+
+- `compute_bc_loss(network, X_bc_0, X_bc_L)`  
+  Enforces \(u(t,0) = u(t,L)\) by comparing outputs at paired boundary points.
+
+- `compute_total_loss(network, X_f, X_ic, u_ic_target, X_bc_0, X_bc_L, lambda_pde, lambda_ic, lambda_bc)`  
+  Weighted sum of the three loss terms.  Returns the total loss and a dictionary with individual components.
+
+- `compute_loss_gradient(network, ...)`  
+  Numerical gradient of the total loss via central differences (full batch).  An additional minibatch variant is available.
+
+### 2.4 `stochastic_optimizer.py` – Training Optimisers
+
+Implements optimisation routines tailored for the PINN loss landscape.
+
+**Key classes:**
+
+- `SGDWithMomentum(params_dim, lr, momentum, lr_decay, min_lr)`  
+  Nesterov‑accelerated gradient descent with step‑wise learning‑rate decay.
+
+- `StochasticCoordinateDescent(params_dim, block_size, lr, lr_decay)`  
+  Randomly selects a block of coordinates and performs a gradient‑based update, inspired by Gauss–Seidel ideas.
+
+- `CosineAnnealingScheduler(eta_max, eta_min, T_max)`  
+  Produces a learning rate that follows a cosine decay schedule.
+
+- `CombinedOptimizer(...)`  
+  Switches from SGD with momentum to coordinate descent after a fixed number of iterations.
+
+### 2.5 `domain_mesh.py` – Collocation Point and Mesh Utilities
+
+Generates and manages the discrete points where the physics loss is evaluated.
+
+**Core functions:**
+
+- `generate_collocation_grid(tmax, L_domain, nt, nx)` – structured space‑time grid.
+- `generate_boundary_points(tmax, L_domain, n_bc)` – paired points for periodic BCs.
+- `generate_initial_condition_points(L_domain, nx_ic)` – points at \(t=0\).
+- `triangulation_boundary_edges(triangle_nodes)` – extracts boundary edges from a triangulation.
+- `boundary_edge_to_path(boundary_edges)` – orders boundary edges into a closed polygon.
+- `find_nearest_neighbors(points_ref, points_query)` – brute‑force nearest neighbour search.
+- `cluster_points_by_distance(points, threshold)` – distance‑based clustering.
+
+### 2.6 `rbf_kernel.py` – Radial Basis Functions and RBF Layers
+
+Provides classical RBF interpolation as a baseline, plus an RBF layer that can be integrated into a network.
+
+**Core functions and class:**
+
+- `compute_pairwise_distance(X1, X2)` – Euclidean distance matrix.
+- `rbf_phi1` to `rbf_phi4` – multiquadric, inverse multiquadric, thin‑plate spline, and Gaussian kernels.
+- `rbf_interpolation_weights(X_data, f_data, r0, phi_type)` – solves the linear system for RBF weights and returns weights and a condition number.
+- `rbf_interpolate(X_data, w, r0, X_query, phi_type)` – evaluates the interpolant.
+- `RBFKernelLayer(n_centers, input_dim, r0, phi_type, learnable_centers, seed)` – a standalone layer with centres, output weights, and bias.
+
+### 2.7 `chaos_utils.py` – Chaotic Dynamics and Initial Conditions
+
+Generates non‑trivial initial conditions that capture spatiotemporal complexity of the KS equation.
+
+**Core functions:**
+
+- `squircle_trajectory(s, t0, y0, tstop, n_points)` – solves the squircle ODE (a generalisation of harmonic motion) with RK4.
+- `squircle_activation_basis(x, s, n_modes)` – creates a periodic basis from time‑shifted squircle solutions.
+- `cross_chaos_ifs(n_points, seed)` – iterates an IFS to produce points on a fractal cross.
+- `cellular_automaton_rule30(cell_num, step_num, seed_center)` – evolves Rule‑30 CA.
+- `generate_chaotic_initial_condition(L_domain, nx, chaos_type, amplitude)` – selects one of the above sources to build a spatial initial profile \(u(0,x)\).
+
+### 2.8 `quadrature_rules.py` – Numerical Integration
+
+Supplies high‑order quadrature rules, potentially

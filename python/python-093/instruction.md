@@ -1,16 +1,61 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-片段1：这部分代码用于计算高斯波束的初始场或特定距离处的场分布。首先将深度坐标转换为64位浮点数数组，计算与源深度的差值。接着基于高斯函数计算振幅（需用到波束宽度参数）。然后计算相位，判断曲率半径是否为无穷大：若是则相位为0，否则基于波数和深度差计算二次相移。最后返回振幅与相位复指数的乘积。此处需要实现高斯波束的振幅衰减与相前曲率相移公式。
+# 项目描述：水声传播宽角抛物方程（WAPE）建模系统
 
-片段2：这部分代码用于抛物方程有限差分法中的步进求解，构建隐式差分格式的左右端三对角矩阵系数。首先计算步进系数，由距离步长、虚数单位和波数构成。然后分别构建左端和右端三对角向量的下对角线、主对角线和上对角线。主对角线中需加入等效折射率平方与波数平方的乘积项，且左右端对应项的符号相反。此处需要实现抛物方程步进格式（如Crank-Nicolson格式）的左右端矩阵系数构建。
+本项目是一个面向深海复杂环境的水声传播数值模拟系统，基于宽角抛物方程（Wide‑Angle Parabolic Equation, WAPE）方法。系统由 `main.py` 统一调度，其余模块分别负责环境建模、网格生成、声源初始化、边界条件、PE 求解器、模态分析、散射与混响及传播损失后处理。运行 `main.py` 即可完成从参数设置到结果输出的全流程。
 
-片段3：这部分代码用于简正波模型的水平波数与模态求解。首先将物理空间的二阶微分矩阵与折射率参数构成的对角阵相加构建特征矩阵。接着施加边界条件：海面采用Dirichlet边界条件，将首行清零并设左上角元素为1；海底采用简化Neumann边界条件，将末行清零，利用一阶差分近似，设最右下角两个元素分别为1和-1。随后求解特征值与特征向量，取负特征值作为水平波数的平方，按其实部从大到小排序，筛选实部大于0的传播模态并开方。若给定了模态数限制，则截取前若干个模态。最后返回水平波数、特征向量和深度节点。此处需要实现简正波特征值方程构建、边界条件处理及传播模态提取逻辑。
+## 文件结构
+
+### main.py
+主入口脚本。依次调用各模块完成以下流程：
+1. 创建 `OceanEnvironment` 实例，设置海水声速剖面、吸收、海底地形等参数。
+2. 生成深度和水平计算网格，构造 `PEMesh` 对象。
+3. 生成初始声源场并归一化。
+4. 初始化边界条件处理器 `BoundaryConditionHandler`。
+5. 使用 `ParabolicSolver` 进行场步进求解。
+6. 进行简正波分析（`NormalModeAnalyzer`）和模态约束验证。
+7. 计算体积散射与混响（`VolumeScatteringModel`, `ReverberationModel`）。
+8. 计算传播损失（`PropagationLoss`）、接收器阵列响应、收敛区与声影区，并分析多径统计。
+9. 进行空间相关性分析（`SpatialCorrelation`）。
+10. 验证若干数值工具（多项式转换、三角积分、特殊函数等）。
+
+### environment.py
+定义海洋环境类 `OceanEnvironment`，用于存储和查询声学环境参数。
+- 核心属性：声速剖面参数（Munk 模型）、频率、吸收系数、海底参数、密度等。
+- 主要方法：
+  - `sound_speed(z)`：返回 Munk 声速剖面。
+  - `absorption_db_per_km(f_khz)` / `absorption_np_per_m(f_khz)`：Thorp 吸收公式。
+  - `wavenumber(z)`：复数波数 k(z) = ω/c(z) + iα。
+  - `refractive_index(z)` / `refractive_index_squared_deviation(z)`：折射率及其偏差。
+  - `density(z)` / `impedance(z)`：海水密度和声阻抗。
+  - `bathymetry(r)`：根据参数化模型（tanh 斜坡 + 高斯山丘）计算海底深度。
+  - `seabed_reflection_coefficient(theta)`：Rayleigh 反射系数。
+- 工具函数 `safe_divide`：防除零的除法。
+
+### mesh_builder.py
+生成 PE 求解所需的计算网格，并管理水域掩码。
+- 函数：
+  - `generate_depth_grid(z_max, nz, stretch_power, z_axis)`：生成非均匀深度网格，使用拉伸映射，可选声道轴附近加密。
+  - `generate_range_grid(r_max, dr)`：均匀水平网格。
+  - `point_in_polygon(x_poly, y_poly, x0, y0)`：射线交叉算法判断点是否在多边形内（用于水域掩码）。
+- 类 `PEMesh`：
+  - 初始化时根据 `r_grid`、`z_grid` 和 `OceanEnvironment` 构建二维网格，计算每个水平步的海底深度，生成节点掩码（`node_mask`，标记有效水域节点），并构建三角形单元列表（用于后处理）。
+  - 方法：`get_1d_slice(m)`、`global_index(m,n)`、`local_index(idx)`、`adaptive_range_step(m)`、`mesh_quality_stats()`。
+
+### source_field.py
+生成抛物方程的初始声场 `u(0,z)`。
+- 主要函数：
+  - `gaussian_starter(z, z_s, w0, k0, R_c)`：高斯束源。
+  - `green_starter(z, z_s, k0)`：基于 Hankel 函数远场近似的格林函数源。
+  - `directional_factor(theta, ka)`：圆形活塞方向性因子。
+  - `sinc_interpolate(z_query, z_grid, u_grid)`：基于归一化 sinc 的带限插值。
+  - `build_initial_field(z_grid, z_s, source_type, **kwargs)`：根据类型构建初始场。
+  - `source_power_normalization

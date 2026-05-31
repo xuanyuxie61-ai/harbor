@@ -1,0 +1,358 @@
+"""
+mesh_utils.py
+三维四面体网格质量评估与网格解析工具
+
+基于 tet_mesh_quality 和 medit_to_ice 的核心算法:
+    - 四面体体积、形状质量度量
+    - 4×4 矩阵行列式计算
+    - 网格文件解析 (.mesh 格式)
+    - 节点排序与索引修正
+
+物理应用:
+    1. 评估地球三维有限元网格的质量
+    2. 解析 MEDIT 格式网格用于中微子传播模拟
+    3. 确保数值计算的网格非退化性
+"""
+
+import numpy as np
+
+
+def r8mat_det_4d(a):
+    """
+    计算 4×4 矩阵的行列式。
+    (源自 tet_mesh_quality)
+
+    公式 (Laplace 展开):
+        det(A) = Σ_j (-1)^{i+j} a_{ij} M_{ij}
+
+    参数:
+        a: (4, 4) 矩阵
+
+    返回:
+        det: 行列式值
+    """
+    det = (
+        a[0, 0] * (
+            a[1, 1] * (a[2, 2] * a[3, 3] - a[2, 3] * a[3, 2])
+            - a[1, 2] * (a[2, 1] * a[3, 3] - a[2, 3] * a[3, 1])
+            + a[1, 3] * (a[2, 1] * a[3, 2] - a[2, 2] * a[3, 1])
+        )
+        - a[0, 1] * (
+            a[1, 0] * (a[2, 2] * a[3, 3] - a[2, 3] * a[3, 2])
+            - a[1, 2] * (a[2, 0] * a[3, 3] - a[2, 3] * a[3, 0])
+            + a[1, 3] * (a[2, 0] * a[3, 2] - a[2, 2] * a[3, 0])
+        )
+        + a[0, 2] * (
+            a[1, 0] * (a[2, 1] * a[3, 3] - a[2, 3] * a[3, 1])
+            - a[1, 1] * (a[2, 0] * a[3, 3] - a[2, 3] * a[3, 0])
+            + a[1, 3] * (a[2, 0] * a[3, 1] - a[2, 1] * a[3, 0])
+        )
+        - a[0, 3] * (
+            a[1, 0] * (a[2, 1] * a[3, 2] - a[2, 2] * a[3, 1])
+            - a[1, 1] * (a[2, 0] * a[3, 2] - a[2, 2] * a[3, 0])
+            + a[1, 2] * (a[2, 0] * a[3, 1] - a[2, 1] * a[3, 0])
+        )
+    )
+    return det
+
+
+def tetrahedron_volume(p1, p2, p3, p4):
+    """
+    计算四面体体积。
+
+    公式:
+        V = |det([p2-p1, p3-p1, p4-p1])| / 6
+
+    参数:
+        p1, p2, p3, p4: 顶点坐标 (3,)
+
+    返回:
+        volume: 体积 (正值)
+    """
+    M = np.array([
+        [p2[0] - p1[0], p3[0] - p1[0], p4[0] - p1[0]],
+        [p2[1] - p1[1], p3[1] - p1[1], p4[1] - p1[1]],
+        [p2[2] - p1[2], p3[2] - p1[2], p4[2] - p1[2]]
+    ], dtype=np.float64)
+    return abs(np.linalg.det(M)) / 6.0
+
+
+def tetrahedron_quality_measure_1(p1, p2, p3, p4):
+    """
+    四面体质量度量 1: 体积与边长立方之比。
+    (源自 tet_mesh_quality)
+
+    对于正四面体, 此值为 √2 / 12 ≈ 0.11785。
+    越接近此值, 质量越好。
+
+    公式:
+        Q = 72√3 * V / (Σ l_i²)^{3/2}
+    """
+    edges = [
+        p2 - p1, p3 - p1, p4 - p1, p3 - p2, p4 - p2, p4 - p3
+    ]
+    sum_sq = sum(np.dot(e, e) for e in edges)
+    if sum_sq < 1e-14:
+        return 0.0
+    V = tetrahedron_volume(p1, p2, p3, p4)
+    Q = 72.0 * np.sqrt(3.0) * V / (sum_sq ** 1.5)
+    return Q
+
+
+def tetrahedron_quality_measure_2(p1, p2, p3, p4):
+    """
+    四面体质量度量 2: 内切球半径与外接球半径之比。
+    (源自 tet_mesh_quality)
+
+    对于正四面体, R_out / r_in = 3, 所以 Q = 1/3 ≈ 0.333。
+    """
+    V = tetrahedron_volume(p1, p2, p3, p4)
+    if V < 1e-14:
+        return 0.0
+
+    # 计算各面面积
+    def triangle_area(a, b, c):
+        return 0.5 * np.linalg.norm(np.cross(b - a, c - a))
+
+    A1 = triangle_area(p2, p3, p4)
+    A2 = triangle_area(p1, p3, p4)
+    A3 = triangle_area(p1, p2, p4)
+    A4 = triangle_area(p1, p2, p3)
+    S = A1 + A2 + A3 + A4
+
+    if S < 1e-14:
+        return 0.0
+
+    r_in = 3.0 * V / S
+
+    # 外接球半径: 求解 circumcenter O
+    # 2(B-A)·O = |B|² - |A|²  (对 C, D 同理)
+    A_mat = np.array([
+        2.0 * (p2 - p1),
+        2.0 * (p3 - p1),
+        2.0 * (p4 - p1)
+    ], dtype=np.float64)
+    b_vec = np.array([
+        np.dot(p2, p2) - np.dot(p1, p1),
+        np.dot(p3, p3) - np.dot(p1, p1),
+        np.dot(p4, p4) - np.dot(p1, p1)
+    ], dtype=np.float64)
+
+    try:
+        O = np.linalg.solve(A_mat, b_vec)
+        r_out = np.linalg.norm(O - p1)
+    except np.linalg.LinAlgError:
+        return 0.0
+
+    if r_out < 1e-14:
+        return 0.0
+
+    return r_in / r_out
+
+
+def evaluate_mesh_quality(node_xyz, tetra_nodes):
+    """
+    评估四面体网格质量。
+
+    参数:
+        node_xyz:    (n_nodes, 3) 节点坐标
+        tetra_nodes: (n_tetra, 4) 四面体顶点索引 (0-based)
+
+    返回:
+        dict: 质量统计信息
+    """
+    n_tetra = len(tetra_nodes)
+    q1_values = np.zeros(n_tetra, dtype=np.float64)
+    q2_values = np.zeros(n_tetra, dtype=np.float64)
+    volumes = np.zeros(n_tetra, dtype=np.float64)
+
+    for t in range(n_tetra):
+        idx = tetra_nodes[t]
+        # 边界检查
+        if np.any(idx < 0) or np.any(idx >= len(node_xyz)):
+            q1_values[t] = 0.0
+            q2_values[t] = 0.0
+            volumes[t] = 0.0
+            continue
+
+        p1 = node_xyz[idx[0]]
+        p2 = node_xyz[idx[1]]
+        p3 = node_xyz[idx[2]]
+        p4 = node_xyz[idx[3]]
+
+        q1_values[t] = tetrahedron_quality_measure_1(p1, p2, p3, p4)
+        q2_values[t] = tetrahedron_quality_measure_2(p1, p2, p3, p4)
+        volumes[t] = tetrahedron_volume(p1, p2, p3, p4)
+
+    return {
+        'q1_min': float(np.min(q1_values)),
+        'q1_mean': float(np.mean(q1_values)),
+        'q1_max': float(np.max(q1_values)),
+        'q1_var': float(np.var(q1_values)),
+        'q2_min': float(np.min(q2_values)),
+        'q2_mean': float(np.mean(q2_values)),
+        'q2_max': float(np.max(q2_values)),
+        'q2_var': float(np.var(q2_values)),
+        'volume_total': float(np.sum(volumes)),
+        'volume_min': float(np.min(volumes[volumes > 0]) if np.any(volumes > 0) else 0.0),
+        'volume_max': float(np.max(volumes)),
+        'n_tetra': n_tetra
+    }
+
+
+def mesh_base_one(node_num, element_order, element_num, element_node):
+    """
+    确保网格索引为 1-based (MATLAB/Fortran 风格)。
+    (源自 tet_mesh_quality)
+
+    参数:
+        node_num:      节点总数
+        element_order: 每个单元节点数
+        element_num:   单元总数
+        element_node:  (element_order, element_num) 单元定义
+
+    返回:
+        element_node: 修正后的索引 (1-based)
+    """
+    en = np.asarray(element_node, dtype=np.int64)
+    node_min = np.min(en)
+    node_max = np.max(en)
+
+    if node_min == 0 and node_max == node_num - 1:
+        # 0-based, 转换为 1-based
+        en = en + 1
+    elif node_min == 1 and node_max == node_num:
+        # 已经是 1-based
+        pass
+    else:
+        # 无法识别, 假设是 0-based 并转换
+        if node_min == 0:
+            en = en + 1
+
+    return en
+
+
+def generate_earth_tetrahedral_mesh(n_r=8, n_theta=12, n_phi=12):
+    """
+    生成地球球形区域的粗四面体网格。
+
+    使用球坐标 (r, θ, φ) 生成六面体网格, 然后每个六面体
+    剖分为 6 个四面体。
+
+    参数:
+        n_r:     径向层数
+        n_theta: 极角分段数
+        n_phi:   方位角分段数
+
+    返回:
+        nodes:    (n_nodes, 3) 节点坐标
+        elements: (n_elements, 4) 四面体顶点索引 (0-based)
+    """
+    from constants import EARTH_RADIUS_KM
+
+    nodes = []
+    node_map = {}
+
+    # 原点
+    node_map[(0, 0, 0)] = 0
+    nodes.append([0.0, 0.0, 0.0])
+
+    for ir in range(1, n_r):
+        r = EARTH_RADIUS_KM * ir / (n_r - 1)
+        for it in range(n_theta):
+            theta = np.pi * it / (n_theta - 1) if n_theta > 1 else np.pi / 2
+            for ip in range(n_phi):
+                phi = 2.0 * np.pi * ip / n_phi
+                x = r * np.sin(theta) * np.cos(phi)
+                y = r * np.sin(theta) * np.sin(phi)
+                z = r * np.cos(theta)
+                node_map[(ir, it, ip)] = len(nodes)
+                nodes.append([x, y, z])
+
+    nodes = np.array(nodes, dtype=np.float64)
+
+    # 简化: 生成一些四面体
+    elements = []
+    # 仅生成从原点到第一层球面的四面体
+    if n_r > 1:
+        for it in range(n_theta - 1):
+            for ip in range(n_phi):
+                ip_next = (ip + 1) % n_phi
+                # 原点 + 第一层三个点
+                n0 = 0
+                n1 = node_map.get((1, it, ip), 0)
+                n2 = node_map.get((1, it, ip_next), 0)
+                n3 = node_map.get((1, min(it + 1, n_theta - 1), ip), 0)
+                if n1 > 0 and n2 > 0 and n3 > 0:
+                    elements.append([n0, n1, n2, n3])
+
+    elements = np.array(elements, dtype=np.int64)
+    return nodes, elements
+
+
+def parse_mesh_data(mesh_text_lines):
+    """
+    解析 MEDIT 风格的网格文本数据。
+    (简化版 medit_to_ice)
+
+    参数:
+        mesh_text_lines: 文本行列表
+
+    返回:
+        dict: 包含 'vertices', 'tetrahedrons' 等
+    """
+    result = {
+        'vertices': [],
+        'tetrahedrons': []
+    }
+
+    mode = 'none'
+    count = 0
+    read_count = 0
+
+    for line in mesh_text_lines:
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+
+        if line.upper() == 'VERTICES':
+            mode = 'vertices_count'
+            continue
+        elif line.upper() == 'TETRAHEDRA':
+            mode = 'tetra_count'
+            continue
+        elif line.upper() == 'END':
+            break
+
+        if mode == 'vertices_count':
+            parts = line.split()
+            count = int(parts[0])
+            read_count = 0
+            mode = 'vertices_read'
+        elif mode == 'vertices_read':
+            parts = line.split()
+            if len(parts) >= 3:
+                result['vertices'].append([
+                    float(parts[0]), float(parts[1]), float(parts[2])
+                ])
+                read_count += 1
+                if read_count >= count:
+                    mode = 'none'
+        elif mode == 'tetra_count':
+            parts = line.split()
+            count = int(parts[0])
+            read_count = 0
+            mode = 'tetra_read'
+        elif mode == 'tetra_read':
+            parts = line.split()
+            if len(parts) >= 4:
+                result['tetrahedrons'].append([
+                    int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+                ])
+                read_count += 1
+                if read_count >= count:
+                    mode = 'none'
+
+    result['vertices'] = np.array(result['vertices'], dtype=np.float64)
+    result['tetrahedrons'] = np.array(result['tetrahedrons'], dtype=np.int64)
+    return result

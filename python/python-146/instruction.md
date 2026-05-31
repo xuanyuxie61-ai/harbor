@@ -1,20 +1,123 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目实现了一个基于Hodgkin-Huxley (HH) 模型的脉冲神经元仿真。缺失的代码主要分布在三个部分：
+# 项目描述：脉冲神经网络多物理场耦合仿真系统 (python-146)
 
-1. 第一个缺失部分是神经元类中的一个方法，用于计算神经元膜电位随时间的变化率。此处需要实现HH模型的膜电位微分方程。算法思路上，需要分别计算钠离子电流、钾离子电流和漏电流，这些电流的计算依赖于通道最大电导、反转电位以及门控变量（请注意钠通道电流涉及变量m的三次方与h的乘积，钾通道电流涉及变量n的四次方）。在得到所有离子电流后，结合突触电流和外部刺激电流，将总电流除以膜电容即可得到膜电位的导数。
+本项目通过多个物理与数学模型的融合，构建一个用于模拟、编码、传播和解码神经信号的仿真系统。项目包含8个可被替换的功能模块，以及一个整合入口文件 `main.py`。各模块分别覆盖神经元动力学、轴突传播、突触编码、脉冲模式分析、信号重建、皮层空间编码、突触权重随机演化和脑流场体积效应。后续将保留 `main.py`，删除其余 `.py` 文件，要求依据本描述及 `main.py` 中的导入与调用接口，独立完成各缺失模块的编码。
 
-2. 第二个缺失部分是类中的一个静态方法，用于计算HH方程在平衡点附近的线性化特征值（简化实部）。此处需要实现该特征值的近似计算公式。算法思路为：根据给定的门控变量状态和最大电导参数，计算系统在平衡点附近的等效电导之和（需考虑门控变量的幂次），除以膜电容后取负值。该方法的参数设定为：膜电容大小设为1.0，默认参数中钠电导设为120.0，钾电导设为36.0，漏电导设为0.3。
+## 整体结构
 
-3. 第三个缺失部分是神经元的外部仿真与脉冲编码流程。首先，需要实例化HH神经元对象，设定其仿真时间步长为0.01。接着，构造外部输入电流数组，该电流由一个大小为10.0的直流基础分量和一个幅度为4.0、频率为0.03Hz的正弦交流分量组合而成，并且需要按照每5个时间步进行一次采样匹配。最后，在总时长为50.0的仿真周期内（以0.01为步长进行循环），调用神经元的步进函数并传入当前时间与对应的外部电流，判断神经元是否在该步发放脉冲，若发放则记录下该脉冲时间。
+`main.py` 是运行入口。它导入以下8个模块并依次执行它们的演示程序，最终给出一个端到端的综合评估。你的任务是实现这8个模块，确保 `main.py` 能够无错误地运行。
 
-注意：项目中已有的其他函数默认已正确实现，不需要重新定义。请根据上述提示，找到缺失位置并补全代码。
+模块文件列表：
+- `spike_neuron.py`
+- `axon_propagation.py`
+- `synaptic_encoding.py`
+- `spike_pattern.py`
+- `signal_reconstruction.py`
+- `cortical_grid.py`
+- `stochastic_weights.py`
+- `brain_field.py`
+
+## 模块详细说明
+
+### 1. spike_neuron.py — Hodgkin‑Huxley 神经元与群体仿真
+
+**目的**：实现单神经元及兴奋‑抑制神经元群体的动力学模拟。
+
+**核心类与方法**：
+
+- **HHNeuron**  
+  采用 Hodgkin‑Huxley 模型描述膜电位 `V` 和三个门控变量 `m, h, n` 的演化。  
+  - `__init__(self, dt)`：设定时间步长并进行参数和状态初始化。  
+  - `step(self, t, I_syn, I_ext)`：使用经典四阶 Runge‑Kutta (RK4) 方法推动一个时间步，检测并记录脉冲发放。  
+  - 内部包含电压依赖的速率函数（alpha/beta for m, h, n）和膜电位导数计算。  
+  - 包含不应期处理、发放阈值检测和重置机制。
+
+- **NeuronPopulation**  
+  构建脉冲耦合网络，包含指定数量的兴奋性和抑制性神经元。  
+  - `__init__(N_exc, N_inh, dt, p_conn)`：创建神经元列表，生成随机连接权重矩阵（兴奋为正，抑制为负）。  
+  - `simulate(T_total, I_ext_per_neuron)`：运行群体仿真，计算突触电流，记录所有神经元的膜电位轨迹和脉冲栅格。
+
+**接口要求**：  
+- `HHNeuron` 可被独立调用，`step` 返回布尔值表示是否发放。  
+- `NeuronPopulation` 返回电压轨迹矩阵、脉冲栅格矩阵和脉冲记录列表。  
+两个模块级 `demo_*` 函数分别返回单神经元仿真结果和群体仿真结果，这些结果被 `main.py` 调用（如 `demo_single_neuron` 返回 `V_trace, spikes`，`demo_population` 返回 `voltage_trace, spike_raster, pop_spikes`）。
+
+### 2. axon_propagation.py — 轴突非线性信号传播与 MHD 耦合
+
+**目的**：使用间断 Galerkin (DG) 方法模拟动作电位在一维轴突上的空间传播，并结合磁流体动力学 (MHD) 效应描述离子流与电磁场的耦合。
+
+**核心类与方法**：
+
+- **JacobiPolynomial**  
+  提供指定参数的 Jacobi 多项式计算、Gauss‑Lobatto 节点生成等工具，用于 DG 方法的谱基函数构建。  
+  - `evaluate(x, alpha, beta, N)`：计算归一化 Jacobi 多项式。  
+  - `gauss_lobatto_nodes(N)`：返回 N+1 个区间内的节点。
+
+- **DG1DNeuralCable**  
+  一维神经电缆的 DG 离散求解器，包含网格生成、Vandermonde 矩阵、质量矩阵和求导矩阵的构建。  
+  - `__init__(xL, xR, K, Np, dt, epsilon)`：初始化空间区间、单元数、节点数、时间步长和数值粘性系数。  
+  - `rhs(u, I_ion)`：计算 DG 右端项（扩散、对流、源项及界面通量）。  
+  - `step_rk4(u, I_ion)`：用四阶 Runge‑Kutta 方法推进一个时间步。  
+  - `simulate(u0, T_final, I_ion_func)`：运行全时程仿真，返回最终膜电位和中间状态历史。
+
+- **MHDNeuralCoupling**  
+  处理离子流、磁场及洛伦兹力调制，计算 MHD 耦合下电导率的修正因子。  
+  - `ionic_current_density`、`magnetic_field_from_current`、`lorentz_force_modulation` 三个静态方法分别估算离子流密度、磁场和调制因子。  
+  - `compute_effective_conductivity(V, y_coord)`：综合上述步骤，返回有效电导率修正因子。
+
+**接口要求**：  
+- `demo_axon_propagation` 返回 `u_final, cable.x`。  
+- `demo_mhd_coupling` 返回 `x, V, correction`（修正因子数组）。
+
+### 3. synaptic_encoding.py — 突触编码与最优资源分配
+
+**目的**：基于 alpha 突触核函数和有理背包问题优化，在能量约束下最大化信息编码量；提供离散卷积工具。
+
+**核心类与方法**：
+
+- **AlphaSynapse**  
+  描述 alpha 函数型突触后电流核函数。  
+  - `__init__(tau_s)`：设定时间常数。  
+  - `kernel(t)`：计算核函数值。  
+  - `convolve_spikes(spike_times, weights, t_grid)`：将脉冲序列与核函数卷积，生成突触后信号。
+
+- **polynomial_multiply_convolution(a, b)**  
+  实现两个一维数组的多项式乘法（即离散卷积），去除尾部零并返回乘积系数。
+
+- **rational_knapsack_encoding(profits, weights, budget)**  
+  按物品价值密度进行贪心分配，解决连续凸松弛的背包问题，返回分配比例、实际消耗总量和总收益。
+
+- **optimal_synaptic_weights(spike_times, signal_target, t_grid, tau_s, E_budget, sigma_noise)**  
+  综合上述工具：构建基函数矩阵，计算每个脉冲的信息增益（利润），利用背包算法选择激活脉冲，最后通过正则化最小二乘计算权重并施加 L1 范数约束，返回最优权重、编码信号和近似互信息。
+
+**接口要求**：  
+- 模块级 `demo_encoding` 返回 `weights, encoded, mi, spike_times`，其中 `mi` 为互信息，`encoded` 为编码信号。
+
+### 4. spike_pattern.py — 脉冲模式组合分析与聚类
+
+**目的**：对二进制脉冲模式进行组合计数、去重和聚类，利用连通模式类比和一维多格拼板（polyomino）概念。
+
+**核心类与方法**：
+
+- **SpikePatternAnalyzer**  
+  - `__init__(n_bins, pattern_binwidth)`：设定时间 bins 数和 bin 宽度。  
+  - `encode_spike_train(spike_times, T_window)`：将脉冲时刻转化为二进制模式向量。  
+  - `pattern_entropy(patterns)`：计算经验香农熵。  
+  - `pattern_capacity()`：基于一维连通模式公式计算容量。
+
+- **连通模式函数**  
+  - `connected_spike_patterns_1d(n_bins)`：返回一维连通模式的总数（公式计算）。  
+  - `connected_spike_patterns_2d(nx, ny, max_order)`：返回二维感受野下不同阶数的连通模式计数（固定多格拼板数据）。  
+  - `polyomino_enumerate_fixed(order)`：返回指定阶数的固定 polyomino 数量（内置数据表）。
+
+- **模式去重与聚类**  
+  - `r8col_sorted_tol_unique(patterns, tol)`：对列向量

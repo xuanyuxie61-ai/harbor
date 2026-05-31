@@ -1,18 +1,105 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-缺失部分主要涉及分子动力学模拟中的热力学计算与速度调控，具体包含以下三个逻辑片段：
+# 项目描述：聚合物玻璃化转变分子动力学模拟
 
-片段一：系统瞬时温度的计算方法。该功能需要基于能量均分定理来实现。计算时，需先求出系统的自由度，其值为系统总粒子数的三倍减去三（即扣除质心平动自由度）。若自由度小于等于零，则直接返回零值；否则，需调用获取系统动能的方法，并根据瞬时温度与动能及自由度的关系方程进行计算，返回浮点数结果。
+## 概览
 
-片段二：Berendsen热浴的速度标度方法。首先需采用与片段一相同的逻辑计算当前瞬时温度（自由度同样为粒子数三倍减三）。若计算出的温度极小（低于如1e-15的阈值），则直接返回未修改的速度。随后，需实现Berendsen热浴方程来计算速度缩放因子，该计算涉及时间步长、热浴弛豫时间、目标温度与当前瞬时温度。为防止数值模拟不稳定，需将该缩放因子限制在0.5至2.0的区间内。最后，将速度乘以该缩放因子并返回。
+本项目实现一个粗粒化分子动力学（MD）模拟框架，用于研究聚合物熔体在温度淬火过程中的玻璃化转变行为。系统由多条柔性链组成，每条链包含若干粗粒化单体（bead）。通过追踪比容、自由体积、结构有序度及扩散系数随温度的变化，利用多种数值方法分析玻璃化转变温度 Tg、VFT 方程参数和脆性指数。
 
-片段三：模拟系统的平衡迭代过程。首先需根据当前位置计算并更新系统受力。在循环的每一步中，需先获取当前瞬时温度，再调用积分器进行位置、速度和受力的更新，随后应用Berendsen热浴（目标温度为高温设定值）对速度进行标度。此外，每隔固定步数（如100步），需调用积分器的CFL条件检查方法。若CFL条件不满足，则需对速度进行约束：计算每个粒子速度的范数，确定最大允许速度（其值为系统盒子最短边长除以十倍时间步长），若最大速度范数超出该阈值，则按比例缩小速度，缩放比例上限为1.0，同时在分母中添加极小值以避免除零错误。
+模拟流程（见 `main.py`）分为七步：
+1. 系统初始化（构建聚合物链、力场、积分器、温度协议等）
+2. 高温平衡化
+3. 温度淬火扫描与物理量采集
+4. 玻璃化转变分析
+5. 热扩散分析
+6. 稀疏矩阵求解演示
+7. 结果汇总输出
+
+本项目将保留 `main.py`，其余模块文件将被移除。你需要根据以下描述重新实现它们。
+
+## 文件与模块功能
+
+### 1. `polymer_chain.py` – 聚合物链构建
+- 提供 **PolymerChain** 类，用于生成多链聚合物的初始构象和基本物理量。
+- 使用 3D 自回避随机游走（SARW）初始化每条链的位置，避免单体过近的重叠。
+- 速度按 Maxwell-Boltzmann 分布初始化，并减去质心速度以避免整体漂移。
+- 提供函数 **generate_ellipse_cross_section**，用于在椭圆截面内生成网格点，表示链横截面单体分布。
+- 实现方法：`radius_of_gyration`（回转半径）、`end_to_end_distance`、`kinetic_energy`、`instantaneous_temperature`，以及边界条件应用 `apply_pbc`。
+
+**核心数据成员**：`n_chains`、`beads_per_chain`、`n_total`、`positions`、`velocities`、`forces`、`masses`、`box`、`chain_starts`。
+
+### 2. `force_field.py` – 力场定义
+- 包含类 **ForceField**，定义粗粒化聚合物体系的势能模型。
+- 三种势能项：
+  - **Lennard-Jones 非键势**：使用截断距离和能量平移，保证截断处连续。
+  - **FENE 键合势**：有限伸长非线性弹性势能，限制键的最大伸缩。
+  - **弯曲角势**：保持链刚性的角度约束。
+- 提供计算单个键或角度的能量/力标量的函数，以及向量化的总力计算函数 `compute_total_forces`（求和三种贡献）和总势能计算 `total_potential_energy`。所有力计算均考虑最小像约定处理周期边界。
+
+### 3. `integrator.py` – 分子动力学积分器
+- 提供 **VelocityVerletIntegrator** 类，实现 Velocity Verlet 时间积分，并包含 CFL 条件检查。
+- 提供函数 **rk23_step** 和 **rk23_integrate**，实现 2/3 阶嵌入 Runge-Kutta 方法（用于 Nose-Hoover 热浴耦合）。
+- 提供 **NoseHooverIntegrator** 类，利用扩展变量实现恒温控制。其 `step` 方法用 RK23 积分更新热浴变量 ξ，并对速度施加阻尼修正。
+
+### 4. `thermostat.py` – 热浴与温度控制
+- 定义 **TemperatureProtocol** 类，生成温度-时间协议（线性、阶梯、对数降温），并提供冷却速率计算。
+- 实现两个常用恒温器：
+  - **AndersenThermostat**：随机碰撞，从 Maxwell 分布重采样速度。
+  - **BerendsenThermostat**：弱耦合速度缩放。
+- 恒温器的 `apply` 方法接受速度、质量、目标温度和时间步长，返回调整后的速度。
+
+### 5. `cvt_sampler.py` – CVT 自由体积分析器
+- 包含类 **CVTSampler**，用于通过 Centroidal Voronoi Tessellation 分析聚合物体系中的自由体积。
+- 核心算法：
+  1. 在模拟盒子内随机采样点，根据聚合物单体位置计算非均匀密度 ρ(x)（自由体积权重函数）。
+  2. 为每个采样点找到最近的生成器（Voronoi 胞）。
+  3. 将生成器更新为对应 Voronoi 区域的密度加权质心。
+  4. 应用反射边界和盒子投影确保生成器在盒子内。
+  5. 迭代直至收敛，记录能量历史。
+- `iterate` 方法执行上述迭代并返回生成器位置和通过蒙特卡洛估计的 Voronoi 体积。
+- 提供 `free_volume_fraction` 计算硬球模型近似的自由体积分数，以及 `structural_order_parameter` 基于能量变化评估有序度。
+
+### 6. `heat_diffusion.py` – 热传导分析
+- 提供两个热传导求解器：
+  - **HeatDiffusion1D**：一维显式有限差分求解器，求解 ∂T/∂t = α ∂²T/∂x² + Q。支持单步时间推进和稳态求解，内置 CFL 稳定性条件。
+  - **HeatDiffusion2DFEM**：二维简化有限元/有限差法求解器，使用五点 Laplacian 离散和 Jacobi 隐式迭代（向后 Euler）。可求解稳态热传导（通过 Jacobi 松弛），并估算有效热导率。
+- 边界条件通过调用 `boundary_T` 函数设定。
+
+### 7. `glass_transition.py` – 玻璃化转变分析
+- 包含函数 **vft_equation** 和 **vft_viscosity** 计算 VFT 方程。
+- 提供 **regula_falsi** 函数实现试位法求根，用于精确确定 Tg。
+- 实现 **GlassTransitionAnalyzer** 类：
+  - `add_data_point` 累积温度、比容、能量数据。
+  - `linear_fit` 进行最小二乘线性拟合。
+  - `find_tg_tangent_intersection` 通过高低温区的切线交点估计 Tg 及热膨胀系数。
+  - `find_tg_regula_falsi` 使用试位法改进 Tg 估计。
+  - `vft_fit` 通过搜索 Vogel 温度 T0 拟合 VFT 参数。
+  - `fragility_index` 计算脆性指数 m。
+  - `configurational_entropy` 计算 Adam-Gibbs 型构型熵。
+
+### 8. `sparse_solver.py` – 稀疏矩阵求解
+- 提供压缩列存储（CCS）格式的稀疏矩阵类 **SparseCCS**。
+  - 可从稠密矩阵构造（忽略小于阈值的条目）。
+  - 支持与稠密矩阵相互转换。
+  - 实现矩阵-向量乘法 `matvec` 和转置乘法 `transpose_matvec`。
+  - 提供稀疏度 `sparsity_ratio` 和单元素读写。
+- 函数 **conjugate_gradient** 使用共轭梯度法求解对称正定线性系统 Ax=b。
+- 函数 **build_neighbor_sparse_matrix** 根据原子位置和截断半径构建邻居稀疏矩阵（0-1 邻接矩阵）。
+
+### 9. `numeric_utils.py` – 数值工具
+- 提供素数相关函数：`prime_count` 计算素数个数，`generate_primes` 生成前 n 个素数，`seeded_random` 基于素数索引生成确定性随机数。
+- 提供 **2D Legendre-Gauss 积分**：`legendre_gauss_nodes` 计算节点和权重，`integrate_2d_gauss` 对二元函数做积分（用于径向分布函数积分）。
+- 通用工具：`safe_divide`（避免除零）、`soft_cutoff`（平滑截断权重）、`distance_matrix_pbc`（考虑 PBC 的距离矩阵）、`mean_squared_displacement`（MSD 计算）。
+
+## 模块间主要依赖关系
+
+- `main.py` 直接引用所有其他模块，充当装配和驱动层。
+- `

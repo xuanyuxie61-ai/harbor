@@ -1,0 +1,336 @@
+"""
+matrix_operations.py
+
+DNA 损伤修复分子动力学 —— 矩阵链优化、并行刚度矩阵组装与 Matrix Market I/O
+
+基于种子项目:
+  - 738_matrix_assemble_parfor: 并行矩阵组装 (Hilbert 矩阵)
+  - 740_matrix_chain_dynamic: 矩阵链乘法最优次序（动态规划）
+  - 771_mm_to_msm: Matrix Market 文件到稀疏矩阵的转换
+
+科学背景:
+  在粗粒化分子动力学 (CG-MD) 中，力场计算涉及高阶张量缩并；
+  DNA 弹性网络模型 (ENM) 的构建需要高效组装大规模 Hessian 矩阵。
+  本模块提供：
+  1. 矩阵链乘法的最优次序规划（动态规划），用于最小化张量缩并的计算代价；
+  2. 弹性网络刚度矩阵的并行组装；
+  3. Matrix Market 格式的稀疏矩阵 I/O，用于 checkpointing 与结果交换。
+"""
+
+import numpy as np
+from typing import List, Tuple, Optional
+
+
+def matrix_chain_optimal_order(dims: List[int]) -> Tuple[int, np.ndarray]:
+    """
+    使用动态规划求解矩阵链乘法的最低标量乘法代价。
+
+    问题描述:
+        给定矩阵链 A_1 × A_2 × ... × A_n，其中 A_i 的维度为
+        dims[i-1] × dims[i]，寻找加括号方式使得总标量乘法次数最小。
+
+    动态规划递推式:
+        m[i, j] = min_{i <= k < j} { m[i, k] + m[k+1, j] + dims[i-1]*dims[k]*dims[j] }
+
+    其中 m[i, j] 表示计算 A_i...A_j 的最小代价。
+
+    Parameters
+    ----------
+    dims : list of int
+        维度数组，长度为 n+1。dims[i-1] × dims[i] 为第 i 个矩阵的维度。
+        所有元素必须为正。
+
+    Returns
+    -------
+    cost : int
+        最小标量乘法代价。
+    split : ndarray, shape (n, n)
+        最优分割点记录。
+    """
+    dims = [int(d) for d in dims]
+    n = len(dims) - 1
+
+    if n < 1:
+        return 0, np.zeros((0, 0), dtype=np.int64)
+    if any(d <= 0 for d in dims):
+        raise ValueError("all dimensions must be positive")
+
+    # m[i, j]: 计算 A_i...A_j 的最小代价（1-based，数组 0-based）
+    m = np.full((n, n), np.inf, dtype=np.float64)
+    s = np.zeros((n, n), dtype=np.int64)
+
+    for i in range(n):
+        m[i, i] = 0.0
+
+    for length in range(2, n + 1):
+        for i in range(n - length + 1):
+            j = i + length - 1
+            for k in range(i, j):
+                cost = m[i, k] + m[k + 1, j] + dims[i] * dims[k + 1] * dims[j + 1]
+                if cost < m[i, j]:
+                    m[i, j] = cost
+                    s[i, j] = k
+
+    return int(round(m[0, n - 1])), s
+
+
+def build_optimal_parenthesization(s: np.ndarray, i: int, j: int) -> str:
+    """
+    根据动态规划表 s 重构最优加括号表达式。
+    """
+    if i == j:
+        return f"A{i+1}"
+    else:
+        left = build_optimal_parenthesization(s, i, s[i, j])
+        right = build_optimal_parenthesization(s, s[i, j] + 1, j)
+        return f"({left} × {right})"
+
+
+def catalan_number(n: int) -> int:
+    """
+    计算 Catalan 数 C_n，其值等于 n+1 个矩阵链乘法的不同加括号方案数。
+
+    递推公式:
+        C_0 = 1
+        C_{n+1} = Σ_{i=0}^{n} C_i * C_{n-i}
+
+    闭式表达式:
+        C_n = (2n)! / ((n+1)! n!)
+
+    在矩阵链问题中，C_{n-1} 即为 n 个矩阵的不同乘法次序数。
+    """
+    if n < 0:
+        return 0
+    c = 1
+    for i in range(1, n + 1):
+        c = (c * 2 * (2 * i - 1)) // (i + 1)
+    return c
+
+
+def assemble_enm_stiffness_matrix(
+    coords: np.ndarray,
+    cutoff: float = 15.0,  # nm
+    spring_constant: float = 1.0,  # kcal/(mol·nm^2)
+) -> np.ndarray:
+    """
+    组装 DNA/蛋白弹性网络模型 (Elastic Network Model, ENM) 的刚度矩阵。
+
+    物理模型:
+        对于每对节点 i, j，若距离 r_ij < cutoff，则引入谐振势:
+            V_ij = (k/2) * (r_ij - r_ij^0)^2
+
+        对应的 Hessian 矩阵元素（3N × 3N 分块）:
+            H_{αβ}^{ij} = ∂²V / ∂x_{i,α} ∂x_{j,β}
+
+    组装策略受 matrix_assemble_parfor 启发：按节点块并行构建。
+
+    Parameters
+    ----------
+    coords : ndarray, shape (n_nodes, 3)
+        节点坐标（Cα 原子或核小体中心）。
+    cutoff : float
+        截断距离。
+    spring_constant : float
+        弹簧常数 k。
+
+    Returns
+    -------
+    H : ndarray, shape (3*n_nodes, 3*n_nodes)
+        对称刚度矩阵。
+    """
+    coords = np.asarray(coords, dtype=np.float64)
+    n_nodes = coords.shape[0]
+
+    if n_nodes < 2:
+        raise ValueError("need at least 2 nodes")
+
+    H = np.zeros((3 * n_nodes, 3 * n_nodes), dtype=np.float64)
+
+    # 构建邻接表和超距矩阵
+    for i in range(n_nodes):
+        for j in range(i + 1, n_nodes):
+            dr = coords[j, :] - coords[i, :]
+            r = np.linalg.norm(dr)
+
+            if r < cutoff and r > 1e-6:
+                # 单位方向向量
+                e = dr / r
+
+                # 3x3 块贡献: k * e ⊗ e
+                block = spring_constant * np.outer(e, e)
+
+                # 组装到全局 Hessian
+                for a in range(3):
+                    for b in range(3):
+                        idx_i = 3 * i + a
+                        idx_j = 3 * j + b
+                        H[idx_i, idx_i] += block[a, b]
+                        H[idx_j, idx_j] += block[a, b]
+                        H[idx_i, idx_j] -= block[a, b]
+                        H[idx_j, idx_i] -= block[a, b]
+
+    return H
+
+
+def write_matrix_market(
+    filename: str,
+    A: np.ndarray,
+    rep: str = "coordinate",
+    field: str = "real",
+    symm: str = "general",
+) -> None:
+    """
+    将矩阵写入 Matrix Market 格式文件。
+
+    格式规范:
+        %%MatrixMarket matrix representation field symmetry
+        % comments
+        rows cols entries
+        i j value   (for coordinate format)
+        value       (for array format, column-major)
+    """
+    A = np.asarray(A, dtype=np.float64)
+    m, n = A.shape
+
+    with open(filename, 'w') as f:
+        f.write(f"%%MatrixMarket matrix {rep} {field} {symm}\n")
+        f.write(f"% Generated by DNA damage repair MD simulation\n")
+
+        if rep == "coordinate":
+            # 只写非零元素；对称矩阵只写下三角
+            rows_list, cols_list = np.nonzero(np.abs(A) > 1e-14)
+            if symm in ("symmetric", "hermitian", "skew-symmetric"):
+                mask = rows_list >= cols_list
+                rows_list = rows_list[mask]
+                cols_list = cols_list[mask]
+            entries = len(rows_list)
+            f.write(f"{m} {n} {entries}\n")
+            for i, j in zip(rows_list, cols_list):
+                f.write(f"{i+1} {j+1} {A[i, j]:.16e}\n")
+        elif rep == "array":
+            entries = m * n
+            f.write(f"{m} {n}\n")
+            # column-major order
+            for j in range(n):
+                for i in range(m):
+                    f.write(f"{A[i, j]:.16e}\n")
+        else:
+            raise ValueError("rep must be 'coordinate' or 'array'")
+
+
+def read_matrix_market(filename: str) -> Tuple[np.ndarray, int, int, int, str, str, str]:
+    """
+    从 Matrix Market 文件读取矩阵。
+
+    Returns
+    -------
+    A : ndarray
+        读取的矩阵（稠密格式）。
+    rows, cols, entries : int
+        矩阵尺寸与非零元数。
+    rep, field, symm : str
+        格式元数据。
+    """
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    # 解析头行
+    header = lines[0].strip()
+    parts = header.split()
+    if len(parts) < 5 or parts[0] != "%%MatrixMarket" or parts[1] != "matrix":
+        raise ValueError("invalid Matrix Market header")
+
+    rep = parts[2].lower()
+    field = parts[3].lower()
+    symm = parts[4].lower()
+
+    # 跳过注释
+    idx = 1
+    while idx < len(lines) and lines[idx].strip().startswith('%'):
+        idx += 1
+
+    if rep == "coordinate":
+        size_info = list(map(int, lines[idx].strip().split()))
+        rows, cols, entries = size_info[0], size_info[1], size_info[2]
+        idx += 1
+
+        A = np.zeros((rows, cols), dtype=np.float64)
+        for line in lines[idx:]:
+            line = line.strip()
+            if not line:
+                continue
+            tokens = line.split()
+            if len(tokens) < 3:
+                continue
+            i, j = int(tokens[0]) - 1, int(tokens[1]) - 1
+            val = float(tokens[2])
+            A[i, j] = val
+
+        # 处理对称性
+        if symm == "symmetric":
+            A = A + A.T - np.diag(np.diag(A))
+        elif symm == "skew-symmetric":
+            A = A - A.T
+
+    elif rep == "array":
+        size_info = list(map(int, lines[idx].strip().split()))
+        rows, cols = size_info[0], size_info[1]
+        entries = rows * cols
+        idx += 1
+
+        values = []
+        for line in lines[idx:]:
+            line = line.strip()
+            if not line:
+                continue
+            values.append(float(line))
+
+        A = np.array(values, dtype=np.float64).reshape((rows, cols), order='F')
+
+        if symm == "symmetric":
+            A = A + A.T - np.diag(np.diag(A))
+        elif symm == "skew-symmetric":
+            A = A - A.T
+    else:
+        raise ValueError(f"unsupported representation: {rep}")
+
+    return A, rows, cols, entries, rep, field, symm
+
+
+def compute_optimal_tensor_contraction_cost(
+    tensor_dims: List[Tuple[int, ...]],
+    contraction_indices: List[Tuple[int, int]],
+) -> int:
+    """
+    计算一系列张量缩并操作的最优执行代价（利用矩阵链动态规划）。
+
+    在张量网络中，每个张量缩并可转化为矩阵乘法，从而利用矩阵链优化
+    最小化总的浮点运算次数。
+
+    Parameters
+    ----------
+    tensor_dims : list of tuple
+        各张量的维度。
+    contraction_indices : list of tuple
+        缩并对 (tensor_a_idx, tensor_b_idx)。
+
+    Returns
+    -------
+    total_cost : int
+        最优缩并代价估计。
+    """
+    # 简化为矩阵链问题：提取中间维度
+    n = len(tensor_dims)
+    if n < 2:
+        return 0
+
+    # 构造等效矩阵链维度
+    dims = [tensor_dims[0][0]]
+    for t in tensor_dims:
+        if len(t) >= 2:
+            dims.append(t[1])
+        else:
+            dims.append(t[0])
+
+    cost, _ = matrix_chain_optimal_order(dims)
+    return cost

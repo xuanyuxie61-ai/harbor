@@ -1,21 +1,145 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目实现了一个基于压缩感知的图像重建流程，主要包含二维稀疏基构造、快速迭代收缩阈值重建算法以及整体的主干实验流程。项目中有三个代码片段缺失，请根据以下描述进行补全：
+```markdown
+# Benchmark 项目描述：基于自适应三角剖分与谱稀疏表示的压缩感知图像重建
 
-缺失片段一：二维切比雪夫稀疏基构造函数
-该函数接收图像形状和多项式阶数作为输入，用于构建二维正交稀疏基矩阵。算法思路如下：首先根据输入图像的高度和宽度，在负一到一的区间内等间距生成归一化的网格坐标；接着，在横纵坐标上分别计算各阶切比雪夫多项式的值，此处需要利用切比雪夫多项式的三角函数定义进行计算，并对输入值进行截断以防止数值计算错误；随后，通过一维基的外积运算构造二维基函数，将其展平并按列存储到基矩阵中；最后，对基矩阵进行列向量的正交归一化处理以保证数值稳定性，并返回该矩阵。
+## 项目背景
 
-缺失片段二：FISTA重建算法函数
-该函数用于求解压缩感知中的L1正则化最小二乘问题（LASSO模型），接收感知矩阵、测量向量、正则化系数等参数。算法思路如下：首先将输入转换为浮点数组并验证维度匹配；接着，通过计算感知矩阵转置与自身乘积的谱范数（即最大奇异值）来估算Lipschitz常数，并以此确定梯度下降的步长，若该常数极小则报错；然后初始化重建向量与动量变量；在主迭代循环中，需结合步长计算梯度，并对更新量应用软阈值收缩函数（默认已实现）；之后计算FISTA算法特有的动量项并更新辅助变量；最后，根据前后两次迭代解的相对差值判断是否满足收敛容差而提前退出，循环结束后返回最终的重建向量。正则化系数可设为极小值（如0.001），最大迭代次数与容差分别可设为800和1e-6。
+本项目模拟一个博士层次的数据科学研究：在严重欠采样条件下，利用压缩感知（Compressed Sensing）技术从少量测量中重建医学图像（如 MRI、CT）。系统融合了谱稀疏表示、自适应网格细化、空间先验建模、动态扩散、高阶误差估计以及非相干采样模式设计等多个计算模块。你将得到一个可运行的 `main.py`，它会依次调用这些模块中的函数进行演示。你的任务是**根据本描述和 `main.py` 中暴露的函数签名与调用方式，重新实现被删除的 Python 文件**。
 
-缺失片段三：主流程与评估代码
-该片段串联了整个压缩感知实验流程。算法思路如下：首先调用片段一的函数构造指定阶数的切比雪夫稀疏基；然后调用高斯随机测量矩阵构造函数（默认已实现），并将其与稀疏基相乘得到感知矩阵；接下来模拟含噪测量过程，即在无噪测量值上添加高斯白噪声，噪声强度由给定的信噪比（如snr_db）决定；随后，分别执行两种重建算法：一是调用片段二的FISTA算法进行重建，二是调用OMP加支持集优化算法（默认已实现）进行重建，目标稀疏度可设为基维度的5%且至少为10，记录两种算法的耗时；最后，调用重建质量评估函数（默认已实现）计算两种重建结果与真实图像的各项指标（包括L2误差、均方误差、峰值信噪比、结构相似性及最大误差），将指标打印输出，并返回真实图像及两种重建图像。
+## 项目结构
+
+项目根目录包含以下文件（`main.py` 将保留，其他 `.py` 文件需要你重新实现）：
+
+- `main.py`（保留）
+- `cs_detector.py`
+- `dynamic_reconstruction.py`
+- `error_estimator.py`
+- `fast_solver.py`
+- `mesh_adaptive.py`
+- `mesh_refinement.py`
+- `sampling_pattern.py`
+- `spatial_prior.py`
+- `spectral_basis.py`
+- `support_optimizer.py`
+
+下面依次说明每个缺失文件的作用及其需要对外暴露的主要函数。
+
+---
+
+### 1. `cs_detector.py` —— 压缩感知稀疏检测与 L1 最小化重建
+
+本模块提供基于迭代软阈值算法（ISTA/FISTA）和正交匹配追踪（OMP）的稀疏重建求解器，以及高斯随机测量矩阵的构造。
+
+需要实现的函数（名称、大致输入输出）：
+
+- `soft_thresholding(x, lambda_)`  
+  输入：向量 `x`，阈值 `lambda_`  
+  输出：软阈值处理后的向量（L1 近端算子）
+
+- `ista_reconstruction(A, y, lambda_, max_iter, tol, x0)`  
+  使用 ISTA 求解 Basis Pursuit Denoising。  
+  输入：感知矩阵 `A`，测量向量 `y`，正则化参数 `lambda_`，可选迭代参数和初始解。  
+  输出：稀疏系数向量。
+
+- `fista_reconstruction(A, y, lambda_, max_iter, tol, x0)`  
+  使用 FISTA（快速 ISTA）求解，收敛速度为 O(1/k²)。参数和输出同 ISTA。
+
+- `orthogonal_matching_pursuit(A, y, sparsity, max_iter)`  
+  贪婪的 OMP 算法，在已知稀疏度 `sparsity` 下重建信号。  
+  输入：感知矩阵 `A`，测量向量 `y`，目标稀疏度。  
+  输出：重建向量和支持集索引。
+
+- `build_sensing_matrix_gaussian(m, N, normalize)`  
+  生成一个 `m×N` 的高斯随机测量矩阵，默认进行列归一化。
+
+**注意**：`cs_detector` 中的 ISTA/FISTA 需要自行计算感知矩阵的 Lipschitz 常数（`A^T A` 的谱范数）以确定步长；OMP 需通过最小二乘更新支持集。
+
+---
+
+### 2. `dynamic_reconstruction.py` —— 动态图像序列的隐式中点法重建
+
+实现了二维扩散‑衰减偏微分方程的数值求解，以及结合时间平滑约束的压缩感知重建。
+
+需要实现的函数：
+
+- `discrete_laplacian_2d(I, h)`  
+  计算二维离散拉普拉斯算子（5 点模板），边界采用 Neumann 条件近似。
+
+- `diffusion_rhs(t, I, D, alpha)`  
+  返回扩散‑衰减 PDE 的右端项 `D·∇²I - α·I`。
+
+- `midpoint_fixed_step(f, t0, I0, dt, ...)`  
+  固定点迭代中点法单步推进。
+
+- `midpoint_implicit_step(f, t0, I0, dt, ...)`  
+  隐式中点法单步推进（用 Picard 迭代求解中点状态）。
+
+- `solve_dynamic_diffusion(I0, tspan, n_steps, D, alpha, method)`  
+  求解二维扩散衰减方程的时间演化，返回时间序列和图像序列。`method` 可选 `'implicit'` 或 `'fixed'`。
+
+- `dynamic_cs_reconstruction(measurements, Phi, Psi, lambda_reg, temporal_smoothness)`  
+  利用 FISTA 进行一帧重建的简单封装（内部调用 `cs_detector.fista_reconstruction`）。
+
+---
+
+### 3. `error_estimator.py` —— 基于高阶数值积分的重建误差估计
+
+提供三角形和金字塔上的数值积分规则，以及图像重建质量评估（L² 误差、PSNR、SSIM 等）。
+
+需要实现的函数：
+
+- `twb_rule_n(strength)` – 返回三角形 TWB 规则的节点数。
+- `twb_rule_data(strength)` – 返回 TWB 规则的节点坐标和权重字典。
+- `integrate_triangle_unit_monomial(ex, ey)` – 计算单位三角形上单项式 `x^ex y^ey` 的精确积分（利用阶乘公式）。
+- `integrate_over_triangle(f_values, rule_strength)` – 使用 TWB 规则求积分。
+- `pyramid_unit_volume()` – 返回单位金字塔的理论体积。
+- `pyramid_witherden_rule_data(degree)` – 返回金字塔上 Witherden‑Vincent 型规则的三维节点和权重（采用张量积型近似）。
+- `compute_l2_error_image(true_image, recon_image, use_triangle_quad)`  
+  计算两幅图像之间的 L² 误差、PSNR、SSIM 等指标，可选地利用三角形积分规则改善误差估计。
+- `compute_reconstruction_quality(true_image, recon_image)`  
+  便捷封装函数，内部调用 `compute_l2_error_image`。
+
+---
+
+### 4. `fast_solver.py` —— 三对角共轭梯度快速求解器
+
+利用三对角矩阵的 R83 存储格式加速求解正规方程，适用于带状近似后的线性系统。
+
+需要实现的函数：
+
+- `r83_mv(m, n, a, x)`  
+  计算 R83 格式三对角矩阵 `a` 与向量 `x` 的乘积。
+- `r83_cg(n, a, b, x, max_iter, tol)`  
+  共轭梯度法求解三对角线性系统 `A x = b`，其中 `A` 以 R83 格式存储。
+- `construct_tridiagonal_from_dense(A)`  
+  从稠密方阵中提取三对角元素并转换为 R83 格式。
+- `solve_normal_equations_cg(A, y, lambda_reg, max_iter, tol)`  
+  构造 `A^T A + λI` 的三对角近似，并用 R83‑CG 求解 `(A^T A + λI)x = A^T y`。
+
+---
+
+### 5. `mesh_adaptive.py` —— 自适应三角剖分与质量度量
+
+在图像域生成均匀三角剖分，并基于图像梯度和三角形质量指标（ALPHA、Q 度量）进行自适应细化。
+
+需要实现的函数：
+
+- `triangle_area(p1, p2, p3)` – 三角形有向面积。
+- `arc_cosine_safe(c)` – 安全的反余弦（截断到 [-1,1]）。
+- `alpha_measure_single(p1, p2, p3)` – 计算单个三角形的 ALPHA 质量度量（最小角与 60° 的比值）。
+- `q_measure_single(p1, p2, p3)` – 计算 Q 度量（内切圆半径与外接圆半径之比）。
+- `evaluate_triangulation_quality(nodes, triangles)`  
+  输入节点数组和三角形索引数组，返回包含最小/平均 ALPHA、Q 值、面积统计等的字典。
+- `generate_uniform_triangulation(width, height, nx, ny)`  
+  在矩形域上生成均匀的三角剖分（每个矩形分成两个三角形）。
+- `adaptive_refinement_by_gradient(image, nodes, triangles, quality_threshold)`  
+  根据图像梯度和三角形质量，对低质量高梯度区域进行细化，添加形心节点并重新划分

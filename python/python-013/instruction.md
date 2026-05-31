@@ -1,17 +1,71 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
-这是一个固体物理或凝聚态物理数值计算项目，主要涉及倒易空间格点生成、紧束缚模型能带计算以及基于网格剖分的物理量积分计算。项目缺失了三个核心代码段，具体功能与思路如下：
+## 项目描述
 
-第一部分缺失的是一个返回离散倒空间格点的方法。算法思路是：根据对象在x和y方向的网格划分数量属性，分别在0到1的前闭后开区间内生成等间距序列，构建二维网格坐标，然后利用对象的两个倒格子基矢属性，将网格坐标进行线性组合，映射为倒空间中的实际坐标点并返回。
+# Project Description: Hubbard Model Multi-Method Framework
 
-第二部分缺失的是简单紧束缚能带的计算逻辑。算法思路是：首先定义一个跃迁参数，其值设定为1.0；然后初始化一个与动量点数量相同的零数组用于存储能量；遍历所有动量点，提取其两个坐标分量，根据紧束缚模型的色散关系计算每个点的能量并存入数组。公式方向提示：此处需要实现三角晶格紧束缚色散关系方程，能量由动量分量的余弦值以及两分量之和的余弦值线性组合决定。
+## Overview
 
-第三部分缺失的是在二维情况下基于三角剖分计算某种物理响应（如局域格林函数或态密度）的条件分支代码。算法思路是：当维度为2时，首先判断当前单纯形是否由3个顶点构成，若不是则跳过该次迭代；接着提取三角形的三个顶点坐标及对应的能量值；利用向量叉积的几何性质计算该三角形的面积；计算三个顶点能量的算术平均值；最后，将三角形面积作为权重，除以一个包含给定频率、平均能量以及虚部展宽参数的复数分母，将结果累加到总响应变量中。
+This project provides a synthesis of several numerical techniques to study the single‑band Hubbard model on a two‑dimensional triangular lattice. It covers a wide range of methods: exact diagonalisation (ED) on small clusters, determinant quantum Monte Carlo (DQMC) at finite temperature, Matsubara Green’s functions and analytic continuation, Brillouin‑zone integration, real‑time non‑equilibrium dynamics, disorder sampling, and self‑consistent iteration convergence analysis. The entry point is `main.py`, which sequentially exercises all these components and prints summary results. The other source files contain the implementations of the individual modules; their interfaces and core ideas are described below.
+
+## File List and Responsibilities
+
+- **`main.py`** – top‑level script that imports all modules, controls the workflow, and prints benchmark‑style information. This file will be retained.
+- **`lattice_geometry.py`** – constructs the geometry of a 2D triangular lattice, builds nearest‑neighbour tables under periodic boundary conditions, and generates the hexagonal Brillouin zone together with sampling points.
+- **`hubbard_hamiltonian.py`** – builds the full Hubbard Hamiltonian matrix in a truncated fermionic Hilbert space (up to 6 sites) using an integer bit‑encoding for occupation numbers, performs exact diagonalisation, and computes ground‑state and thermal properties.
+- **`dqmc_engine.py`** – implements the determinant quantum Monte Carlo algorithm. It sets up the Hubbard‑Stratonovich fields, constructs the kinetic and auxiliary matrices, uses a stabilised Green’s function computation with SVD, performs fast Sherman‑Morrison updates, and runs a Monte Carlo sweep to measure observables.
+- **`matsubara_green.py`** – handles Matsubara frequency grids, non‑interacting Green’s functions, Dyson’s equation, Newton divided‑difference interpolation, Shepard inverse‑distance interpolation, and Lebesgue constant estimation for stability analysis.
+- **`brillouin_zone.py`** – performs integrals over the Brillouin zone, including tetrahedron‑method density of states, Lebedev‑style spherical integration, pyramid‑rule volume integration, and high‑dimensional hypersphere sampling.
+- **`dynamics_evolution.py`** – models real‑time dynamics under periodic driving (sawtooth or harmonic), uses a Trotterised time‑evolution approach, and solves a two‑level reaction kinetics model for doublon‑holon dynamics.
+- **`disorder_config.py`** – generates Anderson‑type on‑site disorder (truncated normal distribution), boundary site indices, thermal spin configurations projected onto a unit sphere, and spatially varying Hubbard parameters.
+- **`convergence_tools.py`** – monitors self‑consistent iterations with simple and Pulay/DIIS mixing, provides adaptive damping, interprets convergence complexity using Collatz‑sequence analogues, and evaluates interpolation stability via Lebesgue constants.
+- **`spectral_function.py`** – performs analytic continuation from Matsubara to real frequencies via a diagonal Padé approximant and a simplified maximum entropy method, computes spectral moments, extracts self‑energies, and applies the Kramers‑Kronig relation.
+
+## Module Details
+
+### lattice_geometry.py
+
+- **Class `TriangularLattice`**  
+  initialised with `nx`, `ny` (number of unit cells) and lattice constant `a`. It computes:
+  - real‑space site positions using the primitive vectors a₁, a₂ of the triangular lattice;
+  - a neighbour list (six nearest neighbours per site) with periodic boundary conditions;
+  - the first Brillouin zone as a hexagon (the vertices and the two reciprocal lattice vectors);
+  - a method `reciprocal_lattice_points()` that returns a uniform mesh of k‑points in the Brillouin zone;
+  - a safe index method `site_index(ix, iy)`.
+- **Function `hex_grid_in_brillouin_zone(n_layers, bz_vertices)`**  
+  generates a hexagonal grid of points inside a convex hexagonal Brillouin zone. It builds layers of points starting from the centre, checks containment with a ray‑casting algorithm, and returns the coordinates.
+- **Function `trinity_triangle_tiling_brillouin_zone(k_points, bz_vertices)`**  
+  takes a set of k‑points inside the zone, constructs a Delaunay triangulation, computes the area of each triangle, and returns the triangle indices together with normalised area weights.
+
+### hubbard_hamiltonian.py
+
+- **`fermion_hilbert_dimension(nsites)`** – returns 4^nsites (up to nsites ≤ 6).  
+- **`build_hubbard_hamiltonian(nsites, neighbors, t, U, mu)`** – constructs the dense Hamiltonian matrix. The Hilbert space is indexed by an integer whose bits encode the occupation of spin‑up and spin‑down orbitals site by site. Hopping terms are generated by applying creation/annihilation operators with the correct Jordan‑Wigner sign.  
+- **`exact_diagonalization(H)`** – calls `scipy.linalg.eigh` and returns eigenvalues and eigenvectors.  
+- **`thermal_average(evals, evecs, operator, beta)`** – computes the thermal expectation value of an operator at inverse temperature β, using Boltzmann weights shifted by the ground‑state energy.  
+- **`double_occupancy_operator(nsites)`** – builds the double‑occupancy operator D = Σ nᵢ↑ nᵢ↓.  
+- **`density_operator(nsites, sigma)`** – builds the number operator for spin σ.  
+- **`compute_ground_state_properties(nsites, neighbors, t, U, mu)`** – returns a dictionary containing ground‑state energy, double occupancy, spin‑resolved densities, and the energy gap.
+
+### dqmc_engine.py
+
+- **Class `DQMCConfig`** – stores simulation parameters: `nsites`, `beta`, `U`, `t`, `dtau`, and calculates the Hubbard‑Stratonovich parameter `lambda_hs` from `dtau * U`.  
+- **`build_kinetic_matrix(nsites, neighbors, t)`** – builds the real kinetic matrix K (nearest‑neighbour hopping -t).  
+- **`build_exp_kin(K, dtau)`** – computes exp(-dtau * K).  
+- **`build_b_matrix(exp_kin, hs_field, lambda_hs, sigma)`** – constructs the time‑slice matrix B_l(σ) = exp(-dtau K) * diag(e^{σ λ s_i(l)}).  
+- **`compute_green_function(Bs, stabilize_every)`** – multiplies the B matrices in order and periodically performs an SVD‑based stabilisation to avoid floating‑point overflow; returns the equal‑time Green’s function G = (I + B_{L-1}…B_0)^{-1}.  
+- **`compute_det_ratio(G, i, delta)`** – returns the ratio det M′ / det M for a single flip using the Sherman‑Morrison‑Woodbury relation.  
+- **`truncated_normal_ab_sample(mu, sigma, a, b, size)`** – draws samples from a truncated normal distribution via the inverse‑CDF method (used internally for possible noise).  
+- **`dqmc_sweep(nsites, L, hs_field, B_up, B_dn, lambda_hs, exp_kin, G_up, G_dn)`** – performs one Monte Carlo sweep over all sites and time slices, attempting to flip each HS field; accepts according to the Metropolis probability based on the product of up/down determinant ratios, and updates the Green’s functions in‑place using Sherman‑Morrison.  
+- **`run_dqmc(config, neighbors, n_warmup, n_measure)`** – initialises the HS fields, performs warm‑up and measurement sweeps, averages the double occupancy and kinetic energy, and returns a dictionary with mean and error estimates.
+
+### matsubara_green.py
+
+- **Class `MatsubaraGrid`** – holds β and a list of fermionic or bosonic Matsubara frequencies.  
+- **`build_matsubara_green(nsites, K, mu, beta, U, n_max, sigma)`** –

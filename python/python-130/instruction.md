@@ -1,18 +1,48 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目实现了一维反应扩散方程的数值模拟及结果验证，主要包含三个缺失的代码片段：
+# Project Description: Multi-Scale Synaptic Plasticity Simulation
 
-1. 第一个缺失片段负责计算方程的右端项（即状态量随时间的导数）。此处需要实现一维Fisher-KPP反应扩散方程的空间离散化。算法思路上，空间导数需采用二阶中心差分格式处理扩散项，并结合逻辑斯谛增长模型作为反应项。代码逻辑需要根据给定的边界条件类型（无通量Neumann边界、固定值Dirichlet边界、周期性Periodic边界），分别对空间首尾节点的扩散差分格式进行针对性的边界修正。该片段中会用到预设的参数：网格点数n，扩散系数D，增长率r，以及空间步长平方的倒数inv_h2。
+This project is a computational neuroscience framework that simulates synaptic plasticity across multiple spatial and temporal scales. It combines mathematical models of protein diffusion, wave propagation, stochastic weight dynamics, metabolic resource allocation, cortical mesh analysis, homeostatic regulation, spectral analysis, vesicle release, and nonlinear synaptic currents. The entry point is `main.py`, which orchestrates all modules and prints summary statistics.
 
-2. 第二个缺失片段是时间积分的核心循环。此处需要实现经典的四阶龙格-库塔方法（RK4）来推进系统的动态演化。算法思路是在每个时间步内，依据当前时间和状态依次计算四个中间斜率向量，并利用这四个斜率的加权组合来更新下一时刻的状态向量和时间。循环的次数由总步数n_steps决定，单步推进的时间增量由步长dt决定。
+After this description, all `.py` files **except `main.py`** will be removed. Your task is to re‑implement the missing modules based solely on the information below. The `main.py` file will remain as‑is and will serve as the specification of the module interfaces (imports, function signatures, and expected return types).
 
-3. 第三个缺失片段是主程序的执行与结果输出部分。需要调用已有的波传播模拟函数和精确解验证函数，并打印各项指标。模拟函数需传入的参数及其值为：网格点数128，域长度200.0，扩散系数1.0，增长率1.0，终止时间20.0，总步数2000，边界条件指定为无通量类型。精确解验证函数需传入的参数值为：网格点数64，域长度20.0，测试时间2.0。最后，需按照特定格式打印域长度、扩散系数、增长率、理论最小波速、精确解验证误差、最终波前位置（通过寻找最终时刻状态值大于0.5的首个索引并乘以空间步长来估算），以及最终时刻的最大状态值。
+---
+
+## Modules
+
+### 1. `numerical_integrator.py`
+**Purpose**  
+Provides fundamental numerical integration methods for ordinary differential equations (ODEs) used by other modules.
+
+**Key functions**  
+- `rk1_integrate(f, tspan, y0, n_steps)` – forward Euler (RK1) integration.  
+- `rk4_integrate(f, tspan, y0, n_steps)` – classical Runge‑Kutta 4 integration.  
+- `adaptive_rk12(f, tspan, y0, tol, h0, h_min, h_max)` – adaptive step‑size integration using an embedded RK1/RK2 pair.  
+- `estimate_stability_jacobian(f, t, y, eps)` – finite‑difference Jacobian computation.  
+- `compute_stiffness_ratio(J)` – stiffness ratio from eigenvalues of the Jacobian.
+
+**Dependencies**  
+- numpy
+
+**Implementation notes**  
+The integrators must handle vector‑valued ODEs, return arrays of time points and solution values, and validate inputs (e.g., positive step count, valid time span). The `rk4_integrate` function is used heavily by `plasticity_wave.py` and `homeostatic_dynamics.py`. The adaptive method adjusts step size based on a local error estimate and tolerance, with minimum and maximum step bounds.
+
+---
+
+### 2. `cable_diffusion.py`
+**Purpose**  
+Models diffusion of plasticity‑related proteins (PRPs) along a dendritic cable using discrete Laplacian operators and explicit time stepping.
+
+**Key functions**  
+- `build_laplacian_1d(n, h, bc)` – returns the `(n,n)` matrix of the 1D discrete Laplacian for boundary conditions `'DD'`, `'DN'`, `'ND'`, `'NN'`, `'PP'`.  
+- `apply_laplacian_1d(n, h, u, bc)` – matrix‑free application of the Laplacian to a vector.  
+- `cable_diffusion_step(c, D, h, dt, gamma, source, bc)` – single forward Euler step of the cable equation with degradation and optional source term; clips negative concentrations to zero.  
+- `laplacian_eigenvalues(n, h, bc)` – computes eigenvalues of the Laplacian matrix for stability analysis.

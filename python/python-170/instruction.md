@@ -1,16 +1,81 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-第一部分缺失代码主要实现群体智能个体的动力学更新与状态导数打包功能。在计算控制输入时，需要实现趋同控制的比例项（增益默认为1.0）、速度阻尼项（增益默认为0.5）、环境梯度跟踪项（系数为0.3并带有防除零保护）以及个体间的排斥力计算（排斥范围默认0.3，强度默认1.0）。随后需计算系统的状态导数：位置导数直接取当前速度，速度导数由控制力、排斥力与阻尼力（阻尼系数默认0.5）合成，此外还需要实现Arneodo混沌方程的导数计算。最后，将位置、速度及混沌状态这三部分的导数按顺序拼装入整体状态导数数组中。
+# Project Description: Swarm Robotics Emergent Behaviour Simulation
 
-第二部分缺失代码负责配置群体仿真参数并执行积分。需要定义一个控制增益字典，包含阻尼系数（设为0.8）、比例增益（设为1.2）、速度增益（设为0.6）、排斥范围（设为0.35）和排斥强度（设为0.8）。接着，根据带噪声样本的均值设定趋同目标。最后调用群体积分函数，传入机器人对象、0到2秒的时间区间、25步的步数、上述控制增益、环境梯度包装函数、趋同目标，并指定使用RK4方法进行高效积分。
+This project implements a multi‑scale simulation of self‑organizing robot collectives. It combines spatial meshing, environmental scalar fields, coverage optimisation (Centroidal Voronoi Tessellation), sensor noise models, sparse graph Laplacians, stochastic collision‑avoidance potentials, hybrid robot dynamics with internal chaotic states, and macroscopic density field evolution. The final benchmark script (`main.py`) orchestrates all modules into a single, zero‑parameter workflow that computes several emergence metrics.
 
-第三部分缺失代码实现了一个偏微分方程的伪谱法时间步进求解。在循环中，首先通过逆傅里叶变换恢复物理场，接着计算趋向中心的趋化漂移速度场（由正弦函数与0.5的乘积构成）。随后计算对流非线性项与源项（高斯分布形式，系数为0.01）。在时间推进上，此处需要实现基于指数时间差分的ETDRK4高阶积分格式，利用频域空间的积分因子和系数，依次计算中间变量及其对应的非线性项，最终更新频域状态。在特定步长间隔或到达最大步数时，需将物理场结果及对应时间记录保存。
+When reconstructing the missing code, only `main.py` is provided; all other files listed below must be re‑implemented from this description.
+
+---
+
+## File inventory and responsibilities
+
+### `spatial_mesh.py`
+- Defines the class **`TetMesh`** that represents a tetrahedral mesh in 3D.
+  - Construction from node coordinates and element connectivity (0‑based, 4‑node tetrahedra).
+  - Method **`refine()`** performs one level of 8‑to‑1 subdivision: each tetrahedron is split into eight children by inserting mid‑edge nodes.
+  - Method **`point_in_tet()`** tests point containment using barycentric coordinates.
+  - Method **`locate_point()`** brute‑force locates which tetrahedron contains a query point.
+  - Method **`interpolate_nodal_field()`** evaluates a scalar field defined on nodes at an arbitrary point by barycentric interpolation inside the containing tetrahedron.
+- Factory function **`generate_simple_tet_mesh(scale)`** returns a `TetMesh` covering the cube `[-scale, scale]^3` with a Kuhn triangulation (6 tetrahedra).
+- Function **`read_mesh_medit(filename)`** reads a minimal MEDIT `*.mesh` file and returns a `TetMesh` or `None`.
+
+### `environment_field.py`
+- Defines the class **`EnvironmentField`** that holds a scalar field on a `TetMesh`.
+  - Constructor takes a `TetMesh` and a nodal‑values array.
+  - Method **`evaluate(p)`** returns the interpolated field value at a 3D point; returns `NaN` if outside the mesh.
+  - Method **`gradient(p, eps)`** approximates the gradient by central finite differences.
+- Functions:
+  - **`generate_gradient_field(mesh, direction, magnitude)`** creates a linear field `φ(x) = magnitude · ⟨direction, x⟩`.
+  - **`generate_gaussian_bump_field(mesh, center, sigma, amplitude)`** creates a Gaussian bump.
+  - **`sample_field_at_positions(field, positions)`** evaluates the field at multiple robot positions.
+
+### `sensor_noise.py`
+- Implements noise injection models for scalar measurements (values in `[0,1]`):
+  - **`salt_and_pepper_noise(measurements, level)`** randomly sets a fraction `level/2` to 0.0 and another `level/2` to 1.0.
+  - **`uniform_noise(measurements, level)`** replaces a fraction `level` of entries with uniform random values.
+  - **`gaussian_sensor_noise(measurements, sigma)`** adds zero‑mean Gaussian noise with standard deviation `sigma` and clips to `[0,1]`.
+  - **`apply_sensor_noise(measurements, config)`** applies a combination of the above noises according to a configuration dictionary (keys `salt_pepper_level`, `uniform_level`, `gaussian_sigma`).
+
+### `coverage_optimization.py`
+- Implements Centroidal Voronoi Tessellation (CVT) for area coverage.
+  - **`cvt_lloyd_2d(generators, density_func, bounds, n_samples, n_iterations)`** runs Lloyd’s algorithm in a rectangular 2D domain. It uses Monte‑Carlo sampling, computes weighted centroids of Voronoi cells weighted by the density function, handles empty cells by random re‑initialisation, and returns the optimised generators and an energy history list.
+  - **`cvt_circle_nonuniform_density(n, radius, n_iterations, n_samples)`** initialises generators inside a circle by rejection sampling, defines a non‑uniform density `1 + 5·exp(−5·r²/R²)`, calls `cvt_lloyd_2d`, projects points back onto the disk, and returns the generators and energy history.
+  - **`coverage_metric(positions, density_func, bounds, n_samples)`** computes the normalised CVT energy for a given configuration of points.
+
+### `interaction_matrix.py`
+- Builds the sparse graph Laplacian of a geometric proximity graph.
+  - **`build_sparse_laplacian(positions, sensing_radius, weight_func, block_size)`** assembles a weighted adjacency matrix `W` for pairs within the sensing radius, using a distance‑dependent weight function (default: squared tent). It works in blocks to limit memory and returns both the Laplacian `L = D − W` and the adjacency `W` as `scipy.sparse.csr_matrix` objects.
+  - **`fiedler_value(L)`** computes the algebraic connectivity (second smallest eigenvalue) of the Laplacian using sparse eigensolver, returning 0 if disconnected.
+  - **`consensus_dynamics_step(x, L, dt)`** performs one explicit Euler step of the linear consensus protocol `x − dt*L·x`.
+
+### `stochastic_control.py`
+- Provides Feynman‑Kac collision‑avoidance potentials.
+  - **`potential(a, x)`** evaluates a quadratic potential used in the 1‑D reference problem.
+  - **`feynman_kac_1d_solve(a, h, n_paths, n_grid)`** solves a 1‑D Poisson problem via Monte‑Carlo Feynman‑Kac, as a validation example.
+  - **`feynman_kac_collision_potential(positions, obstacles, obstacle_radius, domain_radius)`** computes a 2‑D heuristic collision‑avoidance potential at robot positions. It combines a boundary term (exponential decay with distance to origin) and an obstacle term based on distance to the nearest obstacle.
+  - **`gradient_fk_potential(positions, obstacles, obstacle_radius, domain_radius, eps)`** returns the numerical gradient (finite differences) of the above potential.
+
+### `swarm_dynamics.py`
+- Defines the hybrid robot dynamics.
+  - **Arneodo chaotic system**: constants `ARNEODO_DEFAULTS` and **`arneodo_deriv(t, xyz, alpha, beta, delta)`** returning the right‑hand side of the 3‑D Arneodo attractor.
+  - ODE integrators:
+    - **`solve_rk4(f, tspan, y0, n)`** – classic 4‑stage Runge‑Kutta.
+    - **`solve_bdf3(f, tspan, y0, n)`** – BDF3 (backward differentiation formula of order 3) with RK3 start‑up and Newton‑like solve (`scipy.optimize.fsolve`) for each implicit step.
+    - **`solve_theta_method(f, tspan, y0, n, theta)`** – theta method (e.g. Crank‑Nicolson for θ=0.5), solved implicitly with `fsolve`.
+  - Class **`SwarmRobot`**:
+    - Attributes: `position` (ndarray, 3), `velocity` (ndarray, 3), `internal` (ndarray, 3, Arneodo state).
+    - Property `state` returns the concatenated vector `[position, velocity, internal]`; the setter unpacks a flat vector back into the attributes.
+  - Helper **`repulsion_force(pi, pj, repulsion_range, repulsion_strength)`** computes a short‑range Lennard‑Jones‑like repulsion between two robots.
+  - **`swarm_rhs(t, z, robots, control_gains, env_gradient_func, consensus_target)`** computes the time derivative of the flat swarm state vector, combining:
+    - position → velocity,
+    - velocity → PD‑like consensus term, velocity damping, environmental gradient following, and repulsion forces,
+    - internal → Arne

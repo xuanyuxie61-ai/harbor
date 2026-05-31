@@ -1,20 +1,126 @@
-# 任务：修复挖空代码（Multi-Hole Benchmark）
+# 任务：复现缺失模块
 
 ## 目标
-你面对的是一组Python 的科研代码。代码中有多处被"挖空"（函数体、关键逻辑、边界条件等被删除或替换为占位符），导致代码无法正确运行或输出错误结果。
+你面对的是一个 Python 科研代码项目。部分源码文件已缺失，导致程序无法完整运行。你需要根据保留的入口代码和项目描述，补全缺失模块，使项目恢复预期功能。
 
 ## 工作目录
 代码仓库位于 `/app` 目录下。
 
-## 要求
-你现在在一个项目中，里面缺失了一部分的代码，请你找到缺失的位置并补全。代码的简介如下：
+## 项目描述
 
-本项目包含三个缺失的方法/函数，主要涉及量子纠错或线性分组码中的伴随式计算、迭代译码以及矩阵化简功能。
+# Quantum Error Correction Threshold Analysis — Project Description
 
-第一个缺失项是一个类方法，用于计算错误向量的伴随式。该方法需要接收一个长度为2n的二进制错误向量作为输入，返回长度为m的二进制伴随式向量。其核心逻辑是调用项目中已有的获取校验矩阵的方法，计算校验矩阵与错误向量的矩阵乘积，并对结果取模2。
+This project implements a numerical pipeline for estimating the threshold of Kitaev’s surface code under spatially correlated, temporally non‑Markovian Pauli noise. The main entry point is `main.py`, which orchestrates the full workflow: code construction, noise modelling, open‑system dynamics, syndrome decoding, threshold edge detection, sparse‑grid integration, rare‑event sampling and finite‑size scaling.
 
-第二个缺失项也是一个类方法，用于基于伴随式进行置信传播（BP）译码。该方法接收伴随式和可选的对数似然比（LLR）作为输入，若LLR未提供，则默认初始化为与变量节点数等长的全零向量。算法在项目设定的最大迭代次数内进行消息传递迭代。在每次迭代中，首先进行变量节点到校验节点的消息更新，将初始对数似然比与其他相连校验节点传来的消息进行累加；然后进行校验节点到变量节点的消息更新，此处需要实现乘积算法的变体，即计算除当前变量节点外其他节点传来的消息的双曲正切乘积，并结合伴随式分量的奇偶性通过指数形式决定符号调整，为防止数值溢出，需将结果限制在接近正负1的极小范围内（例如正负0.999999），对于绝对值过小的双曲正切值也需设置一个极小阈值（如1e-14）以避免除零或下溢，最后通过反双曲正切函数将结果转换回对数域。每次迭代结束后进行硬判决，累加所有校验节点传来的消息得到总信度，根据信度符号判定估计的错误向量，计算该估计向量的伴随式，若与输入伴随式一致则提前返回结果，否则达到最大迭代次数后返回当前的估计向量。
+The remaining Python files must be re‑implemented by the agent. The following sections describe each file’s role, its main classes and functions, and their expected behaviour. No implementation details or exact constants are given; the descriptions provide the architectural knowledge needed to write the missing code.
 
-第三个缺失项是一个独立的工具函数，用于对二元矩阵在GF(2)域上进行高斯消元，求其行最简阶梯形。该函数接收一个二维矩阵作为输入，返回包含化简后的矩阵、矩阵的秩以及主元列索引列表的元组。其核心逻辑是先将输入矩阵复制并转为整型对2取模，然后按列遍历寻找主元，找到后进行行交换，将主元所在行移至当前处理行，并记录主元所在列的索引。随后在当前列中，对除主元行外所有值为1的行，将其与主元行进行模2加法（即异或）操作以完成消元。最终返回化简完毕的矩阵、累计的秩以及主元列索引列表。
+---
 
-项目中已有的其他属性（如校验矩阵、最大迭代次数等）和方法默认已正确实现，无需重新定义，请直接定位缺失部分并补全代码。
+## 1. `utils.py` – Utility Functions for Quantum Information
+
+This module provides foundational mathematical and quantum‑information routines that are used everywhere else.
+
+**Key functions (exact signatures may vary):**
+
+- `pauli_operators()` – returns the four single‑qubit Pauli matrices (I, X, Y, Z) as complex arrays.
+- `depolarizing_channel(p, n_qubits=1)` – builds the superoperator matrix for an n‑qubit depolarizing channel.
+- `von_neumann_entropy(rho)` – computes the von Neumann entropy of a density matrix `rho` (with numerical clipping).
+- `fidelity(rho, sigma)` – computes Uhlmann fidelity between two density matrices.
+- `chop_array(arr, tol=1e-14)` – sets near‑zero entries of a complex/real array to zero.
+- `symplectic_inner_product(a, b)` – symplectic inner product over GF(2) for binary vectors representing Pauli operators.
+- `hamming_weight(v)` – Hamming weight of a binary vector.
+- `binary_gaussian_elimination(M)` – reduced row echelon form of a binary matrix over GF(2); returns the RREF, rank, and pivot columns.
+- `stabilizer_centralizer(S)` – computes a basis for the centralizer of a binary symplectic stabilizer matrix.
+
+All functions must be numerically stable and support both real and complex inputs where appropriate.
+
+---
+
+## 2. `stabilizer_surface_code.py` – Surface Code Construction and Analysis
+
+Implements Kitaev’s surface code on an \( L\times L \) lattice with either toric (periodic) or planar (open) boundary conditions.
+
+**Main class: `SurfaceCode`**
+
+Constructor accepts `L` and `boundary` (string `"toric"` or planar). Internally it builds:
+
+- Attributes: `n_qubits`, `n_stabilizers`, `n_logical`, `distance`, and the stabilizer matrices `Hx` and `Hz` (binary).
+- The edge indexing scheme and stabilizer assignments (star/plaquette operators) must be consistent with standard surface code construction.
+
+**Methods:**
+
+- `get_parity_check_matrix()` – returns a combined binary symplectic matrix of shape \((m, 2n)\) (X‑stabilizers in the first half, Z‑stabilizers in the second).
+- `convert_to_crs(H)` – converts a dense binary matrix to Compressed Row Storage (values, column indices, row pointers).
+- `sparse_parity_check(which)` – returns a scipy CSR matrix for `'x'` or `'z'` stabilizers.
+- `boundary_word_topology()` – returns a string encoding the cyclic boundary structure.
+- `box_distance_logical_operators()` – returns a dict with minimum box distances for logical operators (e.g., `dx`, `dz`, `mean_box`).
+- `syndrome_of_error(error_vec)` – computes the syndrome of a binary error vector (length \(2n\)) mod 2.
+- `logical_error_indicator(recovery, error)` – returns a binary array indicating which logical qubits are flipped after recovery.
+- `compute_code_distance_brute_force()` – for small codes, enumerates logical operators to compute the exact code distance.
+
+The class must handle both toric and planar layout correctly, including the counts of qubits, stabilizers, and logical qubits.
+
+---
+
+## 3. `noise_correlation.py` – Correlated and Non‑Markovian Noise Models
+
+Provides spatially correlated Pauli error models and temporally correlated non‑Markovian extensions.
+
+**Class `CorrelatedPauliNoise`**
+
+Constructor takes: `n_qubits`, `base_rate`, `sigma`, `correlation_length`, `nu`, and an optional random generator `rng`.
+
+Internally it builds a covariance matrix using a Matérn‑type correlation function (exponential for \(\nu=0.5\), general Matérn otherwise). The covariance is ensured to be positive semidefinite.
+
+**Methods:**
+
+- `sample_rates_cholesky()` – returns an array of per‑qubit error probabilities via Cholesky factorisation of the covariance, clipped to \([0,1]\).
+- `sample_rates_eigen()` – same via eigenvalue decomposition.
+- `sample_rates_fft(n_periodic=None)` – same via circulant embedding and FFT.
+- `sample_error_instance(rates, error_type)` – generates a binary error vector (X and Z parts) for a given per‑qubit rate and error model (`"depolarizing"`, `"bitflip"`, `"phaseflip"`).
+- `covariance_to_correlation()` – converts the covariance matrix to a correlation matrix.
+- `generate_brc_like_data(n_samples)` – returns synthetic noise data of shape `(n_samples, n_qubits)` with Gaussian perturbations.
+
+**Class `NonMarkovianNoise`** (inherits from `CorrelatedPauliNoise`)
+
+Additional parameter: `memory_lambda`. Implements a quasi‑Markov temporal memory: at each time step the error is either refreshed or copied from the previous step with probability \(\lambda\). 
+
+**Method:**
+
+- `sample_temporal_sequence(n_steps, error_type)` – returns an array of shape `(n_steps, 2*n_qubits)`.
+
+---
+
+## 4. `lindblad_dynamics.py` – Open‑System Dynamics and DG Solver
+
+Contains routines for Lindblad master equation simulation and a Discontinuous Galerkin solver for error probability density on a 1D chain.
+
+**Functions:**
+
+- `lindbladian_superoperator(H, jump_ops, hbar=1.0)` – builds the vectorised Liouvillian superoperator for a given Hamiltonian and a list of jump operators, returning a square complex matrix of size \(d^2 \times d^2\).
+- `forward_euler_rho(rho0, L, t_final, n_steps)` – solves \(d\vec{\rho}/dt = L\vec{\rho}\) with forward Euler and re‑normalises trace each step.
+- `exact_lindblad_evolution(rho0, L, t)` – uses matrix exponential to compute the exact evolution at time \(t\).
+
+**Class `DGLindbladSolver`**
+
+Represents a nodal Discontinuous Galerkin spectral solver on a 1D domain with Legendre‑Gauss‑Lobatto nodes. 
+
+Constructor parameters: `n_elements`, `poly_order`, `domain=(0,1)`. Internally it builds:
+- global node arrays and the local differentiation matrix,
+- geometric factors (Jacobian, metric),
+- surface lift operators.
+
+**Methods:**
+
+- `rhs(u, v, D, gamma)` – computes the right‑hand side of the advection‑diffusion‑reaction PDE \(\partial_t u = -v\,\partial_x u + D\,\partial_{xx} u + \gamma(1-2u)\) with upwind advection and central diffusion fluxes.
+- `evolve(u0, t_final, n_steps, v, D, gamma)` – time‑steps using a low‑storage explicit Runge‑Kutta method (5 stages, 4th order), clipping the solution to \([0,1]\).
+
+---
+
+## 5. `syndrome_decoder.py` – Syndrome Decoders for Surface Codes
+
+Implements several decoding algorithms that recover the error from a syndrome.
+
+**Class `MWPMBruteDecoder`**
+
+Given a binary parity‑check matrix `H`, its `decode(syndrome)` method enumerates all error patterns (using Gray code) and returns the one with minimum Hamming weight that matches the

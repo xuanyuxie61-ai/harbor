@@ -123,8 +123,12 @@
       <div class="value">sci-swe-python</div>
     </div>
     <div class="card">
-      <div class="label">批量脚本</div>
+      <div class="label">批量上传脚本</div>
       <div class="value">build_push_all_harbor.sh</div>
+    </div>
+    <div class="card">
+      <div class="label">远端清理脚本</div>
+      <div class="value">delete_stale_acr_tags.sh</div>
     </div>
   </div>
 
@@ -246,6 +250,51 @@ docker run --rm \
 docker builder prune -f
 df -h /</code></pre>
     <div class="note bad">不要在上传任务运行中执行全量 prune，避免影响正在构建的镜像。</div>
+  </section>
+
+  <section>
+    <h2>9. 删除 ACR 上已经不用的旧镜像</h2>
+    <p>如果本地 <code>python-XXX</code> 目录减少了，ACR 里之前推上去的 <code>python-XXX:latest</code> 不会自动消失。需要在 ECS 上用清理脚本删除远端 tag。</p>
+    <div class="note">当前场景：之前上传了 197 个镜像，现在本地 <code>harbor-program/python</code> 只有 161 个任务。旧版本原本就缺少 <code>003</code>、<code>076</code>、<code>090</code>，所以真正需要清理的是 <code>197 - 161 = 36</code> 个远端 <code>latest</code> tag。</div>
+    <p>先同步新版 <code>harbor-program/python</code> 到 ECS，例如：</p>
+    <pre><code>rsync -avz --progress \
+  --exclude 'build-logs/' \
+  "/mnt/data/zpy/sci-swe/source code/harbor-program/python/" \
+  root@47.236.251.245:/root/sci-swe/harbor-program/python/</code></pre>
+    <p>登录 ECS 后先 dry-run。dry-run 只打印将要执行的 <code>aliyun cr DeleteRepoTag</code> 命令，不会真的删除。</p>
+    <pre><code>ssh root@47.236.251.245
+cd /root/sci-swe/harbor-program/python
+chmod +x delete_stale_acr_tags.sh
+
+bash delete_stale_acr_tags.sh</code></pre>
+    <p>你应该看到类似下面的汇总，重点确认 <code>region=cn-beijing</code>、<code>namespace=sci-swe-python</code>、<code>delete_candidates=36</code>：</p>
+    <pre><code>ACR stale tag cleanup
+tasks_dir=/root/sci-swe/harbor-program/python
+region=cn-beijing
+instance_id=cri-h0hcfm1j42x9wiw6
+namespace=sci-swe-python
+tag=latest
+delete_candidates=36
+
+[DRY-RUN] aliyun cr DeleteRepoTag ... --RepoName python-002 --Tag latest --region cn-beijing
+[DRY-RUN] aliyun cr DeleteRepoTag ... --RepoName python-011 --Tag latest --region cn-beijing
+...</code></pre>
+    <p>确认 dry-run 列表只包含你已经删除的编号后，再真正删除：</p>
+    <pre><code>bash delete_stale_acr_tags.sh --apply</code></pre>
+    <div class="note warn">这个脚本删除的是 ACR 远端的 <code>latest</code> 镜像版本，不是本地 Docker 镜像。默认不会删除 ACR 仓库本身。</div>
+    <p>如果 ECS 上实际路径不是 <code>/root/sci-swe/harbor-program/python</code>，用 <code>--tasks-dir</code> 指定本地任务目录。脚本会按这个目录判断哪些编号应该保留。</p>
+    <pre><code>bash delete_stale_acr_tags.sh \
+  --tasks-dir /root/sci-swe/harbor/python \
+  --apply</code></pre>
+    <p>如果只想删除指定编号：</p>
+    <pre><code>bash delete_stale_acr_tags.sh --only 002,011,018 --apply</code></pre>
+    <p>删除后可以用阿里云 CLI 查看仓库或 tag。下面命令用于检查某个仓库的 tag 是否还存在：</p>
+    <pre><code>aliyun cr ListRepoTag \
+  --InstanceId cri-h0hcfm1j42x9wiw6 \
+  --RepoNamespaceName sci-swe-python \
+  --RepoName python-002 \
+  --region cn-beijing</code></pre>
+    <p>如果 <code>python-002:latest</code> 已删除，后续 ACS 就不能再拉这个旧镜像。保留下来的任务，例如 <code>python-001</code>、<code>python-004</code>，不会受影响。</p>
   </section>
 </main>
 </body>

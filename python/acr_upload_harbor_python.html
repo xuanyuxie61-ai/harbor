@@ -231,7 +231,7 @@ cat /root/sci-swe/harbor/python/build-logs/skipped.txt</code></pre>
     <p>列出 namespace 下的仓库：</p>
     <pre><code>aliyun cr ListRepository \
   --InstanceId cri-h0hcfm1j42x9wiw6 \
-  --RepoNamespaceName sci-swe-python \
+  --RepoNamespace sci-swe-python \
   --PageSize 100 \
   --region cn-beijing</code></pre>
     <p>拉取并验证一个镜像：</p>
@@ -291,7 +291,7 @@ delete_candidates=36
     <p>删除后可以用阿里云 CLI 查看仓库或 tag。下面命令用于检查某个仓库的 tag 是否还存在：</p>
     <pre><code>aliyun cr ListRepoTag \
   --InstanceId cri-h0hcfm1j42x9wiw6 \
-  --RepoNamespaceName sci-swe-python \
+  --RepoNamespace sci-swe-python \
   --RepoName python-002 \
   --region cn-beijing</code></pre>
     <p>如果 <code>python-002:latest</code> 已删除，后续 ACS 就不能再拉这个旧镜像。保留下来的任务，例如 <code>python-001</code>、<code>python-004</code>，不会受影响。</p>

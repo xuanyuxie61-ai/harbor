@@ -189,7 +189,7 @@ for task_name in "${DELETE_TASKS[@]}"; do
   cmd=(
     aliyun cr DeleteRepoTag
     --InstanceId "$INSTANCE_ID"
-    --RepoNamespaceName "$NAMESPACE"
+    --RepoNamespace "$NAMESPACE"
     --RepoName "$task_name"
     --Tag "$TAG"
     --region "$ACR_REGION"

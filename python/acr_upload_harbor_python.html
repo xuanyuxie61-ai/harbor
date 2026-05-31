@@ -276,8 +276,10 @@ namespace=sci-swe-python
 tag=latest
 delete_candidates=36
 
-[DRY-RUN] aliyun cr DeleteRepoTag ... --RepoName python-002 --Tag latest --region cn-beijing
-[DRY-RUN] aliyun cr DeleteRepoTag ... --RepoName python-011 --Tag latest --region cn-beijing
+[DRY-RUN] aliyun cr GetRepository ... --RepoName python-002 --region cn-beijing
+[DRY-RUN] aliyun cr DeleteRepoTag ... --RepoId <RepoId for python-002> --Tag latest --region cn-beijing
+[DRY-RUN] aliyun cr GetRepository ... --RepoName python-011 --region cn-beijing
+[DRY-RUN] aliyun cr DeleteRepoTag ... --RepoId <RepoId for python-011> --Tag latest --region cn-beijing
 ...</code></pre>
     <p>确认 dry-run 列表只包含你已经删除的编号后，再真正删除：</p>
     <pre><code>bash delete_stale_acr_tags.sh --apply</code></pre>
@@ -288,11 +290,17 @@ delete_candidates=36
   --apply</code></pre>
     <p>如果只想删除指定编号：</p>
     <pre><code>bash delete_stale_acr_tags.sh --only 002,011,018 --apply</code></pre>
-    <p>删除后可以用阿里云 CLI 查看仓库或 tag。下面命令用于检查某个仓库的 tag 是否还存在：</p>
-    <pre><code>aliyun cr ListRepoTag \
+    <p>删除后可以用阿里云 CLI 查看仓库或 tag。下面命令用于先查某个仓库的 RepoId，然后检查 tag 是否还存在：</p>
+    <pre><code>aliyun cr GetRepository \
   --InstanceId cri-h0hcfm1j42x9wiw6 \
-  --RepoNamespace sci-swe-python \
+  --RepoNamespaceName sci-swe-python \
   --RepoName python-002 \
+  --region cn-beijing
+
+# 用上一步返回的 RepoId 查询 tag
+aliyun cr ListRepoTag \
+  --InstanceId cri-h0hcfm1j42x9wiw6 \
+  --RepoId <RepoId> \
   --region cn-beijing</code></pre>
     <p>如果 <code>python-002:latest</code> 已删除，后续 ACS 就不能再拉这个旧镜像。保留下来的任务，例如 <code>python-001</code>、<code>python-004</code>，不会受影响。</p>
   </section>

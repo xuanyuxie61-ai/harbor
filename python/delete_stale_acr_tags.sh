@@ -87,6 +87,45 @@ dry_run_line() {
   printf '\n'
 }
 
+extract_json_field() {
+  local field="$1"
+  python3 -c '
+import json
+import sys
+
+field = sys.argv[1]
+data = json.load(sys.stdin)
+value = data.get(field)
+if value is None:
+    data = data.get("Data", {})
+    value = data.get(field)
+if value is None:
+    data = data.get("Repository", {})
+    value = data.get(field)
+if value is None:
+    sys.exit(1)
+print(value)
+' "$field"
+}
+
+get_repo_id() {
+  local task_name="$1"
+  local output repo_id
+
+  output="$(
+    aliyun cr GetRepository \
+      --InstanceId "$INSTANCE_ID" \
+      --RepoNamespaceName "$NAMESPACE" \
+      --RepoName "$task_name" \
+      --region "$ACR_REGION" \
+      2>/dev/null
+  )" || return 1
+
+  repo_id="$(printf '%s' "$output" | extract_json_field RepoId)" || return 1
+  [[ -n "$repo_id" ]] || return 1
+  printf '%s\n' "$repo_id"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tasks-dir)
@@ -186,22 +225,28 @@ fi
 OK=0
 FAIL=0
 for task_name in "${DELETE_TASKS[@]}"; do
-  cmd=(
-    aliyun cr DeleteRepoTag
-    --InstanceId "$INSTANCE_ID"
-    --RepoNamespace "$NAMESPACE"
-    --RepoName "$task_name"
-    --Tag "$TAG"
-    --region "$ACR_REGION"
-  )
-
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    dry_run_line "${cmd[@]}"
+    dry_run_line aliyun cr GetRepository --InstanceId "$INSTANCE_ID" --RepoNamespaceName "$NAMESPACE" --RepoName "$task_name" --region "$ACR_REGION"
+    dry_run_line aliyun cr DeleteRepoTag --InstanceId "$INSTANCE_ID" --RepoId "<RepoId for $task_name>" --Tag "$TAG" --region "$ACR_REGION"
     OK=$((OK + 1))
     continue
   fi
 
   echo "[DELETE] $NAMESPACE/$task_name:$TAG"
+  if ! repo_id="$(get_repo_id "$task_name")"; then
+    echo "[FAIL] $NAMESPACE/$task_name:$TAG could not resolve RepoId" >&2
+    FAIL=$((FAIL + 1))
+    continue
+  fi
+
+  cmd=(
+    aliyun cr DeleteRepoTag
+    --InstanceId "$INSTANCE_ID"
+    --RepoId "$repo_id"
+    --Tag "$TAG"
+    --region "$ACR_REGION"
+  )
+
   if "${cmd[@]}"; then
     OK=$((OK + 1))
   else

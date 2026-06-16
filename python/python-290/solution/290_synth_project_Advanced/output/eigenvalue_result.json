@@ -1,0 +1,65 @@
+{
+  "max_growth_rate": 27817322.33489119,
+  "is_stable": false,
+  "n_unstable": 8,
+  "dominant_mode_idx": 0,
+  "n_modes": 8,
+  "top_eigenvalues": [
+    {
+      "index": 0,
+      "real": 27817322.33489119,
+      "imag": 0.0,
+      "growth_rate": 27817322.33489119,
+      "frequency_hz": 0.0
+    },
+    {
+      "index": 1,
+      "real": 27817322.33489085,
+      "imag": 0.0,
+      "growth_rate": 27817322.33489085,
+      "frequency_hz": 0.0
+    },
+    {
+      "index": 2,
+      "real": 27725370.92220988,
+      "imag": 0.0,
+      "growth_rate": 27725370.92220988,
+      "frequency_hz": 0.0
+    },
+    {
+      "index": 3,
+      "real": 27725370.92220979,
+      "imag": 0.0,
+      "growth_rate": 27725370.92220979,
+      "frequency_hz": 0.0
+    },
+    {
+      "index": 4,
+      "real": 27522509.52767595,
+      "imag": 0.0,
+      "growth_rate": 27522509.52767595,
+      "frequency_hz": 0.0
+    },
+    {
+      "index": 5,
+      "real": 27522509.527675863,
+      "imag": 0.0,
+      "growth_rate": 27522509.527675863,
+      "frequency_hz": 0.0
+    },
+    {
+      "index": 6,
+      "real": 27480198.552260503,
+      "imag": 0.0,
+      "growth_rate": 27480198.552260503,
+      "frequency_hz": 0.0
+    },
+    {
+      "index": 7,
+      "real": 27480198.552260302,
+      "imag": 0.0,
+      "growth_rate": 27480198.552260302,
+      "frequency_hz": 0.0
+    }
+  ]
+}

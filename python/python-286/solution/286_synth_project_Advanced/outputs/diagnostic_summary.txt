@@ -1,0 +1,19 @@
+================================================================
+TOKAMAK EQUILIBRIUM — MULTI-PANEL DIAGNOSTIC SUMMARY
+================================================================
+[Panel 1]  Magnetic axis           : R = 0.9808 m, Z = -0.0150 m
+[Panel 2]  X-point (divertor)        : R = 1.2012 m, Z = -0.4650 m
+[Panel 3]  Geometric shaping         : a = 0.5327 m, κ = 1.091, δ = -0.145
+[Panel 4]  Plasma volume             : 8.2785 m^3
+[Panel 5]  Stored energy             : 1.080e+04 J
+[Panel 6]  <p>                       : 8.695e+02 Pa
+[Panel 7]  β_toroidal                : 0.035 %
+[Panel 8]  β_poloidal                : 0.001
+[Panel 9]  l_i (internal inductance) : 0.281
+[Panel 10] I_p                       : 8.738e+06 A
+[Panel 11] q_cyl                     : 0.062
+[Panel 12] Mercier D_M (axis)        : 0.8532
+[Panel 13] Mercier stable            : False
+[Panel 14] Tearing Δ' (2,1)          : 0.000 m^-1
+[Panel 15] Max MHD growth rate       : 0.000e+00 s^-1
+================================================================

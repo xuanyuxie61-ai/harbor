@@ -1,0 +1,23 @@
+{
+  "box_length": 64.0,
+  "n_grid": 16,
+  "n_particles": 4096,
+  "omega_m": 0.308,
+  "omega_l": 0.692,
+  "omega_b": 0.048,
+  "hubble": 0.6781,
+  "z_init": 49.0,
+  "z_final": 0.0,
+  "n_steps": 8,
+  "fd_order": 4,
+  "softening_eps": 0.05,
+  "spectral_index": 0.9667,
+  "sigma_8": 0.8159,
+  "seed": 42,
+  "cfl_safety": 0.35,
+  "softening_bounds": [0.01, 0.5],
+  "timestep_bounds": [0.001, 1.0],
+  "data_dir": "data",
+  "results_dir": "results",
+  "diag_dir": "diagnostics"
+}

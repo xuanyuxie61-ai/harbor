@@ -1,0 +1,13 @@
+{
+  "Nx": 32,
+  "Ny": 32,
+  "Nz": 8,
+  "Lx": 0.5,
+  "Ly": 0.5,
+  "Lz": 0.25,
+  "cells_per_mri": 1.8690298522858968,
+  "refinement_level": 0,
+  "volume": 7.62939453125e-06,
+  "aspect_ratio": 2.0,
+  "min_cell_vol": 7.62939453125e-06
+}

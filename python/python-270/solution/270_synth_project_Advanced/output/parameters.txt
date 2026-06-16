@@ -1,0 +1,31 @@
+======================================================================
+  Spin Glass Monte Carlo Simulation - Parameters
+======================================================================
+  Date: 2026-06-16 15:02:13
+----------------------------------------------------------------------
+  J_var: 1.0
+  L: 4
+  RE_T_max: 4.0
+  RE_T_min: 0.5
+  RE_n_replicas: 6
+  RE_n_rounds: 100
+  RE_sweeps_per_exchange: 5
+  T_list: [3.0, 2.0, 1.5, 1.0, 0.7]
+  US_beta: 1.0
+  US_kappa: 30.0
+  US_n_equil: 50
+  US_n_sweeps: 150
+  US_q0_list: [-0.8, -0.5333333333333334, -0.2666666666666667, 0.0, 0.2666666666666666, 0.5333333333333332, 0.8]
+  boundary_type: periodic
+  distribution: gaussian
+  hessian_continuous: True
+  langevin_dt: 0.005
+  langevin_fd_order: 2
+  langevin_method: euler_maruyama
+  n_equil: 100
+  n_realizations: 3
+  n_replicas_mc: 2
+  n_sweeps: 300
+  output_dir: output
+  seed: 42
+======================================================================

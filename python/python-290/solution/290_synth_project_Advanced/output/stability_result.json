@@ -1,0 +1,9 @@
+{
+  "delta_W_total": 40651797.07253383,
+  "delta_W_magnetic": 20337599.976097174,
+  "delta_W_kinetic": 20337599.97609714,
+  "delta_W_parallel": -23402.87966048683,
+  "delta_W_EP": 1.836057698248496e-12,
+  "is_stable": true,
+  "stability_margin": 0.9994246400831959
+}

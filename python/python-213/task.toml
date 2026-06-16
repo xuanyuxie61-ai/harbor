@@ -1,0 +1,26 @@
+version = "1.0"
+
+[task]
+name = "harbor-programbench-python/python-213"
+
+[metadata]
+author_name = "sci-swe"
+author_email = "sci-swe@example.com"
+difficulty = "hard"
+category = "program-reconstruction"
+tags = ["programbench", "python", "binary", "scientific-computing"]
+expert_time_estimate_min = 240.0
+junior_time_estimate_min = 480.0
+
+[verifier]
+timeout_sec = 3000.0
+
+[agent]
+timeout_sec = 3000.0
+
+[environment]
+build_timeout_sec = 600.0
+docker_image = "agent-rl-acr-registry-vpc.cn-beijing.cr.aliyuncs.com/harbor-programbench/python-213:latest"
+cpus = 2
+memory_mb = 8192
+storage_mb = 4096

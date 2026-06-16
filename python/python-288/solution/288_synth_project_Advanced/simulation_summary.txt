@@ -1,0 +1,49 @@
+======================================================================
+ 边界等离子体输运与偏滤器热负荷模拟 - 摘要报告
+ Edge Plasma Transport & Divertor Heat Flux Simulation Summary
+======================================================================
+
+
+  [physics_params]
+    R_major [m]                           :   6.20000000e+00
+    a_minor [m]                           :   2.00000000e+00
+    B0 [T]                                :   5.30000000e+00
+    n_upstream [m^-3]                     :   3.00000000e+19
+    T_upstream [eV]                       :   1.00000000e+02
+    L_parallel [m]                        :   3.00000000e+01
+
+  [numerical_params]
+    DG_elements                           : 24
+    DG_order                              : 3
+    FEM_nodes                             : 100
+    FEM_elements                          : 162
+    fd_convergence_order4                 :   4.75618363e-01
+
+  [stability]
+    CFL_advection                         :   7.83166455e+04
+    diffusion_number                      :   6.40000000e+00
+    dg_cfl_limit                          :   1.42857143e-01
+    dg_max_dt                             :   1.82409681e-06
+    spectral_radius                       :   7.83166466e+04
+    stiffness_ratio                       :   3.32687877e-03
+    max_explicit_dt                       :   2.55373549e-05
+    is_stiff                              : False
+    recommended_method                    : rk4
+    N_order                               : 3
+    n_modes                               : 31
+
+  [convergence]
+    final_residual                        :   2.00000000e-02
+    mass_conservation_error               :   1.50084268e+00
+
+  [physics_results]
+    stored_energy [J/m]                   :   1.48035616e+04
+    q_target [W/m^2]                      :   3.39715899e+00
+    T_target [eV]                         :   9.99852187e+01
+
+  [parameter_scan]
+    q_target_mean [W/m^2]                 :   1.22698976e+08
+    q_target_std [W/m^2]                  :   5.92824168e+07
+  total_computation_time [s]              :   1.05966806e-01
+
+======================================================================

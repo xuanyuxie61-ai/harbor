@@ -1,0 +1,22 @@
+========================================================================
+  PROJECT 251 - Computational Astrophysics
+  Accretion-disk MHD: high-order finite differences
+  and von Neumann stability analysis (small reproducible box)
+========================================================================
+
+Wall-clock time            : 20.42 s
+Grid                       : 32 x 32 x 8
+Integration steps          : 269
+RHS evaluations            : 807
+Critical CFL               : 1.0000
+Mean dt                    : 3.6895e-03
+alpha_SS(t=0)              : -1.662e-07
+alpha_SS(t=t_end)          : -1.662e-07
+SGS relative amplitude     : 1.679e-02
+Ensemble <alpha>(t_eval)   : -1.129e-07 +/- 4.077e-08
+P(MRI saturation)          : 0.00
+Probe reconstruction L2    : 0.000e+00
+y-periodic boundary OK     : True
+BC idempotence error       : 0.000e+00
+max |div B| at t=0         : 6.542e-03
+Output directory           : /mnt/data/zpy/sci-swe/source code/harbor-programbench/python/python-251/solution/251_synth_project_Advanced/output

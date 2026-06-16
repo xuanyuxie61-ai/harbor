@@ -1,0 +1,11 @@
+# LATTICE_QCD_CONFIG_METADATA
+Ns = 3
+Nt = 4
+beta = 5.5
+action_type = Tree-level Symanzik (Lüscher-Weisz tree)
+trajectory = 5
+plaquette = 9.405308005605e-01
+polyakov_loop_real = 9.542162037649e-01
+polyakov_loop_imag = -6.077336547973e-04
+action_value = 8.966278243371e+02
+unitarity_deviation = 1.928325e-15

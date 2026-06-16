@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build and push Harbor ProgramBench Python task images to Aliyun ACR.
 #
-# Run this on the ECS machine after syncing harbor-programbench/python to the
-# same path or to another directory passed by --tasks-dir. The script scans
+# Run this on the ECS machine from the harbor-programbench/python directory.
+# By default it uses the script directory as TASKS_DIR. The script scans
 # python-XXX task directories, validates the ProgramBench-Harbor cleanroom
 # layout, builds each Docker image from the task root, pushes it to ACR, and
 # records per-task logs.
@@ -31,7 +31,7 @@ Usage:
   build_push_all_harbor_programbench.sh [options]
 
 Options:
-  --tasks-dir PATH      Harbor ProgramBench python dataset dir. Default: script directory.
+  --tasks-dir PATH      Harbor ProgramBench python dataset dir. Default: this script's directory.
   --acr HOST            Public ACR host used for push.
   --namespace NAME      ACR namespace. Default: sci-swe-python.
   --start N             First task number to include. Default: 201.
@@ -57,9 +57,8 @@ Examples:
   bash build_push_all_harbor_programbench.sh --only 202,251,300 --jobs 3
 
   # ECS example after rsync:
-  bash /root/sci-swe/harbor-programbench/python/build_push_all_harbor_programbench.sh \
-    --tasks-dir /root/sci-swe/harbor-programbench/python \
-    --jobs 4
+  cd /root/sci-swe/harbor-programbench/python
+  bash build_push_all_harbor_programbench.sh --jobs 4
 
 Environment overrides:
   ACR, ACR_VPC, NAMESPACE, TASKS_DIR, LOG_DIR

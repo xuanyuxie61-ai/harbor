@@ -14,7 +14,7 @@ ACR_VPC="${ACR_VPC:-agent-rl-acr-registry-vpc.cn-beijing.cr.aliyuncs.com}"
 NAMESPACE="${NAMESPACE:-sci-swe-python}"
 TASKS_DIR="${TASKS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 LOG_DIR="${LOG_DIR:-$TASKS_DIR/build-logs}"
-START=202
+START=201
 END=300
 DRY_RUN=0
 NO_CACHE=0
@@ -34,7 +34,7 @@ Options:
   --tasks-dir PATH      Harbor ProgramBench python dataset dir. Default: script directory.
   --acr HOST            Public ACR host used for push.
   --namespace NAME      ACR namespace. Default: sci-swe-python.
-  --start N             First task number to include. Default: 202.
+  --start N             First task number to include. Default: 201.
   --end N               Last task number to include. Default: 300.
   --only LIST           Comma-separated task numbers/names, e.g. 202,251,python-300.
   --skip LIST           Comma-separated task numbers/names to skip, e.g. 202,203.
@@ -50,7 +50,7 @@ Examples:
   # Preview all ProgramBench tasks.
   bash build_push_all_harbor_programbench.sh --dry-run
 
-  # Build and push python-202..python-300 with 4-way parallelism.
+  # Build and push python-201..python-300 with 4-way parallelism.
   bash build_push_all_harbor_programbench.sh --jobs 4
 
   # Upload only selected tasks.
